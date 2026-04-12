@@ -1,0 +1,43 @@
+<?php
+/**
+ * Plugin Name: ePappous Club
+ * Plugin URI: https://epappous.gr
+ * Description: Loyalty & membership club with referral tracking, gift products, and full settings management.
+ * Version: 1.0.0
+ * Author: ePappous
+ * Author URI: https://epappous.gr
+ * Text Domain: epappous-club
+ * Domain Path: /languages
+ * Requires at least: 5.8
+ * Requires PHP: 7.4
+ * License: GPL v2 or later
+ */
+
+if ( ! defined( 'ABSPATH' ) ) {
+    exit;
+}
+
+define( 'EPC_VERSION', '1.0.0' );
+define( 'EPC_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
+define( 'EPC_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
+define( 'EPC_PLUGIN_BASENAME', plugin_basename( __FILE__ ) );
+
+require_once EPC_PLUGIN_DIR . 'includes/class-epc-database.php';
+require_once EPC_PLUGIN_DIR . 'includes/class-epc-settings.php';
+require_once EPC_PLUGIN_DIR . 'includes/class-epc-referral.php';
+require_once EPC_PLUGIN_DIR . 'includes/class-epc-gifts.php';
+require_once EPC_PLUGIN_DIR . 'includes/class-epc-admin.php';
+
+register_activation_hook( __FILE__, [ 'EPC_Database', 'activate' ] );
+register_deactivation_hook( __FILE__, [ 'EPC_Database', 'deactivate' ] );
+
+add_action( 'plugins_loaded', 'epc_init' );
+
+function epc_init() {
+    load_plugin_textdomain( 'epappous-club', false, dirname( EPC_PLUGIN_BASENAME ) . '/languages' );
+
+    EPC_Settings::instance();
+    EPC_Referral::instance();
+    EPC_Gifts::instance();
+    EPC_Admin::instance();
+}
