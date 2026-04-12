@@ -177,7 +177,15 @@ if ( ! is_array( $tiers ) ) {
                                 <input type="number" id="epc_birthday_bonus" name="epc_birthday_bonus"
                                        value="<?php echo esc_attr( EPC_Settings::get( 'epc_birthday_bonus' ) ); ?>"
                                        class="small-text" min="0" />
-                                <p class="description"><?php esc_html_e( 'Πόντοι που δίνονται στα γενέθλια του μέλους.', 'epappous-club' ); ?></p>
+                                <p class="description"><?php esc_html_e( 'Πόντοι που δίνονται αυτόματα στα γενέθλια του μέλους. Βάλτε 0 για απενεργοποίηση.', 'epappous-club' ); ?></p>
+                            </div>
+
+                            <div class="epc-info-box" style="margin-top: 8px;">
+                                <span class="dashicons dashicons-info-outline"></span>
+                                <div>
+                                    <strong><?php esc_html_e( 'Πώς λειτουργεί:', 'epappous-club' ); ?></strong>
+                                    <?php esc_html_e( 'Ένα ημερήσιο cron job ελέγχει ποια μέλη έχουν γενέθλια σήμερα (βάσει του πεδίου ημερομηνίας γέννησης) και τους αποδίδει αυτόματα τους πόντους. Κάθε μέλος λαμβάνει μπόνους γενεθλίων μία φορά ανά ημερολογιακό έτος.', 'epappous-club' ); ?>
+                                </div>
                             </div>
                         </div>
                     </div>
