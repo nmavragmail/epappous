@@ -26,10 +26,21 @@ require_once EPC_PLUGIN_DIR . 'includes/class-epc-database.php';
 require_once EPC_PLUGIN_DIR . 'includes/class-epc-settings.php';
 require_once EPC_PLUGIN_DIR . 'includes/class-epc-referral.php';
 require_once EPC_PLUGIN_DIR . 'includes/class-epc-gifts.php';
+require_once EPC_PLUGIN_DIR . 'includes/class-epc-birthday.php';
 require_once EPC_PLUGIN_DIR . 'includes/class-epc-admin.php';
 
-register_activation_hook( __FILE__, [ 'EPC_Database', 'activate' ] );
-register_deactivation_hook( __FILE__, [ 'EPC_Database', 'deactivate' ] );
+register_activation_hook( __FILE__, 'epc_activate' );
+register_deactivation_hook( __FILE__, 'epc_deactivate' );
+
+function epc_activate() {
+    EPC_Database::activate();
+    EPC_Birthday::schedule();
+}
+
+function epc_deactivate() {
+    EPC_Database::deactivate();
+    EPC_Birthday::unschedule();
+}
 
 add_action( 'plugins_loaded', 'epc_init' );
 
@@ -39,5 +50,6 @@ function epc_init() {
     EPC_Settings::instance();
     EPC_Referral::instance();
     EPC_Gifts::instance();
+    EPC_Birthday::instance();
     EPC_Admin::instance();
 }
