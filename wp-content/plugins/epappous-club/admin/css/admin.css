@@ -219,9 +219,10 @@
     transition: border-color 0.15s, box-shadow 0.15s;
 }
 
-.epc-field-row input[type="number"].small-text {
-    width: 120px;
-    min-width: 120px;
+.epc-field-row input[type="number"].small-text,
+.epc-wrap input[type="number"].small-text {
+    width: 120px !important;
+    min-width: 120px !important;
 }
 
 .epc-field-row input:focus,

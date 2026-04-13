@@ -285,7 +285,7 @@
 
     $(document).on('click', '.epc-add-note-btn', function () {
         var $btn = $(this);
-        var memberId = $btn.data('member-id');
+        var userId = $btn.data('user-id');
         var nonce = $btn.data('nonce');
         var $textarea = $('#epc-new-note');
         var note = $textarea.val().trim();
@@ -295,7 +295,7 @@
 
         $.post(epcAdmin.ajaxUrl, {
             action: 'epc_add_note',
-            member_id: memberId,
+            user_id: userId,
             note: note,
             nonce: nonce
         }, function (response) {
