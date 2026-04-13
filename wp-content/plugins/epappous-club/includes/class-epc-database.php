@@ -101,15 +101,15 @@ class EPC_Database {
             KEY status (status)
         ) {$charset};";
 
-        // Admin notes on members
+        // Admin notes on users (not tied to club membership)
         $sql[] = "CREATE TABLE IF NOT EXISTS {$wpdb->prefix}epc_member_notes (
             id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
-            member_id BIGINT UNSIGNED NOT NULL,
+            user_id BIGINT UNSIGNED NOT NULL,
             author_id BIGINT UNSIGNED NOT NULL,
             note TEXT NOT NULL,
             created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
             PRIMARY KEY (id),
-            KEY member_id (member_id),
+            KEY user_id (user_id),
             KEY author_id (author_id)
         ) {$charset};";
 
