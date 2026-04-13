@@ -26,10 +26,29 @@ require_once EPC_PLUGIN_DIR . 'includes/class-epc-database.php';
 require_once EPC_PLUGIN_DIR . 'includes/class-epc-settings.php';
 require_once EPC_PLUGIN_DIR . 'includes/class-epc-referral.php';
 require_once EPC_PLUGIN_DIR . 'includes/class-epc-gifts.php';
+require_once EPC_PLUGIN_DIR . 'includes/class-epc-birthday.php';
+require_once EPC_PLUGIN_DIR . 'includes/class-epc-expiry.php';
+require_once EPC_PLUGIN_DIR . 'includes/class-epc-tiers.php';
+require_once EPC_PLUGIN_DIR . 'includes/class-epc-notifications.php';
+require_once EPC_PLUGIN_DIR . 'includes/class-epc-woocommerce.php';
+require_once EPC_PLUGIN_DIR . 'includes/class-epc-registration.php';
+require_once EPC_PLUGIN_DIR . 'includes/class-epc-gift-catalog.php';
 require_once EPC_PLUGIN_DIR . 'includes/class-epc-admin.php';
 
-register_activation_hook( __FILE__, [ 'EPC_Database', 'activate' ] );
-register_deactivation_hook( __FILE__, [ 'EPC_Database', 'deactivate' ] );
+register_activation_hook( __FILE__, 'epc_activate' );
+register_deactivation_hook( __FILE__, 'epc_deactivate' );
+
+function epc_activate() {
+    EPC_Database::activate();
+    EPC_Birthday::schedule();
+    EPC_Expiry::schedule();
+}
+
+function epc_deactivate() {
+    EPC_Database::deactivate();
+    EPC_Birthday::unschedule();
+    EPC_Expiry::unschedule();
+}
 
 add_action( 'plugins_loaded', 'epc_init' );
 
@@ -39,5 +58,12 @@ function epc_init() {
     EPC_Settings::instance();
     EPC_Referral::instance();
     EPC_Gifts::instance();
+    EPC_Birthday::instance();
+    EPC_Expiry::instance();
+    EPC_Tiers::instance();
+    EPC_Notifications::instance();
+    EPC_WooCommerce::instance();
+    EPC_Registration::instance();
+    EPC_Gift_Catalog::instance();
     EPC_Admin::instance();
 }

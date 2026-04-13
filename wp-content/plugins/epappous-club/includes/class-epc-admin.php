@@ -56,6 +56,15 @@ class EPC_Admin {
             'epc-referrals',
             [ $this, 'render_referrals' ]
         );
+
+        add_submenu_page(
+            'epc-dashboard',
+            __( 'Ιστορικό Πόντων', 'epappous-club' ),
+            __( 'Ιστορικό Πόντων', 'epappous-club' ),
+            'manage_options',
+            'epc-points-log',
+            [ $this, 'render_points_log' ]
+        );
     }
 
     public function enqueue_assets( $hook ) {
@@ -109,5 +118,9 @@ class EPC_Admin {
 
     public function render_referrals() {
         include EPC_PLUGIN_DIR . 'templates/admin-referrals.php';
+    }
+
+    public function render_points_log() {
+        include EPC_PLUGIN_DIR . 'templates/admin-points-log.php';
     }
 }

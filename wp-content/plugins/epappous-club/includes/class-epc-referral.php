@@ -141,6 +141,9 @@ class EPC_Referral {
                 [ '%d' ],
                 [ '%d', '%d' ]
             );
+
+            do_action( 'epc_points_changed', (int) $referrer->id );
+            do_action( 'epc_points_changed', $member_id );
         }
 
         // Link the member record
@@ -251,6 +254,57 @@ class EPC_Referral {
         update_post_meta( $order_id, '_epc_referral_processed', '1' );
 
         do_action( 'epc_referral_completed', $referrer->id, $referred->id, 'purchase' );
+        do_action( 'epc_points_changed', (int) $referrer->id );
+        do_action( 'epc_points_changed', (int) $referred->id );
+
+        // Fulfill pending membership referrals that required a purchase
+        $this->fulfill_pending_membership_referral( (int) $referrer->id, (int) $referred->id );
+    }
+
+    /**
+     * If a membership referral was recorded with require_purchase ON,
+     * the reward was deferred. Now that the referred member has purchased,
+     * give the deferred rewards.
+     */
+    private function fulfill_pending_membership_referral( int $referrer_id, int $referred_id ) {
+        if ( EPC_Settings::get( 'epc_referral_require_purchase' ) !== '1' ) {
+            return;
+        }
+
+        global $wpdb;
+        $pending = $wpdb->get_row(
+            $wpdb->prepare(
+                "SELECT id FROM {$wpdb->prefix}epc_referrals
+                 WHERE referrer_member_id = %d
+                   AND referred_member_id = %d
+                   AND type = 'membership'
+                   AND reward_given = 0
+                 LIMIT 1",
+                $referrer_id,
+                $referred_id
+            )
+        );
+
+        if ( ! $pending ) {
+            return;
+        }
+
+        $reward_referrer = (int) EPC_Settings::get( 'epc_referral_reward_referrer' );
+        $reward_referred = (int) EPC_Settings::get( 'epc_referral_reward_referred' );
+
+        $this->give_points( $referrer_id, $reward_referrer, 'referral_bonus_referrer', $referred_id );
+        $this->give_points( $referred_id, $reward_referred, 'referral_bonus_referred', $referrer_id );
+
+        $wpdb->update(
+            "{$wpdb->prefix}epc_referrals",
+            [ 'reward_given' => 1, 'completed_at' => current_time( 'mysql' ) ],
+            [ 'id' => $pending->id ],
+            [ '%d', '%s' ],
+            [ '%d' ]
+        );
+
+        do_action( 'epc_points_changed', $referrer_id );
+        do_action( 'epc_points_changed', $referred_id );
     }
 
     /**

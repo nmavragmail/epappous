@@ -32,6 +32,7 @@ class EPC_Database {
             last_name VARCHAR(100) NOT NULL,
             email VARCHAR(200) NOT NULL,
             phone VARCHAR(30) DEFAULT '',
+            date_of_birth DATE DEFAULT NULL,
             referral_code VARCHAR(20) NOT NULL,
             referred_by BIGINT UNSIGNED DEFAULT NULL,
             points INT UNSIGNED DEFAULT 0,

@@ -168,6 +168,119 @@
         frame.open();
     });
 
+    /* ─── Points Log Debug Modal ─── */
+
+    var debugExplanations = {
+        birthday_bonus: function (d) {
+            return 'Το μέλος <strong>' + d.member_name + '</strong> είχε γενέθλια. ' +
+                'Ένα ημερήσιο cron job ελέγχει κάθε μέρα ποια μέλη έχουν γενέθλια (βάσει date_of_birth) ' +
+                'και αποδίδει αυτόματα <strong>' + d.points + ' πόντους</strong>. ' +
+                'Αυτό γίνεται μία φορά ανά ημερολογιακό έτος (reference_id = ' + d.reference_id + ' = το έτος). ' +
+                'Η τιμή ρυθμίζεται στο Ρυθμίσεις → Πόντοι → Μπόνους Γενεθλίων.';
+        },
+        referral_bonus_referrer: function (d) {
+            return 'Το μέλος <strong>' + d.member_name + '</strong> προσκάλεσε κάποιον (μέλος #' + d.reference_id + ') ' +
+                'μέσω referral link και κέρδισε <strong>' + d.points + ' πόντους</strong> ως ανταμοιβή. ' +
+                'Η ανταμοιβή δόθηκε κατά την εγγραφή του νέου μέλους. ' +
+                'Ρυθμίζεται στο Ρυθμίσεις → Referral → Ανταμοιβή Αυτού που Προσκαλεί.';
+        },
+        referral_bonus_referred: function (d) {
+            return 'Το μέλος <strong>' + d.member_name + '</strong> εγγράφηκε μέσω referral link ' +
+                'από μέλος #' + d.reference_id + ' και κέρδισε <strong>' + d.points + ' πόντους</strong> ως μπόνους εγγραφής. ' +
+                'Ρυθμίζεται στο Ρυθμίσεις → Referral → Ανταμοιβή Νέου Μέλους.';
+        },
+        referral_purchase_referrer: function (d) {
+            return 'Ο referred φίλος ολοκλήρωσε αγορά (παραγγελία #' + d.reference_id + '). ' +
+                'Ο referrer <strong>' + d.member_name + '</strong> κέρδισε <strong>' + d.points + ' πόντους</strong>. ' +
+                'Ρυθμίζεται στο Ρυθμίσεις → Referral (Track Purchase + Reward Referrer).';
+        },
+        referral_purchase_referred: function (d) {
+            return 'Το μέλος <strong>' + d.member_name + '</strong> ολοκλήρωσε την πρώτη αγορά (παραγγελία #' + d.reference_id + ') ' +
+                'αφού εγγράφηκε μέσω referral. Κέρδισε <strong>' + d.points + ' πόντους</strong>. ' +
+                'Ρυθμίζεται στο Ρυθμίσεις → Referral (Track Purchase + Reward Referred).';
+        },
+        gift_redemption: function (d) {
+            return 'Το μέλος <strong>' + d.member_name + '</strong> εξαργύρωσε ένα δώρο (gift #' + d.reference_id + '). ' +
+                'Αφαιρέθηκαν <strong>' + Math.abs(d.points) + ' πόντοι</strong> από το υπόλοιπό του. ' +
+                'Η εξαργύρωση γίνεται μέσω της σελίδας δώρων και ελέγχεται tier, απόθεμα, και υπόλοιπο πόντων.';
+        },
+        order_earning: function (d) {
+            return 'Το μέλος <strong>' + d.member_name + '</strong> ολοκλήρωσε παραγγελία #' + d.reference_id + ' ' +
+                'και κέρδισε <strong>' + d.points + ' πόντους</strong> βάσει του ποσού αγοράς. ' +
+                'Υπολογισμός: ποσό × πόντοι_ανά_€ × tier_multiplier. ' +
+                'Ρυθμίζεται στο Ρυθμίσεις → Πόντοι (Πόντοι ανά €) και Βαθμίδες (Πολλαπλασιαστής).';
+        },
+        manual_adjustment: function (d) {
+            return 'Χειροκίνητη προσαρμογή πόντων από διαχειριστή. ' +
+                '<strong>' + (d.points >= 0 ? '+' : '') + d.points + ' πόντοι</strong> στο μέλος ' +
+                '<strong>' + d.member_name + '</strong>.';
+        },
+        points_expiry: function (d) {
+            return 'Αυτόματη λήξη πόντων. <strong>' + Math.abs(d.points) + ' πόντοι</strong> έληξαν ' +
+                'βάσει της ρύθμισης Λήξη Πόντων (' + d.reference_id + ' ημέρες). ' +
+                'Ρυθμίζεται στο Ρυθμίσεις → Πόντοι → Λήξη Πόντων.';
+        },
+        signup_bonus: function (d) {
+            return 'Μπόνους εγγραφής. Το μέλος <strong>' + d.member_name + '</strong> κέρδισε ' +
+                '<strong>' + d.points + ' πόντους</strong> κατά την εγγραφή στο club.';
+        },
+        checkout_redemption: function (d) {
+            return 'Το μέλος <strong>' + d.member_name + '</strong> χρησιμοποίησε <strong>' + Math.abs(d.points) +
+                ' πόντους</strong> ως έκπτωση στην παραγγελία #' + d.reference_id + '. ' +
+                'Η αξία μετατράπηκε σε € βάσει της ρύθμισης Αξία Πόντου (epc_points_value_euro). ' +
+                'Μέγιστο ποσοστό έκπτωσης: epc_max_redeem_percent. Ελάχιστοι πόντοι: epc_min_redeem_points.';
+        }
+    };
+
+    function getDefaultExplanation(d) {
+        return 'Ο λόγος "<strong>' + d.reason + '</strong>" δεν αναγνωρίζεται ως γνωστός τύπος. ' +
+            'Πόντοι: <strong>' + d.points + '</strong>. ' +
+            'Reference: ' + d.reference_type + ' #' + d.reference_id + '. ' +
+            'Ελέγξτε τον κώδικα για custom λόγους χρέωσης πόντων.';
+    }
+
+    $(document).on('click', '.epc-debug-btn', function () {
+        var data = $(this).data('log');
+        if (!data) return;
+
+        var explainFn = debugExplanations[data.reason] || getDefaultExplanation;
+        var explanation = explainFn(data);
+
+        var html = '<div class="epc-debug-section">' +
+            '<h4>Στοιχεία Μέλους</h4>' +
+            '<div class="epc-debug-grid">' +
+            '<span class="epc-debug-label">ID Μέλους:</span><span class="epc-debug-value">' + data.member_id + '</span>' +
+            '<span class="epc-debug-label">Όνομα:</span><span class="epc-debug-value">' + (data.member_name || '—') + '</span>' +
+            '<span class="epc-debug-label">Email:</span><span class="epc-debug-value">' + (data.member_email || '—') + '</span>' +
+            '<span class="epc-debug-label">Tier:</span><span class="epc-debug-value">' + (data.member_tier || '—') + '</span>' +
+            '<span class="epc-debug-label">Τρέχοντες Πόντοι:</span><span class="epc-debug-value">' + data.member_points + '</span>' +
+            '<span class="epc-debug-label">Referral Code:</span><span class="epc-debug-value"><code>' + (data.referral_code || '—') + '</code></span>' +
+            '</div></div>';
+
+        html += '<div class="epc-debug-section">' +
+            '<h4>Στοιχεία Εγγραφής</h4>' +
+            '<div class="epc-debug-grid">' +
+            '<span class="epc-debug-label">Log ID:</span><span class="epc-debug-value">#' + data.id + '</span>' +
+            '<span class="epc-debug-label">Πόντοι:</span><span class="epc-debug-value"><strong>' + (data.points >= 0 ? '+' : '') + data.points + '</strong></span>' +
+            '<span class="epc-debug-label">Λόγος (key):</span><span class="epc-debug-value"><code>' + data.reason + '</code></span>' +
+            '<span class="epc-debug-label">Λόγος:</span><span class="epc-debug-value">' + data.reason_label + '</span>' +
+            '<span class="epc-debug-label">Reference:</span><span class="epc-debug-value"><code>' + data.reference_type + ' #' + data.reference_id + '</code></span>' +
+            '<span class="epc-debug-label">Ημερομηνία:</span><span class="epc-debug-value">' + data.created_at + '</span>' +
+            '</div></div>';
+
+        html += '<div class="epc-debug-explanation">' +
+            '<strong>Γιατί δόθηκαν αυτοί οι πόντοι;</strong>' +
+            explanation +
+            '</div>';
+
+        $('#epc-debug-content').html(html);
+        $('#epc-debug-modal').show();
+    });
+
+    $(document).on('click', '#epc-debug-modal .epc-modal-close, #epc-debug-modal .epc-modal-close-btn, #epc-debug-modal .epc-modal-overlay', function () {
+        $('#epc-debug-modal').hide();
+    });
+
     /* ─── Init Color Pickers ─── */
 
     $(document).ready(function () {

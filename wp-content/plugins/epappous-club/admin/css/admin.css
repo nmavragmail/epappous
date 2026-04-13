@@ -817,6 +817,177 @@
     flex: 1;
 }
 
+/* ── Points Log ── */
+
+.epc-search-bar {
+    margin-bottom: 20px;
+}
+
+.epc-search-group {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: #fff;
+    border-radius: var(--epc-radius);
+    padding: 8px 16px;
+    box-shadow: var(--epc-shadow);
+}
+
+.epc-search-group .dashicons {
+    color: var(--epc-gray-400);
+    font-size: 20px;
+    width: 20px;
+    height: 20px;
+}
+
+.epc-search-input {
+    flex: 1;
+    border: none !important;
+    box-shadow: none !important;
+    font-size: 14px;
+    padding: 6px 0 !important;
+    outline: none;
+    background: transparent;
+}
+
+.epc-search-result-text {
+    color: var(--epc-gray-500);
+    font-size: 13px;
+    margin: -12px 0 16px;
+}
+
+.epc-header-count {
+    font-size: 13px;
+    opacity: 0.8;
+    background: rgba(255, 255, 255, 0.2);
+    padding: 4px 12px;
+    border-radius: 20px;
+}
+
+.epc-points-table .column-id { width: 50px; }
+.epc-points-table .column-points { width: 90px; }
+.epc-points-table .column-ref { width: 120px; }
+.epc-points-table .column-date { width: 110px; }
+.epc-points-table .column-debug { width: 60px; text-align: center; }
+
+.epc-points-value {
+    font-weight: 700;
+    font-size: 14px;
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 4px;
+}
+
+.epc-points-value.positive {
+    color: #065f46;
+    background: #d1fae5;
+}
+
+.epc-points-value.negative {
+    color: #991b1b;
+    background: #fee2e2;
+}
+
+.epc-reason-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 3px 10px;
+    border-radius: 20px;
+    font-size: 11px;
+    font-weight: 600;
+    background: color-mix(in srgb, var(--reason-color) 15%, white);
+    color: var(--reason-color);
+    white-space: nowrap;
+}
+
+.epc-reason-badge .dashicons {
+    font-size: 14px;
+    width: 14px;
+    height: 14px;
+}
+
+.epc-member-email {
+    color: var(--epc-gray-400);
+}
+
+.epc-member-id {
+    color: var(--epc-gray-300);
+    font-family: monospace;
+}
+
+.epc-deleted-member {
+    color: var(--epc-gray-400);
+    font-style: italic;
+}
+
+.epc-na {
+    color: var(--epc-gray-300);
+}
+
+.epc-debug-btn {
+    padding: 4px 8px !important;
+    min-height: 0 !important;
+    line-height: 1 !important;
+    cursor: pointer;
+}
+
+.epc-debug-btn .dashicons {
+    font-size: 16px;
+    width: 16px;
+    height: 16px;
+    color: var(--epc-info);
+}
+
+.epc-debug-modal-content {
+    max-width: 650px;
+}
+
+.epc-debug-section {
+    margin-bottom: 20px;
+}
+
+.epc-debug-section h4 {
+    margin: 0 0 8px;
+    font-size: 13px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--epc-gray-400);
+}
+
+.epc-debug-grid {
+    display: grid;
+    grid-template-columns: 140px 1fr;
+    gap: 6px 12px;
+    font-size: 13px;
+}
+
+.epc-debug-label {
+    font-weight: 600;
+    color: var(--epc-gray-600);
+}
+
+.epc-debug-value {
+    color: var(--epc-gray-800);
+    word-break: break-word;
+}
+
+.epc-debug-explanation {
+    background: #eff6ff;
+    border: 1px solid #bfdbfe;
+    border-radius: var(--epc-radius);
+    padding: 14px 16px;
+    margin-top: 16px;
+    font-size: 13px;
+    color: #1e40af;
+    line-height: 1.6;
+}
+
+.epc-debug-explanation strong {
+    display: block;
+    margin-bottom: 4px;
+}
+
 /* ── Responsive ── */
 
 @media (max-width: 782px) {
