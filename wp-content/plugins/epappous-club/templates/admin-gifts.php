@@ -3,165 +3,203 @@ if ( ! defined( 'ABSPATH' ) ) {
     exit;
 }
 
-$gifts = EPC_Gifts::get_all();
+$rules = EPC_Gift_Rules::get_all();
 $tiers_json = EPC_Settings::get( 'epc_tiers' );
 $tiers = json_decode( $tiers_json, true ) ?: [];
+
+$type_labels = [
+    'product'  => __( 'Προϊόν', 'epappous-club' ),
+    'category' => __( 'Κατηγορία', 'epappous-club' ),
+    'tag'      => __( 'Tag', 'epappous-club' ),
+];
+
+$type_icons = [
+    'product'  => 'dashicons-archive',
+    'category' => 'dashicons-category',
+    'tag'      => 'dashicons-tag',
+];
+
+// Get WC categories and tags for dropdowns
+$wc_categories = [];
+$wc_tags = [];
+if ( taxonomy_exists( 'product_cat' ) ) {
+    $wc_categories = get_terms( [ 'taxonomy' => 'product_cat', 'hide_empty' => false ] );
+    if ( is_wp_error( $wc_categories ) ) {
+        $wc_categories = [];
+    }
+}
+if ( taxonomy_exists( 'product_tag' ) ) {
+    $wc_tags = get_terms( [ 'taxonomy' => 'product_tag', 'hide_empty' => false ] );
+    if ( is_wp_error( $wc_tags ) ) {
+        $wc_tags = [];
+    }
+}
 ?>
 <div class="wrap epc-wrap">
     <div class="epc-header">
         <h1>
             <span class="dashicons dashicons-cart"></span>
-            <?php esc_html_e( 'Διαχείριση Δώρων', 'epappous-club' ); ?>
+            <?php esc_html_e( 'Κανόνες Δώρων', 'epappous-club' ); ?>
         </h1>
-        <button type="button" class="button button-primary" id="epc-add-gift-btn">
+        <button type="button" class="button" id="epc-add-rule-btn">
             <span class="dashicons dashicons-plus-alt"></span>
-            <?php esc_html_e( 'Νέο Δώρο', 'epappous-club' ); ?>
+            <?php esc_html_e( 'Νέος Κανόνας', 'epappous-club' ); ?>
         </button>
     </div>
 
-    <p class="epc-info-box">
+    <div class="epc-info-box">
         <span class="dashicons dashicons-info-outline"></span>
-        <?php esc_html_e( 'Τα δώρα είναι προϊόντα που τα μέλη μπορούν να εξαργυρώσουν χρησιμοποιώντας τους πόντους τους. Μπορείτε να τα συνδέσετε με WooCommerce products ή να δημιουργήσετε αυτόνομα δώρα.', 'epappous-club' ); ?>
-    </p>
+        <div>
+            <?php esc_html_e( 'Πρόσθεσε κανόνες για να ορίσεις ποια WooCommerce προϊόντα είναι διαθέσιμα ως δώρα. Μπορείς να προσθέσεις μεμονωμένα προϊόντα, ολόκληρες κατηγορίες, ή tags.', 'epappous-club' ); ?>
+        </div>
+    </div>
 
-    <?php if ( empty( $gifts ) ) : ?>
+    <?php if ( empty( $rules ) ) : ?>
         <div class="epc-empty-state">
             <span class="dashicons dashicons-cart"></span>
-            <h3><?php esc_html_e( 'Δεν υπάρχουν δώρα ακόμα', 'epappous-club' ); ?></h3>
-            <p><?php esc_html_e( 'Προσθέστε το πρώτο δώρο για τα μέλη σας.', 'epappous-club' ); ?></p>
+            <h3><?php esc_html_e( 'Δεν υπάρχουν κανόνες δώρων', 'epappous-club' ); ?></h3>
+            <p><?php esc_html_e( 'Πρόσθεσε τον πρώτο κανόνα για να ορίσεις δώρα.', 'epappous-club' ); ?></p>
         </div>
     <?php else : ?>
-        <div class="epc-gifts-grid">
-            <?php foreach ( $gifts as $gift ) : ?>
-                <div class="epc-gift-card <?php echo $gift['is_active'] ? '' : 'epc-gift-inactive'; ?>"
-                     data-gift-id="<?php echo (int) $gift['id']; ?>">
-                    <?php if ( ! empty( $gift['image_url'] ) ) : ?>
-                        <div class="epc-gift-image">
-                            <img src="<?php echo esc_url( $gift['image_url'] ); ?>"
-                                 alt="<?php echo esc_attr( $gift['title'] ); ?>" />
-                        </div>
-                    <?php else : ?>
-                        <div class="epc-gift-image epc-gift-no-image">
-                            <span class="dashicons dashicons-format-image"></span>
-                        </div>
-                    <?php endif; ?>
-
-                    <div class="epc-gift-body">
-                        <h3><?php echo esc_html( $gift['title'] ); ?></h3>
-                        <p class="epc-gift-desc"><?php echo esc_html( wp_trim_words( $gift['description'], 15 ) ); ?></p>
-
-                        <div class="epc-gift-meta">
-                            <span class="epc-gift-points">
-                                <?php echo esc_html( EPC_Settings::get( 'epc_currency_symbol' ) ); ?>
-                                <?php echo esc_html( number_format( $gift['points_required'] ) ); ?>
+        <table class="wp-list-table widefat fixed striped epc-table">
+            <thead>
+                <tr>
+                    <th style="width:50px;"><?php esc_html_e( 'ID', 'epappous-club' ); ?></th>
+                    <th style="width:100px;"><?php esc_html_e( 'Τύπος', 'epappous-club' ); ?></th>
+                    <th><?php esc_html_e( 'Τιμή', 'epappous-club' ); ?></th>
+                    <th style="width:100px;"><?php esc_html_e( 'Πόντοι', 'epappous-club' ); ?></th>
+                    <th style="width:100px;"><?php esc_html_e( 'Βαθμίδα', 'epappous-club' ); ?></th>
+                    <th style="width:80px;"><?php esc_html_e( 'Ενεργό', 'epappous-club' ); ?></th>
+                    <th style="width:100px;"><?php esc_html_e( 'Ενέργειες', 'epappous-club' ); ?></th>
+                </tr>
+            </thead>
+            <tbody>
+                <?php foreach ( $rules as $rule ) : ?>
+                    <tr class="<?php echo $rule['is_active'] ? '' : 'epc-row-inactive'; ?>">
+                        <td><?php echo (int) $rule['id']; ?></td>
+                        <td>
+                            <span class="epc-rule-type-badge epc-rule-type-<?php echo esc_attr( $rule['rule_type'] ); ?>">
+                                <span class="dashicons <?php echo esc_attr( $type_icons[ $rule['rule_type'] ] ?? 'dashicons-info' ); ?>"></span>
+                                <?php echo esc_html( $type_labels[ $rule['rule_type'] ] ?? $rule['rule_type'] ); ?>
                             </span>
-                            <span class="epc-gift-tier epc-tier-<?php echo esc_attr( $gift['tier_required'] ); ?>">
-                                <?php echo esc_html( ucfirst( $gift['tier_required'] ) ); ?>
-                            </span>
-                            <?php if ( (int) $gift['stock'] >= 0 ) : ?>
-                                <span class="epc-gift-stock <?php echo (int) $gift['stock'] === 0 ? 'out-of-stock' : ''; ?>">
+                        </td>
+                        <td>
+                            <strong><?php echo esc_html( EPC_Gift_Rules::get_rule_label( $rule ) ); ?></strong>
+                            <?php if ( $rule['rule_type'] !== 'product' ) : ?>
+                                <br /><small style="color:#9ca3af;">
                                     <?php
-                                    if ( (int) $gift['stock'] === 0 ) {
-                                        esc_html_e( 'Εξαντλήθηκε', 'epappous-club' );
-                                    } else {
-                                        printf( esc_html__( 'Απόθεμα: %d', 'epappous-club' ), (int) $gift['stock'] );
-                                    }
+                                    $count = count( $rule['rule_type'] === 'category'
+                                        ? get_posts( [ 'post_type' => 'product', 'post_status' => 'publish', 'fields' => 'ids', 'posts_per_page' => -1, 'tax_query' => [ [ 'taxonomy' => 'product_cat', 'terms' => (int) $rule['rule_value'] ] ] ] )
+                                        : get_posts( [ 'post_type' => 'product', 'post_status' => 'publish', 'fields' => 'ids', 'posts_per_page' => -1, 'tax_query' => [ [ 'taxonomy' => 'product_tag', 'terms' => (int) $rule['rule_value'] ] ] ] )
+                                    );
+                                    printf( esc_html__( '%d προϊόντα', 'epappous-club' ), $count );
                                     ?>
-                                </span>
-                            <?php else : ?>
-                                <span class="epc-gift-stock unlimited"><?php esc_html_e( 'Απεριόριστο', 'epappous-club' ); ?></span>
+                                </small>
                             <?php endif; ?>
-                        </div>
-
-                        <div class="epc-gift-actions">
-                            <button type="button" class="button epc-edit-gift"
-                                    data-gift='<?php echo esc_attr( wp_json_encode( $gift ) ); ?>'>
-                                <span class="dashicons dashicons-edit"></span>
+                        </td>
+                        <td>
+                            <strong><?php echo esc_html( EPC_Settings::get( 'epc_currency_symbol' ) . ' ' . number_format( (int) $rule['points_required'] ) ); ?></strong>
+                        </td>
+                        <td>
+                            <span class="epc-gift-tier epc-tier-<?php echo esc_attr( $rule['tier_required'] ); ?>">
+                                <?php echo esc_html( ucfirst( $rule['tier_required'] ) ); ?>
+                            </span>
+                        </td>
+                        <td>
+                            <?php if ( $rule['is_active'] ) : ?>
+                                <span style="color:#10b981;font-weight:600;">&#10003;</span>
+                            <?php else : ?>
+                                <span style="color:#ef4444;">&#10007;</span>
+                            <?php endif; ?>
+                        </td>
+                        <td>
+                            <button type="button" class="button epc-toggle-rule-btn" data-id="<?php echo (int) $rule['id']; ?>" title="<?php esc_attr_e( 'On/Off', 'epappous-club' ); ?>">
+                                <span class="dashicons dashicons-<?php echo $rule['is_active'] ? 'hidden' : 'visibility'; ?>"></span>
                             </button>
-                            <button type="button" class="button epc-toggle-gift-btn"
-                                    data-id="<?php echo (int) $gift['id']; ?>">
-                                <span class="dashicons dashicons-<?php echo $gift['is_active'] ? 'hidden' : 'visibility'; ?>"></span>
-                            </button>
-                            <button type="button" class="button epc-delete-gift-btn"
-                                    data-id="<?php echo (int) $gift['id']; ?>">
+                            <button type="button" class="button epc-delete-rule-btn" data-id="<?php echo (int) $rule['id']; ?>" title="<?php esc_attr_e( 'Διαγραφή', 'epappous-club' ); ?>">
                                 <span class="dashicons dashicons-trash"></span>
                             </button>
-                        </div>
-                    </div>
-                </div>
-            <?php endforeach; ?>
-        </div>
+                        </td>
+                    </tr>
+                <?php endforeach; ?>
+            </tbody>
+        </table>
     <?php endif; ?>
 </div>
 
-<!-- Gift Modal -->
-<div id="epc-gift-modal" class="epc-modal" style="display:none;">
+<!-- Rule Modal -->
+<div id="epc-gift-rule-modal" class="epc-modal" style="display:none;">
     <div class="epc-modal-overlay"></div>
     <div class="epc-modal-content">
         <div class="epc-modal-header">
-            <h2 id="epc-gift-modal-title"><?php esc_html_e( 'Νέο Δώρο', 'epappous-club' ); ?></h2>
+            <h2><?php esc_html_e( 'Νέος Κανόνας Δώρου', 'epappous-club' ); ?></h2>
             <button type="button" class="epc-modal-close">&times;</button>
         </div>
-        <form id="epc-gift-form">
-            <input type="hidden" name="id" id="epc-gift-id" value="" />
+        <form id="epc-rule-form">
+            <input type="hidden" name="id" id="epc-rule-id" value="" />
             <input type="hidden" name="nonce" value="<?php echo esc_attr( wp_create_nonce( 'epc_admin_nonce' ) ); ?>" />
 
             <div class="epc-modal-body">
                 <div class="epc-field-row">
-                    <label for="epc-gift-title"><?php esc_html_e( 'Τίτλος', 'epappous-club' ); ?></label>
-                    <input type="text" id="epc-gift-title" name="title" class="regular-text" required />
+                    <label for="epc-rule-type"><?php esc_html_e( 'Τύπος', 'epappous-club' ); ?></label>
+                    <select id="epc-rule-type" name="rule_type">
+                        <option value="product"><?php esc_html_e( 'Μεμονωμένο Προϊόν', 'epappous-club' ); ?></option>
+                        <option value="category"><?php esc_html_e( 'Κατηγορία Προϊόντων', 'epappous-club' ); ?></option>
+                        <option value="tag"><?php esc_html_e( 'Tag Προϊόντων', 'epappous-club' ); ?></option>
+                    </select>
+                </div>
+
+                <!-- Product search -->
+                <div class="epc-field-row epc-rule-value-group" id="epc-rule-value-product">
+                    <label><?php esc_html_e( 'Προϊόν', 'epappous-club' ); ?></label>
+                    <select id="epc-rule-product-search" name="rule_value_product" style="width:100%;">
+                        <option value=""><?php esc_html_e( 'Αναζήτηση προϊόντος...', 'epappous-club' ); ?></option>
+                    </select>
+                </div>
+
+                <!-- Category select -->
+                <div class="epc-field-row epc-rule-value-group" id="epc-rule-value-category" style="display:none;">
+                    <label><?php esc_html_e( 'Κατηγορία', 'epappous-club' ); ?></label>
+                    <select name="rule_value_category">
+                        <option value=""><?php esc_html_e( '— Επιλέξτε —', 'epappous-club' ); ?></option>
+                        <?php foreach ( $wc_categories as $cat ) : ?>
+                            <option value="<?php echo (int) $cat->term_id; ?>">
+                                <?php echo esc_html( $cat->name ); ?> (<?php echo (int) $cat->count; ?>)
+                            </option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+
+                <!-- Tag select -->
+                <div class="epc-field-row epc-rule-value-group" id="epc-rule-value-tag" style="display:none;">
+                    <label><?php esc_html_e( 'Tag', 'epappous-club' ); ?></label>
+                    <select name="rule_value_tag">
+                        <option value=""><?php esc_html_e( '— Επιλέξτε —', 'epappous-club' ); ?></option>
+                        <?php foreach ( $wc_tags as $tag ) : ?>
+                            <option value="<?php echo (int) $tag->term_id; ?>">
+                                <?php echo esc_html( $tag->name ); ?> (<?php echo (int) $tag->count; ?>)
+                            </option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+
+                <!-- Hidden field that gets set by JS before submit -->
+                <input type="hidden" name="rule_value" id="epc-rule-value-hidden" value="" />
+
+                <div class="epc-field-row">
+                    <label for="epc-rule-points"><?php esc_html_e( 'Πόντοι Εξαργύρωσης', 'epappous-club' ); ?></label>
+                    <input type="number" id="epc-rule-points" name="points_required" min="0" class="small-text" value="0" />
                 </div>
 
                 <div class="epc-field-row">
-                    <label for="epc-gift-description"><?php esc_html_e( 'Περιγραφή', 'epappous-club' ); ?></label>
-                    <textarea id="epc-gift-description" name="description" rows="3" class="large-text"></textarea>
-                </div>
-
-                <div class="epc-field-row-inline">
-                    <div>
-                        <label for="epc-gift-points"><?php esc_html_e( 'Πόντοι', 'epappous-club' ); ?></label>
-                        <input type="number" id="epc-gift-points" name="points_required" min="0" class="small-text" />
-                    </div>
-                    <div>
-                        <label for="epc-gift-stock"><?php esc_html_e( 'Απόθεμα', 'epappous-club' ); ?></label>
-                        <input type="number" id="epc-gift-stock" name="stock" min="-1" class="small-text" value="-1" />
-                        <p class="description"><?php esc_html_e( '-1 = Απεριόριστο', 'epappous-club' ); ?></p>
-                    </div>
-                </div>
-
-                <div class="epc-field-row-inline">
-                    <div>
-                        <label for="epc-gift-tier"><?php esc_html_e( 'Ελάχιστη Βαθμίδα', 'epappous-club' ); ?></label>
-                        <select id="epc-gift-tier" name="tier_required">
-                            <?php foreach ( $tiers as $tier ) : ?>
-                                <option value="<?php echo esc_attr( $tier['slug'] ); ?>">
-                                    <?php echo esc_html( $tier['label'] ); ?>
-                                </option>
-                            <?php endforeach; ?>
-                        </select>
-                    </div>
-                    <div>
-                        <label for="epc-gift-product-id"><?php esc_html_e( 'WooCommerce Product ID', 'epappous-club' ); ?></label>
-                        <input type="number" id="epc-gift-product-id" name="product_id" min="0" class="small-text" />
-                        <p class="description"><?php esc_html_e( 'Προαιρετικό', 'epappous-club' ); ?></p>
-                    </div>
-                </div>
-
-                <div class="epc-field-row">
-                    <label for="epc-gift-image"><?php esc_html_e( 'URL Εικόνας', 'epappous-club' ); ?></label>
-                    <div class="epc-image-field">
-                        <input type="text" id="epc-gift-image" name="image_url" class="regular-text" />
-                        <button type="button" class="button epc-upload-image"><?php esc_html_e( 'Επιλογή', 'epappous-club' ); ?></button>
-                    </div>
-                </div>
-
-                <div class="epc-field-row">
-                    <label for="epc-gift-active"><?php esc_html_e( 'Ενεργό', 'epappous-club' ); ?></label>
-                    <label class="epc-toggle">
-                        <input type="hidden" name="is_active" value="0" />
-                        <input type="checkbox" id="epc-gift-active" name="is_active" value="1" checked />
-                        <span class="epc-toggle-slider"></span>
-                    </label>
+                    <label for="epc-rule-tier"><?php esc_html_e( 'Ελάχιστη Βαθμίδα', 'epappous-club' ); ?></label>
+                    <select id="epc-rule-tier" name="tier_required">
+                        <?php foreach ( $tiers as $tier ) : ?>
+                            <option value="<?php echo esc_attr( $tier['slug'] ); ?>">
+                                <?php echo esc_html( $tier['label'] ); ?>
+                            </option>
+                        <?php endforeach; ?>
+                    </select>
                 </div>
             </div>
 
@@ -172,3 +210,21 @@ $tiers = json_decode( $tiers_json, true ) ?: [];
         </form>
     </div>
 </div>
+
+<script>
+jQuery(function($) {
+    // Set the hidden rule_value before submit based on selected type
+    $('#epc-rule-form').on('submit', function() {
+        var type = $('#epc-rule-type').val();
+        var val = '';
+        if (type === 'product') {
+            val = $('#epc-rule-product-search').val();
+        } else if (type === 'category') {
+            val = $('select[name="rule_value_category"]').val();
+        } else if (type === 'tag') {
+            val = $('select[name="rule_value_tag"]').val();
+        }
+        $('#epc-rule-value-hidden').val(val);
+    });
+});
+</script>

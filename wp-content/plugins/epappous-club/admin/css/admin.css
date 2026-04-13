@@ -219,6 +219,11 @@
     transition: border-color 0.15s, box-shadow 0.15s;
 }
 
+.epc-field-row input[type="number"].small-text {
+    width: 120px;
+    min-width: 120px;
+}
+
 .epc-field-row input:focus,
 .epc-field-row select:focus,
 .epc-field-row textarea:focus {
@@ -815,6 +820,59 @@
 
 .epc-image-field input {
     flex: 1;
+}
+
+/* ── Gift Rules ── */
+
+.epc-rule-type-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 3px 10px;
+    border-radius: 20px;
+    font-size: 11px;
+    font-weight: 600;
+}
+
+.epc-rule-type-badge .dashicons {
+    font-size: 14px;
+    width: 14px;
+    height: 14px;
+}
+
+.epc-rule-type-product { background: #dbeafe; color: #1e40af; }
+.epc-rule-type-category { background: #d1fae5; color: #065f46; }
+.epc-rule-type-tag { background: #fef3c7; color: #92400e; }
+
+.epc-row-inactive {
+    opacity: 0.5;
+}
+
+.epc-row-inactive td {
+    background: #fafafa !important;
+}
+
+/* ── User Profile Badges ── */
+
+.epc-profile-badge {
+    display: inline-block;
+    padding: 3px 12px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.epc-profile-badge-active { background: #d1fae5; color: #065f46; }
+.epc-profile-badge-inactive { background: #fee2e2; color: #991b1b; }
+
+.epc-profile-tier-badge {
+    display: inline-block;
+    padding: 3px 12px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 600;
+    background: var(--epc-gray-100);
+    color: var(--epc-gray-600);
 }
 
 /* ── Points Log ── */

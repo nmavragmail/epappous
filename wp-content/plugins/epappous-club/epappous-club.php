@@ -33,6 +33,8 @@ require_once EPC_PLUGIN_DIR . 'includes/class-epc-notifications.php';
 require_once EPC_PLUGIN_DIR . 'includes/class-epc-woocommerce.php';
 require_once EPC_PLUGIN_DIR . 'includes/class-epc-registration.php';
 require_once EPC_PLUGIN_DIR . 'includes/class-epc-gift-catalog.php';
+require_once EPC_PLUGIN_DIR . 'includes/class-epc-gift-rules.php';
+require_once EPC_PLUGIN_DIR . 'includes/class-epc-user-profile.php';
 require_once EPC_PLUGIN_DIR . 'includes/class-epc-admin.php';
 
 register_activation_hook( __FILE__, 'epc_activate' );
@@ -65,5 +67,7 @@ function epc_init() {
     EPC_WooCommerce::instance();
     EPC_Registration::instance();
     EPC_Gift_Catalog::instance();
+    EPC_Gift_Rules::instance();
+    EPC_User_Profile::instance();
     EPC_Admin::instance();
 }

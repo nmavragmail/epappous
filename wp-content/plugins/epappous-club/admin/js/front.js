@@ -42,6 +42,7 @@
         $.post(epcFront.ajaxUrl, {
             action: 'epc_redeem_gift',
             gift_id: $btn.data('gift-id'),
+            rule_id: $btn.data('rule-id') || 0,
             nonce: $btn.data('nonce')
         }, function (response) {
             var $msg = $('#epc-gift-catalog-messages');
