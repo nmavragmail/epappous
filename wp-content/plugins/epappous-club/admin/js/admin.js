@@ -281,6 +281,139 @@
         $('#epc-debug-modal').hide();
     });
 
+    /* ─── Admin Notes (User Profile) ─── */
+
+    $(document).on('click', '.epc-add-note-btn', function () {
+        var $btn = $(this);
+        var memberId = $btn.data('member-id');
+        var nonce = $btn.data('nonce');
+        var $textarea = $('#epc-new-note');
+        var note = $textarea.val().trim();
+
+        if (!note) return;
+        $btn.prop('disabled', true);
+
+        $.post(epcAdmin.ajaxUrl, {
+            action: 'epc_add_note',
+            member_id: memberId,
+            note: note,
+            nonce: nonce
+        }, function (response) {
+            if (response.success) {
+                var d = response.data;
+                var html = '<div class="epc-note-item" data-note-id="' + d.id + '" style="display:flex;gap:12px;padding:12px 0;border-bottom:1px solid #e5e7eb;">' +
+                    '<div class="epc-note-date" style="flex:0 0 90px;font-size:12px;color:#6b7280;font-weight:600;">' + d.date +
+                    '<br /><span style="font-weight:400;color:#9ca3af;">' + d.time + '</span></div>' +
+                    '<div class="epc-note-body" style="flex:1;font-size:13px;color:#374151;white-space:pre-wrap;">' + $('<span>').text(d.note).html() + '</div>' +
+                    '<div class="epc-note-meta" style="flex:0 0 auto;text-align:right;">' +
+                    '<small style="color:#9ca3af;">' + d.author_name + '</small><br />' +
+                    '<button type="button" class="epc-delete-note-btn" style="background:none;border:none;color:#ef4444;cursor:pointer;font-size:12px;padding:0;" data-note-id="' + d.id + '" data-nonce="' + nonce + '">Διαγραφή</button>' +
+                    '</div></div>';
+                $('.epc-no-notes').remove();
+                $('#epc-notes-timeline').prepend(html);
+                $textarea.val('');
+            }
+        }).always(function () {
+            $btn.prop('disabled', false);
+        });
+    });
+
+    $(document).on('click', '.epc-delete-note-btn', function () {
+        if (!confirm('Διαγραφή σημείωσης;')) return;
+        var $btn = $(this);
+        var noteId = $btn.data('note-id');
+        var nonce = $btn.data('nonce');
+
+        $.post(epcAdmin.ajaxUrl, {
+            action: 'epc_delete_note',
+            note_id: noteId,
+            nonce: nonce
+        }, function (response) {
+            if (response.success) {
+                $btn.closest('.epc-note-item').fadeOut(200, function () { $(this).remove(); });
+            }
+        });
+    });
+
+    /* ─── Gift Rules Management ─── */
+
+    $(document).on('click', '#epc-add-rule-btn', function () {
+        $('#epc-gift-rule-modal').show();
+        $('#epc-rule-form')[0].reset();
+        $('#epc-rule-id').val('');
+    });
+
+    $(document).on('click', '#epc-gift-rule-modal .epc-modal-close, #epc-gift-rule-modal .epc-modal-close-btn, #epc-gift-rule-modal .epc-modal-overlay', function () {
+        $('#epc-gift-rule-modal').hide();
+    });
+
+    $(document).on('change', '#epc-rule-type', function () {
+        var type = $(this).val();
+        $('.epc-rule-value-group').hide();
+        $('#epc-rule-value-' + type).show();
+    });
+
+    $('#epc-rule-form').on('submit', function (e) {
+        e.preventDefault();
+        var data = $(this).serialize();
+        var ruleId = $('#epc-rule-id').val();
+        var action = ruleId ? 'epc_update_gift_rule' : 'epc_add_gift_rule';
+
+        $.post(epcAdmin.ajaxUrl, data + '&action=' + action, function (response) {
+            if (response.success) {
+                location.reload();
+            } else {
+                alert(response.data || 'Error');
+            }
+        });
+    });
+
+    $(document).on('click', '.epc-delete-rule-btn', function () {
+        if (!confirm('Διαγραφή κανόνα;')) return;
+        var id = $(this).data('id');
+        $.post(epcAdmin.ajaxUrl, {
+            action: 'epc_delete_gift_rule',
+            id: id,
+            nonce: epcAdmin.nonce
+        }, function (response) {
+            if (response.success) location.reload();
+        });
+    });
+
+    $(document).on('click', '.epc-toggle-rule-btn', function () {
+        var id = $(this).data('id');
+        $.post(epcAdmin.ajaxUrl, {
+            action: 'epc_toggle_gift_rule',
+            id: id,
+            nonce: epcAdmin.nonce
+        }, function (response) {
+            if (response.success) location.reload();
+        });
+    });
+
+    /* ─── WC Product Search (Select2) ─── */
+
+    $(document).ready(function () {
+        if ($.fn.select2 && $('#epc-rule-product-search').length) {
+            $('#epc-rule-product-search').select2({
+                ajax: {
+                    url: epcAdmin.ajaxUrl,
+                    dataType: 'json',
+                    delay: 300,
+                    data: function (params) {
+                        return { action: 'epc_search_products', q: params.term, nonce: epcAdmin.nonce };
+                    },
+                    processResults: function (data) {
+                        return { results: data.data || [] };
+                    }
+                },
+                minimumInputLength: 2,
+                placeholder: 'Αναζήτηση προϊόντος...',
+                width: '100%'
+            });
+        }
+    });
+
     /* ─── Init Color Pickers ─── */
 
     $(document).ready(function () {

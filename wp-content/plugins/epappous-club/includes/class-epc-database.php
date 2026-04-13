@@ -101,6 +101,32 @@ class EPC_Database {
             KEY status (status)
         ) {$charset};";
 
+        // Admin notes on members
+        $sql[] = "CREATE TABLE IF NOT EXISTS {$wpdb->prefix}epc_member_notes (
+            id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+            member_id BIGINT UNSIGNED NOT NULL,
+            author_id BIGINT UNSIGNED NOT NULL,
+            note TEXT NOT NULL,
+            created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY (id),
+            KEY member_id (member_id),
+            KEY author_id (author_id)
+        ) {$charset};";
+
+        // Gift rules (WC product/category/tag based)
+        $sql[] = "CREATE TABLE IF NOT EXISTS {$wpdb->prefix}epc_gift_rules (
+            id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+            rule_type ENUM('product','category','tag') NOT NULL,
+            rule_value BIGINT UNSIGNED NOT NULL,
+            points_required INT UNSIGNED DEFAULT 0,
+            tier_required VARCHAR(30) DEFAULT 'basic',
+            is_active TINYINT(1) DEFAULT 1,
+            created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY (id),
+            KEY rule_type (rule_type),
+            KEY is_active (is_active)
+        ) {$charset};";
+
         // Points log
         $sql[] = "CREATE TABLE IF NOT EXISTS {$wpdb->prefix}epc_points_log (
             id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
