@@ -27,6 +27,7 @@ require_once EPC_PLUGIN_DIR . 'includes/class-epc-settings.php';
 require_once EPC_PLUGIN_DIR . 'includes/class-epc-referral.php';
 require_once EPC_PLUGIN_DIR . 'includes/class-epc-gifts.php';
 require_once EPC_PLUGIN_DIR . 'includes/class-epc-birthday.php';
+require_once EPC_PLUGIN_DIR . 'includes/class-epc-registration.php';
 require_once EPC_PLUGIN_DIR . 'includes/class-epc-admin.php';
 
 register_activation_hook( __FILE__, 'epc_activate' );
@@ -51,5 +52,6 @@ function epc_init() {
     EPC_Referral::instance();
     EPC_Gifts::instance();
     EPC_Birthday::instance();
+    EPC_Registration::instance();
     EPC_Admin::instance();
 }

@@ -73,6 +73,10 @@ $total_redemptions = (int) $wpdb->get_var( "SELECT COUNT(*) FROM {$wpdb->prefix}
                 <span class="dashicons dashicons-share"></span>
                 <span><?php esc_html_e( 'Referrals', 'epappous-club' ); ?></span>
             </a>
+            <a href="<?php echo esc_url( admin_url( 'admin.php?page=epc-points-log' ) ); ?>" class="epc-link-card">
+                <span class="dashicons dashicons-list-view"></span>
+                <span><?php esc_html_e( 'Ιστορικό Πόντων', 'epappous-club' ); ?></span>
+            </a>
             <a href="<?php echo esc_url( admin_url( 'admin.php?page=epc-settings&tab=referral' ) ); ?>" class="epc-link-card">
                 <span class="dashicons dashicons-info"></span>
                 <span><?php esc_html_e( 'Τί είναι το Referral;', 'epappous-club' ); ?></span>
