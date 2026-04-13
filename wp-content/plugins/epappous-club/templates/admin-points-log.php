@@ -71,6 +71,7 @@ $reason_labels = [
     'manual_adjustment'          => [ 'label' => 'Χειροκίνητη Προσαρμογή',                  'icon' => 'dashicons-admin-tools',   'color' => '#6b7280' ],
     'points_expiry'              => [ 'label' => 'Λήξη Πόντων',                             'icon' => 'dashicons-clock',         'color' => '#ef4444' ],
     'signup_bonus'               => [ 'label' => 'Μπόνους Εγγραφής',                        'icon' => 'dashicons-admin-users',   'color' => '#8b5cf6' ],
+    'checkout_redemption'        => [ 'label' => 'Εξαργύρωση στο Checkout',                'icon' => 'dashicons-money-alt',     'color' => '#dc2626' ],
 ];
 ?>
 <div class="wrap epc-wrap">

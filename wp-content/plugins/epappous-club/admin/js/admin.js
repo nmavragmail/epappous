@@ -223,6 +223,12 @@
         signup_bonus: function (d) {
             return 'Μπόνους εγγραφής. Το μέλος <strong>' + d.member_name + '</strong> κέρδισε ' +
                 '<strong>' + d.points + ' πόντους</strong> κατά την εγγραφή στο club.';
+        },
+        checkout_redemption: function (d) {
+            return 'Το μέλος <strong>' + d.member_name + '</strong> χρησιμοποίησε <strong>' + Math.abs(d.points) +
+                ' πόντους</strong> ως έκπτωση στην παραγγελία #' + d.reference_id + '. ' +
+                'Η αξία μετατράπηκε σε € βάσει της ρύθμισης Αξία Πόντου (epc_points_value_euro). ' +
+                'Μέγιστο ποσοστό έκπτωσης: epc_max_redeem_percent. Ελάχιστοι πόντοι: epc_min_redeem_points.';
         }
     };
 

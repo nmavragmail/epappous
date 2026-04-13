@@ -40,7 +40,8 @@ class EPC_Registration {
         }
 
         $has_shortcode = has_shortcode( $post->post_content, 'epappous_register' )
-                      || has_shortcode( $post->post_content, 'epappous_profile' );
+                      || has_shortcode( $post->post_content, 'epappous_profile' )
+                      || has_shortcode( $post->post_content, 'epappous_gifts' );
 
         if ( ! $has_shortcode ) {
             return;
@@ -252,6 +253,13 @@ class EPC_Registration {
 
         if ( ! is_email( $email ) ) {
             wp_send_json_error( __( 'Μη έγκυρη διεύθυνση email.', 'epappous-club' ) );
+        }
+
+        // Check terms acceptance
+        $terms_id   = EPC_Settings::get( 'epc_terms_page_id' );
+        $privacy_id = EPC_Settings::get( 'epc_privacy_page_id' );
+        if ( ( $terms_id || $privacy_id ) && empty( $_POST['accept_terms'] ) ) {
+            wp_send_json_error( __( 'Πρέπει να αποδεχτείς τους όρους χρήσης.', 'epappous-club' ) );
         }
 
         // Check minimum age
