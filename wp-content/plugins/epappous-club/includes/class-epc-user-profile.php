@@ -149,8 +149,8 @@ class EPC_User_Profile {
             <?php esc_html_e( 'Σημειώσεις Admin', 'epappous-club' ); ?>
         </h3>
 
-        <div class="epc-notes-section">
-            <div style="margin-bottom:16px;display:flex;gap:8px;align-items:flex-start;">
+        <table class="form-table"><tr><th><?php esc_html_e( 'Νέα σημείωση', 'epappous-club' ); ?></th><td>
+            <div style="display:flex;gap:8px;align-items:flex-start;">
                 <textarea id="epc-new-note" rows="2" style="flex:1;min-width:0;border:1px solid #d1d5db;border-radius:6px;padding:8px 12px;font-size:13px;"
                           placeholder="<?php esc_attr_e( 'Γράψε σημείωση...', 'epappous-club' ); ?>"></textarea>
                 <button type="button" class="button button-primary epc-add-note-btn"
@@ -159,7 +159,7 @@ class EPC_User_Profile {
                     <?php esc_html_e( 'Προσθήκη', 'epappous-club' ); ?>
                 </button>
             </div>
-
+        </td></tr><tr><th><?php esc_html_e( 'Ιστορικό', 'epappous-club' ); ?></th><td>
             <div id="epc-notes-timeline">
                 <?php if ( empty( $notes ) ) : ?>
                     <p class="epc-no-notes" style="color:#9ca3af;font-style:italic;">
@@ -186,7 +186,7 @@ class EPC_User_Profile {
                     <?php endforeach; ?>
                 <?php endif; ?>
             </div>
-        </div>
+        </td></tr></table>
         <?php
     }
 
