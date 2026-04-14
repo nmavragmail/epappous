@@ -215,3 +215,20 @@ if ( taxonomy_exists( 'product_tag' ) ) {
     </div>
 </div>
 
+<script>
+jQuery(function($) {
+    // Set the hidden rule_value before submit based on selected type
+    $('#epc-rule-form').on('submit', function() {
+        var type = $('#epc-rule-type').val();
+        var val = '';
+        if (type === 'product') {
+            val = $('#epc-rule-product-search').val();
+        } else if (type === 'category') {
+            val = $('select[name="rule_value_category"]').val();
+        } else if (type === 'tag') {
+            val = $('select[name="rule_value_tag"]').val();
+        }
+        $('#epc-rule-value-hidden').val(val);
+    });
+});
+</script>
