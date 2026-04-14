@@ -5,29 +5,34 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 global $wpdb;
 
-// Search parameters
-$search    = isset( $_GET['s'] ) ? sanitize_text_field( wp_unslash( $_GET['s'] ) ) : ''; // phpcs:ignore
+// Search / filter parameters
+$search    = isset( $_GET['s'] )         ? sanitize_text_field( wp_unslash( $_GET['s'] ) )   : ''; // phpcs:ignore
+$filter_mid = isset( $_GET['member_id'] ) ? (int) $_GET['member_id']                          : 0;  // phpcs:ignore
 $page      = max( 1, (int) ( $_GET['paged'] ?? 1 ) ); // phpcs:ignore
-$per_page  = 30;
+$per_page  = 50;
 $offset    = ( $page - 1 ) * $per_page;
 
 $where  = '1=1';
 $params = [];
 
-if ( ! empty( $search ) ) {
+if ( $filter_mid > 0 ) {
+    $where .= $wpdb->prepare( ' AND pl.member_id = %d', $filter_mid );
+} elseif ( ! empty( $search ) ) {
     $like = '%' . $wpdb->esc_like( $search ) . '%';
     if ( is_numeric( $search ) ) {
         $where .= $wpdb->prepare(
-            " AND (m.id = %d OR m.user_id = %d OR m.first_name LIKE %s OR m.last_name LIKE %s OR m.email LIKE %s)",
+            " AND (m.id = %d OR m.user_id = %d OR m.first_name LIKE %s OR m.last_name LIKE %s OR m.email LIKE %s OR wu.user_login LIKE %s)",
             (int) $search,
             (int) $search,
+            $like,
             $like,
             $like,
             $like
         );
     } else {
         $where .= $wpdb->prepare(
-            " AND (m.first_name LIKE %s OR m.last_name LIKE %s OR m.email LIKE %s)",
+            " AND (m.first_name LIKE %s OR m.last_name LIKE %s OR m.email LIKE %s OR wu.user_login LIKE %s)",
+            $like,
             $like,
             $like,
             $like
@@ -35,10 +40,26 @@ if ( ! empty( $search ) ) {
     }
 }
 
+// When filtering by member, fetch member summary
+$filter_member = null;
+if ( $filter_mid > 0 ) {
+    $filter_member = $wpdb->get_row(
+        $wpdb->prepare(
+            "SELECT m.*, wu.user_login, wu.display_name AS wp_display_name
+             FROM {$wpdb->prefix}epc_members m
+             LEFT JOIN {$wpdb->users} wu ON m.user_id = wu.ID
+             WHERE m.id = %d",
+            $filter_mid
+        ),
+        ARRAY_A
+    );
+}
+
 $total = (int) $wpdb->get_var(
     "SELECT COUNT(*)
      FROM {$wpdb->prefix}epc_points_log pl
      LEFT JOIN {$wpdb->prefix}epc_members m ON pl.member_id = m.id
+     LEFT JOIN {$wpdb->users} wu ON m.user_id = wu.ID
      WHERE {$where}" // phpcs:ignore
 );
 
@@ -47,10 +68,13 @@ $logs = $wpdb->get_results(
         "SELECT pl.*,
                 m.first_name, m.last_name, m.email, m.points AS current_points,
                 m.tier, m.referral_code,
-                u.display_name AS admin_name
+                wu.user_login,
+                wu.display_name AS wp_display_name,
+                adm.display_name AS admin_name
          FROM {$wpdb->prefix}epc_points_log pl
          LEFT JOIN {$wpdb->prefix}epc_members m ON pl.member_id = m.id
-         LEFT JOIN {$wpdb->users} u ON pl.admin_user_id = u.ID
+         LEFT JOIN {$wpdb->users} wu  ON m.user_id = wu.ID
+         LEFT JOIN {$wpdb->users} adm ON pl.admin_user_id = adm.ID
          WHERE {$where}
          ORDER BY pl.created_at DESC
          LIMIT %d OFFSET %d",
@@ -60,7 +84,7 @@ $logs = $wpdb->get_results(
     ARRAY_A
 ); // phpcs:ignore
 
-$total_pages = ceil( $total / $per_page );
+$total_pages = (int) ceil( $total / $per_page );
 
 $reason_labels = [
     'birthday_bonus'             => [ 'label' => 'Μπόνους Γενεθλίων',                      'icon' => 'dashicons-cake',          'color' => '#ec4899' ],
@@ -75,6 +99,19 @@ $reason_labels = [
     'signup_bonus'               => [ 'label' => 'Μπόνους Εγγραφής',                        'icon' => 'dashicons-admin-users',   'color' => '#8b5cf6' ],
     'checkout_redemption'        => [ 'label' => 'Εξαργύρωση στο Checkout',                'icon' => 'dashicons-money-alt',     'color' => '#dc2626' ],
 ];
+
+// Build base URL for pagination (preserve search / member_id)
+function epc_log_page_url( $p ) {
+    $args = [ 'page' => 'epc-points-log', 'paged' => $p ];
+    $mid  = isset( $_GET['member_id'] ) ? (int) $_GET['member_id'] : 0; // phpcs:ignore
+    $s    = isset( $_GET['s'] )         ? sanitize_text_field( wp_unslash( $_GET['s'] ) ) : ''; // phpcs:ignore
+    if ( $mid > 0 ) {
+        $args['member_id'] = $mid;
+    } elseif ( $s !== '' ) {
+        $args['s'] = $s;
+    }
+    return admin_url( 'admin.php?' . http_build_query( $args ) );
+}
 ?>
 <div class="wrap epc-wrap">
     <div class="epc-header">
@@ -93,7 +130,32 @@ $reason_labels = [
         </div>
     </div>
 
-    <!-- Search Bar -->
+    <!-- Member filter banner -->
+    <?php if ( $filter_member ) :
+        $currency = EPC_Settings::get( 'epc_currency_symbol' );
+    ?>
+        <div class="epc-member-filter-banner">
+            <span class="dashicons dashicons-admin-users"></span>
+            <div class="epc-member-filter-info">
+                <strong><?php echo esc_html( $filter_member['first_name'] . ' ' . $filter_member['last_name'] ); ?></strong>
+                <?php if ( ! empty( $filter_member['user_login'] ) ) : ?>
+                    <span class="epc-member-filter-username">@<?php echo esc_html( $filter_member['user_login'] ); ?></span>
+                <?php endif; ?>
+                <span class="epc-member-filter-email"><?php echo esc_html( $filter_member['email'] ); ?></span>
+            </div>
+            <div class="epc-member-filter-points">
+                <span class="epc-member-filter-points-label"><?php esc_html_e( 'Τρέχοντες πόντοι', 'epappous-club' ); ?></span>
+                <strong class="epc-member-filter-points-value"><?php echo esc_html( $currency . ' ' . number_format( (int) $filter_member['points'] ) ); ?></strong>
+            </div>
+            <a href="<?php echo esc_url( admin_url( 'admin.php?page=epc-points-log' ) ); ?>" class="button epc-member-filter-clear">
+                <span class="dashicons dashicons-no-alt"></span>
+                <?php esc_html_e( 'Εμφάνιση όλων', 'epappous-club' ); ?>
+            </a>
+        </div>
+    <?php endif; ?>
+
+    <!-- Search Bar (hidden when filtering by member) -->
+    <?php if ( ! $filter_mid ) : ?>
     <div class="epc-search-bar">
         <form method="get" action="">
             <input type="hidden" name="page" value="epc-points-log" />
@@ -101,7 +163,7 @@ $reason_labels = [
                 <span class="dashicons dashicons-search"></span>
                 <input type="text" name="s" id="epc-log-search"
                        value="<?php echo esc_attr( $search ); ?>"
-                       placeholder="<?php esc_attr_e( 'Αναζήτηση με ID, όνομα ή email...', 'epappous-club' ); ?>"
+                       placeholder="<?php esc_attr_e( 'Αναζήτηση με ID, username, όνομα ή email...', 'epappous-club' ); ?>"
                        class="epc-search-input" />
                 <button type="submit" class="button button-primary"><?php esc_html_e( 'Αναζήτηση', 'epappous-club' ); ?></button>
                 <?php if ( ! empty( $search ) ) : ?>
@@ -122,6 +184,7 @@ $reason_labels = [
             ); ?>
         </p>
     <?php endif; ?>
+    <?php endif; ?>
 
     <?php if ( empty( $logs ) ) : ?>
         <div class="epc-empty-state">
@@ -132,6 +195,28 @@ $reason_labels = [
             <?php endif; ?>
         </div>
     <?php else : ?>
+
+        <!-- Pagination top -->
+        <?php if ( $total_pages > 1 ) : ?>
+            <div class="tablenav top">
+                <div class="tablenav-pages">
+                    <span class="displaying-num">
+                        <?php printf( esc_html__( '%s εγγραφές', 'epappous-club' ), number_format( $total ) ); ?>
+                    </span>
+                    <?php
+                    echo paginate_links( [
+                        'base'    => epc_log_page_url( '%#%' ),
+                        'format'  => '',
+                        'current' => $page,
+                        'total'   => $total_pages,
+                        'prev_text' => '&laquo;',
+                        'next_text' => '&raquo;',
+                    ] );
+                    ?>
+                </div>
+            </div>
+        <?php endif; ?>
+
         <table class="wp-list-table widefat fixed striped epc-table epc-points-table">
             <thead>
                 <tr>
@@ -153,13 +238,20 @@ $reason_labels = [
                         'icon'  => 'dashicons-info',
                         'color' => '#6b7280',
                     ];
-                    $pts = (int) $log['points'];
+                    $pts        = (int) $log['points'];
+                    $full_name  = trim( ( $log['first_name'] ?? '' ) . ' ' . ( $log['last_name'] ?? '' ) );
+                    $member_url = admin_url( 'admin.php?page=epc-points-log&member_id=' . (int) $log['member_id'] );
                 ?>
                     <tr>
                         <td class="column-id"><?php echo (int) $log['id']; ?></td>
                         <td class="column-member">
                             <?php if ( $log['first_name'] ) : ?>
-                                <strong><?php echo esc_html( $log['first_name'] . ' ' . $log['last_name'] ); ?></strong>
+                                <a href="<?php echo esc_url( $member_url ); ?>" class="epc-member-link">
+                                    <strong><?php echo esc_html( $full_name ); ?></strong>
+                                </a>
+                                <?php if ( ! empty( $log['user_login'] ) ) : ?>
+                                    <br /><small class="epc-member-username">@<?php echo esc_html( $log['user_login'] ); ?></small>
+                                <?php endif; ?>
                                 <br /><small class="epc-member-email"><?php echo esc_html( $log['email'] ); ?></small>
                                 <br /><small class="epc-member-id">ID: <?php echo (int) $log['member_id']; ?></small>
                             <?php else : ?>
@@ -202,7 +294,7 @@ $reason_labels = [
                                     data-log='<?php echo esc_attr( wp_json_encode( [
                                         'id'             => (int) $log['id'],
                                         'member_id'      => (int) $log['member_id'],
-                                        'member_name'    => trim( ( $log['first_name'] ?? '' ) . ' ' . ( $log['last_name'] ?? '' ) ),
+                                        'member_name'    => $full_name,
                                         'member_email'   => $log['email'] ?? '',
                                         'member_tier'    => $log['tier'] ?? '',
                                         'member_points'  => (int) ( $log['current_points'] ?? 0 ),
@@ -223,24 +315,31 @@ $reason_labels = [
             </tbody>
         </table>
 
+        <!-- Pagination bottom -->
         <?php if ( $total_pages > 1 ) : ?>
             <div class="tablenav bottom">
                 <div class="tablenav-pages">
+                    <span class="displaying-num">
+                        <?php
+                        $from = $offset + 1;
+                        $to   = min( $offset + $per_page, $total );
+                        printf( esc_html__( '%1$d–%2$d από %3$d', 'epappous-club' ), $from, $to, $total );
+                        ?>
+                    </span>
                     <?php
-                    $pagination_args = [ 'paged' => '%#%' ];
-                    if ( ! empty( $search ) ) {
-                        $pagination_args['s'] = $search;
-                    }
                     echo paginate_links( [
-                        'base'    => add_query_arg( $pagination_args ),
-                        'format'  => '',
-                        'current' => $page,
-                        'total'   => $total_pages,
+                        'base'      => epc_log_page_url( '%#%' ),
+                        'format'    => '',
+                        'current'   => $page,
+                        'total'     => $total_pages,
+                        'prev_text' => '&laquo;',
+                        'next_text' => '&raquo;',
                     ] );
                     ?>
                 </div>
             </div>
         <?php endif; ?>
+
     <?php endif; ?>
 </div>
 
