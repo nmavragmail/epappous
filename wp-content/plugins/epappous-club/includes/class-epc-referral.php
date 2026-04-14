@@ -33,6 +33,7 @@ class EPC_Referral {
         // WooCommerce hooks
         add_action( 'woocommerce_order_status_completed', [ $this, 'on_order_completed' ] );
         add_action( 'woocommerce_checkout_order_processed', [ $this, 'attach_referral_to_order' ] );
+        add_action( 'woocommerce_store_api_checkout_order_processed', [ $this, 'attach_referral_to_order_from_blocks' ] );
 
         // Membership sign-up hook (internal)
         add_action( 'epc_member_registered', [ $this, 'on_member_registered' ], 10, 2 );
@@ -114,7 +115,7 @@ class EPC_Referral {
         $reward_referred = (int) EPC_Settings::get( 'epc_referral_reward_referred' );
         $reward_type     = EPC_Settings::get( 'epc_referral_reward_type' );
 
-        $wpdb->insert(
+        $inserted = $wpdb->insert(
             "{$wpdb->prefix}epc_referrals",
             [
                 'referrer_member_id' => $referrer->id,
@@ -128,6 +129,13 @@ class EPC_Referral {
             ],
             [ '%d', '%d', '%s', '%s', '%d', '%s', '%s', '%s' ]
         );
+
+        if ( false === $inserted ) {
+            if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
+                error_log( 'ePappous Club: Failed to insert membership referral for referrer #' . $referrer->id );
+            }
+            return;
+        }
 
         // If no purchase is required, give rewards immediately
         if ( EPC_Settings::get( 'epc_referral_require_purchase' ) !== '1' ) {
@@ -156,6 +164,16 @@ class EPC_Referral {
         );
 
         do_action( 'epc_referral_completed', $referrer->id, $member_id, 'membership' );
+    }
+
+    /**
+     * Block-checkout variant: receives WC_Order (1 arg), delegates to attach_referral_to_order().
+     */
+    public function attach_referral_to_order_from_blocks( $order ) {
+        if ( ! $order instanceof \WC_Order ) {
+            return;
+        }
+        $this->attach_referral_to_order( $order->get_id() );
     }
 
     /**
@@ -231,7 +249,7 @@ class EPC_Referral {
         $reward_referred = (int) EPC_Settings::get( 'epc_referral_reward_referred' );
         $reward_type     = EPC_Settings::get( 'epc_referral_reward_type' );
 
-        $wpdb->insert(
+        $inserted = $wpdb->insert(
             "{$wpdb->prefix}epc_referrals",
             [
                 'referrer_member_id' => $referrer->id,
@@ -247,6 +265,13 @@ class EPC_Referral {
             ],
             [ '%d', '%d', '%s', '%s', '%d', '%d', '%s', '%d', '%s', '%s' ]
         );
+
+        if ( false === $inserted ) {
+            if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
+                error_log( 'ePappous Club: Failed to insert purchase referral for order #' . $order_id );
+            }
+            return;
+        }
 
         $this->give_points( $referrer->id, $reward_referrer, 'referral_purchase_referrer', $order_id );
         $this->give_points( $referred->id, $reward_referred, 'referral_purchase_referred', $order_id );
@@ -330,14 +355,16 @@ class EPC_Referral {
     /**
      * Award points to a member and log the transaction.
      */
-    private function give_points( int $member_id, int $points, string $reason, $reference_id = null ) {
+    private function give_points( int $member_id, int $points, string $reason, $reference_id = null ): bool {
         if ( $points < 1 ) {
-            return;
+            return false;
         }
 
         global $wpdb;
 
-        $wpdb->query(
+        $wpdb->query( 'START TRANSACTION' );
+
+        $updated = $wpdb->query(
             $wpdb->prepare(
                 "UPDATE {$wpdb->prefix}epc_members SET points = points + %d WHERE id = %d",
                 $points,
@@ -345,7 +372,12 @@ class EPC_Referral {
             )
         );
 
-        $wpdb->insert(
+        if ( false === $updated ) {
+            $wpdb->query( 'ROLLBACK' );
+            return false;
+        }
+
+        $inserted = $wpdb->insert(
             "{$wpdb->prefix}epc_points_log",
             [
                 'member_id'      => $member_id,
@@ -356,6 +388,14 @@ class EPC_Referral {
             ],
             [ '%d', '%d', '%s', '%s', '%d' ]
         );
+
+        if ( false === $inserted ) {
+            $wpdb->query( 'ROLLBACK' );
+            return false;
+        }
+
+        $wpdb->query( 'COMMIT' );
+        return true;
     }
 
     /**
