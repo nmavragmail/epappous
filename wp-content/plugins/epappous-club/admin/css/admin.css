@@ -1296,6 +1296,180 @@
     padding: 8px 0;
 }
 
+/* ── "Αναλυτικά" link next to points ── */
+
+.epc-points-history-link {
+    display: inline-flex;
+    align-items: center;
+    margin-left: 12px;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--epc-primary);
+    text-decoration: none;
+    border: 1px solid var(--epc-primary);
+    border-radius: 20px;
+    padding: 2px 10px;
+    transition: background 0.15s, color 0.15s;
+    vertical-align: middle;
+}
+
+.epc-points-history-link:hover {
+    background: var(--epc-primary);
+    color: #fff;
+}
+
+/* ── Redemption summary (Εξαργύρωση row) ── */
+
+.epc-redeem-summary {
+    display: flex;
+    gap: 24px;
+    flex-wrap: wrap;
+    margin-bottom: 10px;
+}
+
+.epc-redeem-summary-item {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+}
+
+.epc-redeem-summary-label {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--epc-gray-500);
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.epc-redeem-summary-label .dashicons {
+    font-size: 14px;
+    width: 14px;
+    height: 14px;
+}
+
+.epc-redeem-summary-value {
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--epc-gray-800);
+}
+
+.epc-redeem-summary-value em {
+    font-size: 12px;
+    font-weight: 400;
+    color: var(--epc-gray-500);
+    font-style: normal;
+    margin-left: 4px;
+}
+
+/* ── Redemption history toggle ── */
+
+.epc-redeem-history {
+    margin-top: 4px;
+}
+
+.epc-redeem-history-toggle {
+    background: none;
+    border: none;
+    color: var(--epc-primary);
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    padding: 0;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.epc-redeem-history-toggle .dashicons {
+    font-size: 14px;
+    width: 14px;
+    height: 14px;
+    transition: transform 0.2s;
+}
+
+.epc-redeem-history-toggle.open .dashicons {
+    transform: rotate(180deg);
+}
+
+.epc-redeem-history-list {
+    margin-top: 8px;
+    border: 1px solid var(--epc-gray-200);
+    border-radius: var(--epc-radius);
+    overflow: hidden;
+}
+
+.epc-redeem-history-item {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    padding: 8px 12px;
+    font-size: 13px;
+    border-bottom: 1px solid var(--epc-gray-100);
+}
+
+.epc-redeem-history-item:last-child {
+    border-bottom: none;
+}
+
+.epc-redeem-history-date {
+    flex: 0 0 110px;
+    font-size: 11px;
+    color: var(--epc-gray-400);
+    white-space: nowrap;
+}
+
+.epc-redeem-history-type {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    flex: 1;
+    flex-wrap: wrap;
+}
+
+.epc-redeem-history-type .dashicons {
+    font-size: 14px;
+    width: 14px;
+    height: 14px;
+}
+
+.epc-redeem-history-type.checkout .dashicons { color: #dc2626; }
+.epc-redeem-history-type.gift .dashicons { color: #f59e0b; }
+
+.epc-redeem-history-type em {
+    font-style: normal;
+    color: var(--epc-gray-500);
+    font-size: 12px;
+}
+
+.epc-redeem-history-type a {
+    color: var(--epc-primary);
+    text-decoration: none;
+    font-size: 12px;
+}
+
+.epc-redeem-history-type a:hover {
+    text-decoration: underline;
+}
+
+/* ── Clickable order ref in points log ── */
+
+.epc-ref-link {
+    color: var(--epc-primary);
+    text-decoration: none;
+    font-size: 13px;
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+}
+
+.epc-ref-link:hover {
+    text-decoration: underline;
+    color: var(--epc-primary-dark);
+}
+
 /* ── Points Adjustment (User Profile) ── */
 
 .epc-points-adjust-row {

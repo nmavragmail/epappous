@@ -281,6 +281,15 @@
         $('#epc-debug-modal').hide();
     });
 
+    /* ─── Redemption history toggle (User Profile) ─── */
+
+    $(document).on('click', '.epc-redeem-history-toggle', function () {
+        var $btn  = $(this);
+        var $list = $btn.closest('.epc-redeem-history').find('.epc-redeem-history-list');
+        $list.slideToggle(200);
+        $btn.toggleClass('open');
+    });
+
     /* ─── Admin Notes (User Profile) ─── */
 
     $(document).on('click', '.epc-add-note-btn', function () {
