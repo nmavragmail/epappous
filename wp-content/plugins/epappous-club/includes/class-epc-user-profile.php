@@ -67,10 +67,11 @@ class EPC_User_Profile {
             ARRAY_A
         );
 
-        $club_name = EPC_Settings::get( 'epc_club_name' );
-        $currency  = EPC_Settings::get( 'epc_currency_symbol' );
-        $nonce     = wp_create_nonce( 'epc_admin_nonce' );
-        $is_member = ! empty( $member );
+        $club_name    = EPC_Settings::get( 'epc_club_name' );
+        $currency     = EPC_Settings::get( 'epc_currency_symbol' );
+        $point_value  = (float) EPC_Settings::get( 'epc_points_value_euro' );
+        $nonce        = wp_create_nonce( 'epc_admin_nonce' );
+        $is_member    = ! empty( $member );
 
         ?>
         <div class="epc-profile-box">
@@ -89,6 +90,46 @@ class EPC_User_Profile {
                         )
                     );
                     $is_active = $member['status'] === 'active';
+
+                    // Redemption totals
+                    $checkout_total = $wpdb->get_row(
+                        $wpdb->prepare(
+                            "SELECT COALESCE(SUM(ABS(points)),0) AS total_pts
+                             FROM {$wpdb->prefix}epc_points_log
+                             WHERE member_id = %d AND reason = 'checkout_redemption'",
+                            (int) $member['id']
+                        )
+                    );
+                    $gift_total = $wpdb->get_row(
+                        $wpdb->prepare(
+                            "SELECT COALESCE(SUM(ABS(points)),0) AS total_pts, COUNT(*) AS total_count
+                             FROM {$wpdb->prefix}epc_points_log
+                             WHERE member_id = %d AND reason = 'gift_redemption'",
+                            (int) $member['id']
+                        )
+                    );
+                    $checkout_pts  = (int) $checkout_total->total_pts;
+                    $checkout_euro = $checkout_pts * $point_value;
+                    $gift_pts      = (int) $gift_total->total_pts;
+                    $gift_count    = (int) $gift_total->total_count;
+
+                    // Recent redemption history (last 10 checkout + gift)
+                    $redemption_logs = $wpdb->get_results(
+                        $wpdb->prepare(
+                            "SELECT pl.*, gp.title AS gift_title
+                             FROM {$wpdb->prefix}epc_points_log pl
+                             LEFT JOIN {$wpdb->prefix}epc_gift_products gp
+                                 ON pl.reason = 'gift_redemption' AND pl.reference_id = gp.id
+                             WHERE pl.member_id = %d
+                               AND pl.reason IN ('checkout_redemption','gift_redemption')
+                             ORDER BY pl.created_at DESC
+                             LIMIT 20",
+                            (int) $member['id']
+                        ),
+                        ARRAY_A
+                    ) ?: [];
+
+                    $log_url = admin_url( 'admin.php?page=epc-points-log&member_id=' . (int) $member['id'] );
                     ?>
                     <table class="form-table epc-profile-table">
                         <tr>
@@ -122,6 +163,85 @@ class EPC_User_Profile {
                                 <strong class="epc-points-display" style="font-size:18px;color:#4f46e5;">
                                     <?php echo esc_html( $currency . ' ' . number_format( (int) $member['points'] ) ); ?>
                                 </strong>
+                                <a href="<?php echo esc_url( $log_url ); ?>" class="epc-points-history-link">
+                                    <?php esc_html_e( 'Αναλυτικά', 'epappous-club' ); ?>
+                                </a>
+                            </td>
+                        </tr>
+                        <tr>
+                            <th><?php esc_html_e( 'Εξαργύρωση', 'epappous-club' ); ?></th>
+                            <td>
+                                <div class="epc-redeem-summary">
+                                    <div class="epc-redeem-summary-item">
+                                        <span class="epc-redeem-summary-label">
+                                            <span class="dashicons dashicons-money-alt"></span>
+                                            <?php esc_html_e( 'Έκπτωση checkout', 'epappous-club' ); ?>
+                                        </span>
+                                        <span class="epc-redeem-summary-value">
+                                            <?php echo esc_html( $currency . ' ' . number_format( $checkout_pts ) ); ?>
+                                            <?php if ( $checkout_euro > 0 ) : ?>
+                                                <em>(<?php echo esc_html( number_format( $checkout_euro, 2 ) . ' €' ); ?>)</em>
+                                            <?php endif; ?>
+                                        </span>
+                                    </div>
+                                    <div class="epc-redeem-summary-item">
+                                        <span class="epc-redeem-summary-label">
+                                            <span class="dashicons dashicons-cart"></span>
+                                            <?php esc_html_e( 'Δώρα προϊόντα', 'epappous-club' ); ?>
+                                        </span>
+                                        <span class="epc-redeem-summary-value">
+                                            <?php echo esc_html( $currency . ' ' . number_format( $gift_pts ) ); ?>
+                                            <em>(<?php printf( esc_html__( '%d φορές', 'epappous-club' ), $gift_count ); ?>)</em>
+                                        </span>
+                                    </div>
+                                </div>
+
+                                <?php if ( ! empty( $redemption_logs ) ) : ?>
+                                <div class="epc-redeem-history">
+                                    <button type="button" class="epc-redeem-history-toggle">
+                                        <span class="dashicons dashicons-arrow-down-alt2"></span>
+                                        <?php esc_html_e( 'Ιστορικό εξαργύρωσης', 'epappous-club' ); ?>
+                                    </button>
+                                    <div class="epc-redeem-history-list" style="display:none;">
+                                        <?php foreach ( $redemption_logs as $rlog ) :
+                                            $rpts  = abs( (int) $rlog['points'] );
+                                            $rdate = date_i18n( 'd/m/Y H:i', strtotime( $rlog['created_at'] ) );
+                                        ?>
+                                        <div class="epc-redeem-history-item">
+                                            <span class="epc-redeem-history-date"><?php echo esc_html( $rdate ); ?></span>
+                                            <?php if ( $rlog['reason'] === 'checkout_redemption' ) : ?>
+                                                <span class="epc-redeem-history-type checkout">
+                                                    <span class="dashicons dashicons-money-alt"></span>
+                                                    <?php printf(
+                                                        esc_html__( 'Έκπτωση %s %s', 'epappous-club' ),
+                                                        esc_html( number_format( $rpts ) ),
+                                                        esc_html( $currency )
+                                                    ); ?>
+                                                    <?php if ( $point_value > 0 ) : ?>
+                                                        <em>(<?php echo esc_html( number_format( $rpts * $point_value, 2 ) . ' €' ); ?>)</em>
+                                                    <?php endif; ?>
+                                                    <?php if ( ! empty( $rlog['reference_id'] ) ) : ?>
+                                                        — <a href="<?php echo esc_url( get_edit_post_link( (int) $rlog['reference_id'] ) ); ?>" target="_blank">
+                                                            <?php printf( esc_html__( 'Παραγγελία #%d', 'epappous-club' ), (int) $rlog['reference_id'] ); ?>
+                                                        </a>
+                                                    <?php endif; ?>
+                                                </span>
+                                            <?php else : ?>
+                                                <span class="epc-redeem-history-type gift">
+                                                    <span class="dashicons dashicons-cart"></span>
+                                                    <?php printf(
+                                                        esc_html__( 'Δώρο: %s (%s %s)', 'epappous-club' ),
+                                                        esc_html( $rlog['gift_title'] ?: __( 'Άγνωστο', 'epappous-club' ) ),
+                                                        esc_html( number_format( $rpts ) ),
+                                                        esc_html( $currency )
+                                                    ); ?>
+                                                </span>
+                                            <?php endif; ?>
+                                        </div>
+                                        <?php endforeach; ?>
+                                    </div>
+                                </div>
+                                <?php endif; ?>
                             </td>
                         </tr>
                         <tr>

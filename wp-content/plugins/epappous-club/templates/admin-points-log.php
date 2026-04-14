@@ -272,8 +272,25 @@ function epc_log_page_url( $p ) {
                             </span>
                         </td>
                         <td class="column-ref">
-                            <?php if ( ! empty( $log['reference_type'] ) ) : ?>
-                                <code><?php echo esc_html( $log['reference_type'] ); ?>#<?php echo (int) $log['reference_id']; ?></code>
+                            <?php if ( ! empty( $log['reference_type'] ) && ! empty( $log['reference_id'] ) ) :
+                                $ref_type = $log['reference_type'];
+                                $ref_id   = (int) $log['reference_id'];
+                                if ( $ref_type === 'order' ) :
+                                    $order_url = get_edit_post_link( $ref_id );
+                                    if ( ! $order_url ) {
+                                        // HPOS-compatible fallback
+                                        $order_url = admin_url( 'post.php?post=' . $ref_id . '&action=edit' );
+                                    }
+                                ?>
+                                    <a href="<?php echo esc_url( $order_url ); ?>" target="_blank" class="epc-ref-link">
+                                        <span class="dashicons dashicons-external" style="font-size:13px;width:13px;height:13px;vertical-align:middle;margin-top:-2px;"></span>
+                                        <?php printf( esc_html__( 'Παραγγελία #%d', 'epappous-club' ), $ref_id ); ?>
+                                    </a>
+                                <?php elseif ( $ref_type === 'gift' ) : ?>
+                                    <code><?php printf( esc_html__( 'Δώρο #%d', 'epappous-club' ), $ref_id ); ?></code>
+                                <?php else : ?>
+                                    <code><?php echo esc_html( $ref_type ); ?>#<?php echo $ref_id; ?></code>
+                                <?php endif; ?>
                             <?php else : ?>
                                 <span class="epc-na">—</span>
                             <?php endif; ?>
