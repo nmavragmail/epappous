@@ -341,6 +341,9 @@
         $('#epc-gift-rule-modal').show();
         $('#epc-rule-form')[0].reset();
         $('#epc-rule-id').val('');
+        $('.epc-rule-value-group').hide();
+        $('#epc-rule-value-product').show();
+        initProductSearch();
     });
 
     $(document).on('click', '#epc-gift-rule-modal .epc-modal-close, #epc-gift-rule-modal .epc-modal-close-btn, #epc-gift-rule-modal .epc-modal-overlay', function () {
@@ -393,26 +396,34 @@
 
     /* ─── WC Product Search (Select2) ─── */
 
-    $(document).ready(function () {
-        if ($.fn.select2 && $('#epc-rule-product-search').length) {
-            $('#epc-rule-product-search').select2({
-                ajax: {
-                    url: epcAdmin.ajaxUrl,
-                    dataType: 'json',
-                    delay: 300,
-                    data: function (params) {
-                        return { action: 'epc_search_products', q: params.term, nonce: epcAdmin.nonce };
-                    },
-                    processResults: function (data) {
-                        return { results: data.data || [] };
-                    }
-                },
-                minimumInputLength: 2,
-                placeholder: 'Αναζήτηση προϊόντος...',
-                width: '100%'
-            });
+    function initProductSearch() {
+        var $el = $('#epc-rule-product-search');
+        if (!$el.length) return;
+
+        if (!$.fn.select2) return;
+
+        if ($el.hasClass('select2-hidden-accessible')) {
+            $el.select2('destroy');
         }
-    });
+
+        $el.select2({
+            ajax: {
+                url: epcAdmin.ajaxUrl,
+                dataType: 'json',
+                delay: 300,
+                data: function (params) {
+                    return { action: 'epc_search_products', q: params.term, nonce: epcAdmin.nonce };
+                },
+                processResults: function (data) {
+                    return { results: data.data || [] };
+                }
+            },
+            minimumInputLength: 2,
+            placeholder: 'Αναζήτηση προϊόντος...',
+            width: '100%',
+            dropdownParent: $('#epc-gift-rule-modal .epc-modal-content')
+        });
+    }
 
     /* ─── Init Color Pickers ─── */
 
