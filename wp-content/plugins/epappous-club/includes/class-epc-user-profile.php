@@ -186,10 +186,11 @@ class EPC_User_Profile {
                     </table>
                 <?php endif; ?>
 
-                <?php $this->render_notes( $user->ID, $nonce ); ?>
-
             </div>
         </div>
+
+        <?php $this->render_notes( $user->ID, $nonce ); ?>
+
         <?php
     }
 
@@ -211,57 +212,60 @@ class EPC_User_Profile {
             ARRAY_A
         ) ?: [];
         ?>
-        <div class="epc-notes-section">
-            <h3 class="epc-notes-heading">
+        <div class="epc-profile-box epc-notes-box">
+            <div class="epc-profile-box-header epc-notes-box-header">
                 <span class="dashicons dashicons-edit"></span>
                 <?php esc_html_e( 'Σημειώσεις Admin', 'epappous-club' ); ?>
-            </h3>
-
-            <div class="epc-note-add-row">
-                <label><?php esc_html_e( 'Νέα σημείωση', 'epappous-club' ); ?></label>
-                <div class="epc-note-add-controls">
-                    <textarea id="epc-new-note" rows="2"
-                              placeholder="<?php esc_attr_e( 'Γράψε σημείωση...', 'epappous-club' ); ?>"></textarea>
-                    <button type="button" class="button button-primary epc-add-note-btn"
-                            data-user-id="<?php echo (int) $wp_user_id; ?>"
-                            data-nonce="<?php echo esc_attr( $nonce ); ?>">
-                        <?php esc_html_e( 'Προσθήκη', 'epappous-club' ); ?>
-                    </button>
-                </div>
-                <span class="epc-note-saved-msg" style="display:none;">
-                    <span class="dashicons dashicons-yes-alt"></span>
-                    <?php esc_html_e( 'Αποθηκεύτηκε!', 'epappous-club' ); ?>
-                </span>
             </div>
+            <div class="epc-profile-box-body">
 
-            <div class="epc-note-history">
-                <label><?php esc_html_e( 'Ιστορικό', 'epappous-club' ); ?></label>
-                <div id="epc-notes-timeline">
-                    <?php if ( empty( $notes ) ) : ?>
-                        <p class="epc-no-notes">
-                            <?php esc_html_e( 'Δεν υπάρχουν σημειώσεις.', 'epappous-club' ); ?>
-                        </p>
-                    <?php else : ?>
-                        <?php foreach ( $notes as $note ) : ?>
-                            <div class="epc-note-item" data-note-id="<?php echo (int) $note['id']; ?>">
-                                <div class="epc-note-date">
-                                    <?php echo esc_html( date_i18n( 'd.m.y', strtotime( $note['created_at'] ) ) ); ?>
-                                    <br /><span><?php echo esc_html( date_i18n( 'H:i', strtotime( $note['created_at'] ) ) ); ?></span>
-                                </div>
-                                <div class="epc-note-body"><?php echo esc_html( $note['note'] ); ?></div>
-                                <div class="epc-note-meta">
-                                    <small><?php echo esc_html( $note['author_name'] ?? '' ); ?></small>
-                                    <br />
-                                    <button type="button" class="epc-delete-note-btn"
-                                            data-note-id="<?php echo (int) $note['id']; ?>"
-                                            data-nonce="<?php echo esc_attr( $nonce ); ?>">
-                                        <?php esc_html_e( 'Διαγραφή', 'epappous-club' ); ?>
-                                    </button>
-                                </div>
-                            </div>
-                        <?php endforeach; ?>
-                    <?php endif; ?>
+                <div class="epc-note-add-row">
+                    <label><?php esc_html_e( 'Νέα σημείωση', 'epappous-club' ); ?></label>
+                    <div class="epc-note-add-controls">
+                        <textarea id="epc-new-note" rows="2"
+                                  placeholder="<?php esc_attr_e( 'Γράψε σημείωση...', 'epappous-club' ); ?>"></textarea>
+                        <button type="button" class="button button-primary epc-add-note-btn"
+                                data-user-id="<?php echo (int) $wp_user_id; ?>"
+                                data-nonce="<?php echo esc_attr( $nonce ); ?>">
+                            <?php esc_html_e( 'Προσθήκη', 'epappous-club' ); ?>
+                        </button>
+                    </div>
+                    <span class="epc-note-saved-msg" style="display:none;">
+                        <span class="dashicons dashicons-yes-alt"></span>
+                        <?php esc_html_e( 'Αποθηκεύτηκε!', 'epappous-club' ); ?>
+                    </span>
                 </div>
+
+                <div class="epc-note-history">
+                    <label><?php esc_html_e( 'Ιστορικό', 'epappous-club' ); ?></label>
+                    <div id="epc-notes-timeline">
+                        <?php if ( empty( $notes ) ) : ?>
+                            <p class="epc-no-notes">
+                                <?php esc_html_e( 'Δεν υπάρχουν σημειώσεις.', 'epappous-club' ); ?>
+                            </p>
+                        <?php else : ?>
+                            <?php foreach ( $notes as $note ) : ?>
+                                <div class="epc-note-item" data-note-id="<?php echo (int) $note['id']; ?>">
+                                    <div class="epc-note-date">
+                                        <?php echo esc_html( date_i18n( 'd.m.y', strtotime( $note['created_at'] ) ) ); ?>
+                                        <br /><span><?php echo esc_html( date_i18n( 'H:i', strtotime( $note['created_at'] ) ) ); ?></span>
+                                    </div>
+                                    <div class="epc-note-body"><?php echo esc_html( $note['note'] ); ?></div>
+                                    <div class="epc-note-meta">
+                                        <small><?php echo esc_html( $note['author_name'] ?? '' ); ?></small>
+                                        <br />
+                                        <button type="button" class="epc-delete-note-btn"
+                                                data-note-id="<?php echo (int) $note['id']; ?>"
+                                                data-nonce="<?php echo esc_attr( $nonce ); ?>">
+                                            <?php esc_html_e( 'Διαγραφή', 'epappous-club' ); ?>
+                                        </button>
+                                    </div>
+                                </div>
+                            <?php endforeach; ?>
+                        <?php endif; ?>
+                    </div>
+                </div>
+
             </div>
         </div>
         <?php
