@@ -91,7 +91,6 @@ class EPC_User_Profile {
                     );
                     $is_active = $member['status'] === 'active';
 
-                    // Redemption totals
                     $checkout_total = $wpdb->get_row(
                         $wpdb->prepare(
                             "SELECT COALESCE(SUM(ABS(points)),0) AS total_pts
@@ -113,7 +112,6 @@ class EPC_User_Profile {
                     $gift_pts      = (int) $gift_total->total_pts;
                     $gift_count    = (int) $gift_total->total_count;
 
-                    // Recent redemption history (last 10 checkout + gift)
                     $redemption_logs = $wpdb->get_results(
                         $wpdb->prepare(
                             "SELECT pl.*, gp.title AS gift_title
@@ -131,179 +129,172 @@ class EPC_User_Profile {
 
                     $log_url = admin_url( 'admin.php?page=epc-points-log&member_id=' . (int) $member['id'] );
                     ?>
-                    <table class="form-table epc-profile-table">
-                        <tr>
-                            <th><?php esc_html_e( 'Κατάσταση', 'epappous-club' ); ?></th>
-                            <td>
-                                <span class="epc-profile-badge epc-profile-badge-<?php echo esc_attr( $member['status'] ); ?>">
-                                    <?php echo $is_active
-                                        ? esc_html__( 'Ενεργό Μέλος', 'epappous-club' )
-                                        : esc_html( ucfirst( $member['status'] ) ); ?>
-                                </span>
-                                <span class="epc-profile-tier-badge" style="margin-left:8px;">
-                                    <?php echo esc_html( ucfirst( $member['tier'] ) ); ?>
-                                </span>
-                                <label class="epc-membership-toggle" style="margin-left:16px;">
-                                    <input type="checkbox" class="epc-membership-toggle-input"
-                                           data-member-id="<?php echo (int) $member['id']; ?>"
-                                           data-nonce="<?php echo esc_attr( $nonce ); ?>"
-                                           <?php checked( $is_active ); ?> />
-                                    <span class="epc-membership-toggle-slider"></span>
-                                    <span class="epc-membership-toggle-label">
-                                        <?php echo $is_active
-                                            ? esc_html__( 'Ενεργό', 'epappous-club' )
-                                            : esc_html__( 'Ανενεργό', 'epappous-club' ); ?>
-                                    </span>
-                                </label>
-                            </td>
-                        </tr>
-                        <tr>
-                            <th><?php esc_html_e( 'Πόντοι', 'epappous-club' ); ?></th>
-                            <td>
-                                <strong class="epc-points-display" style="font-size:18px;color:#4f46e5;">
-                                    <?php echo esc_html( $currency . ' ' . number_format( (int) $member['points'] ) ); ?>
-                                </strong>
-                                <a href="<?php echo esc_url( $log_url ); ?>" class="epc-points-history-link">
-                                    <?php esc_html_e( 'Αναλυτικά', 'epappous-club' ); ?>
-                                </a>
-                            </td>
-                        </tr>
-                        <tr>
-                            <th><?php esc_html_e( 'Εξαργύρωση', 'epappous-club' ); ?></th>
-                            <td>
-                                <div class="epc-redeem-summary">
-                                    <div class="epc-redeem-summary-item">
-                                        <span class="epc-redeem-summary-label">
-                                            <span class="dashicons dashicons-money-alt"></span>
-                                            <?php esc_html_e( 'Έκπτωση checkout', 'epappous-club' ); ?>
-                                        </span>
-                                        <span class="epc-redeem-summary-value">
-                                            <?php echo esc_html( $currency . ' ' . number_format( $checkout_pts ) ); ?>
-                                            <?php if ( $checkout_euro > 0 ) : ?>
-                                                <em>(<?php echo esc_html( number_format( $checkout_euro, 2 ) . ' €' ); ?>)</em>
-                                            <?php endif; ?>
-                                        </span>
-                                    </div>
-                                    <div class="epc-redeem-summary-item">
-                                        <span class="epc-redeem-summary-label">
-                                            <span class="dashicons dashicons-cart"></span>
-                                            <?php esc_html_e( 'Δώρα προϊόντα', 'epappous-club' ); ?>
-                                        </span>
-                                        <span class="epc-redeem-summary-value">
-                                            <?php echo esc_html( $currency . ' ' . number_format( $gift_pts ) ); ?>
-                                            <em>(<?php printf( esc_html__( '%d φορές', 'epappous-club' ), $gift_count ); ?>)</em>
-                                        </span>
-                                    </div>
-                                </div>
 
-                                <?php if ( ! empty( $redemption_logs ) ) : ?>
-                                <div class="epc-redeem-history">
-                                    <button type="button" class="epc-redeem-history-toggle">
-                                        <span class="dashicons dashicons-arrow-down-alt2"></span>
-                                        <?php esc_html_e( 'Ιστορικό εξαργύρωσης', 'epappous-club' ); ?>
-                                    </button>
-                                    <div class="epc-redeem-history-list" style="display:none;">
-                                        <?php foreach ( $redemption_logs as $rlog ) :
-                                            $rpts  = abs( (int) $rlog['points'] );
-                                            $rdate = date_i18n( 'd/m/Y H:i', strtotime( $rlog['created_at'] ) );
-                                        ?>
-                                        <div class="epc-redeem-history-item">
-                                            <span class="epc-redeem-history-date"><?php echo esc_html( $rdate ); ?></span>
-                                            <?php if ( $rlog['reason'] === 'checkout_redemption' ) : ?>
-                                                <span class="epc-redeem-history-type checkout">
-                                                    <span class="dashicons dashicons-money-alt"></span>
-                                                    <?php printf(
-                                                        esc_html__( 'Έκπτωση %s %s', 'epappous-club' ),
-                                                        esc_html( number_format( $rpts ) ),
-                                                        esc_html( $currency )
-                                                    ); ?>
-                                                    <?php if ( $point_value > 0 ) : ?>
-                                                        <em>(<?php echo esc_html( number_format( $rpts * $point_value, 2 ) . ' €' ); ?>)</em>
-                                                    <?php endif; ?>
-                                                    <?php if ( ! empty( $rlog['reference_id'] ) ) : ?>
-                                                        — <a href="<?php echo esc_url( get_edit_post_link( (int) $rlog['reference_id'] ) ); ?>" target="_blank">
-                                                            <?php printf( esc_html__( 'Παραγγελία #%d', 'epappous-club' ), (int) $rlog['reference_id'] ); ?>
-                                                        </a>
-                                                    <?php endif; ?>
-                                                </span>
-                                            <?php else : ?>
-                                                <span class="epc-redeem-history-type gift">
-                                                    <span class="dashicons dashicons-cart"></span>
-                                                    <?php printf(
-                                                        esc_html__( 'Δώρο: %s (%s %s)', 'epappous-club' ),
-                                                        esc_html( $rlog['gift_title'] ?: __( 'Άγνωστο', 'epappous-club' ) ),
-                                                        esc_html( number_format( $rpts ) ),
-                                                        esc_html( $currency )
-                                                    ); ?>
-                                                </span>
-                                            <?php endif; ?>
-                                        </div>
-                                        <?php endforeach; ?>
-                                    </div>
-                                </div>
-                                <?php endif; ?>
-                            </td>
-                        </tr>
-                        <tr>
-                            <th><?php esc_html_e( 'Προσαρμογή Πόντων', 'epappous-club' ); ?></th>
-                            <td>
-                                <div class="epc-points-adjust-row">
-                                    <select class="epc-points-adjust-type">
-                                        <option value="add">+ <?php esc_html_e( 'Προσθήκη', 'epappous-club' ); ?></option>
-                                        <option value="remove">− <?php esc_html_e( 'Αφαίρεση', 'epappous-club' ); ?></option>
-                                    </select>
-                                    <input type="number" class="epc-points-adjust-amount" min="1" placeholder="<?php esc_attr_e( 'Πόντοι', 'epappous-club' ); ?>" />
-                                    <input type="text" class="epc-points-adjust-reason" placeholder="<?php esc_attr_e( 'Λόγος (προαιρετικό)', 'epappous-club' ); ?>" />
-                                    <button type="button" class="button button-primary epc-points-adjust-btn"
-                                            data-member-id="<?php echo (int) $member['id']; ?>"
-                                            data-nonce="<?php echo esc_attr( $nonce ); ?>">
-                                        <?php esc_html_e( 'Εφαρμογή', 'epappous-club' ); ?>
-                                    </button>
-                                </div>
-                                <span class="epc-points-adjust-msg" style="display:none;"></span>
-                            </td>
-                        </tr>
-                        <tr>
-                            <th><?php esc_html_e( 'Γενέθλια', 'epappous-club' ); ?></th>
-                            <td>
-                                <?php if ( ! empty( $member['date_of_birth'] ) ) : ?>
-                                    <strong><?php echo esc_html( date_i18n( 'd/m/Y', strtotime( $member['date_of_birth'] ) ) ); ?></strong>
-                                <?php else : ?>
-                                    <em style="color:#9ca3af;"><?php esc_html_e( 'Δεν έχει οριστεί', 'epappous-club' ); ?></em>
-                                <?php endif; ?>
-                            </td>
-                        </tr>
-                        <tr>
-                            <th><?php esc_html_e( 'Referrals', 'epappous-club' ); ?></th>
-                            <td>
-                                <strong><?php echo (int) $referral_count; ?></strong>
-                                <?php esc_html_e( 'φίλοι', 'epappous-club' ); ?>
-                                <br /><code><?php echo esc_html( $member['referral_code'] ); ?></code>
-                            </td>
-                        </tr>
-                        <tr>
-                            <th><?php esc_html_e( 'Μέλος από', 'epappous-club' ); ?></th>
-                            <td><?php echo esc_html( date_i18n( 'd/m/Y', strtotime( $member['joined_at'] ) ) ); ?></td>
-                        </tr>
-                    </table>
-                <?php else : ?>
-                    <table class="form-table epc-profile-table">
-                        <tr>
-                            <th><?php esc_html_e( 'Κατάσταση', 'epappous-club' ); ?></th>
-                            <td>
-                                <span style="color:#ef4444;font-weight:600;">
-                                    <?php esc_html_e( 'Δεν είναι μέλος του club', 'epappous-club' ); ?>
+                    <!-- Status row -->
+                    <div class="epc-pf-row">
+                        <span class="epc-pf-label"><?php esc_html_e( 'Κατάσταση', 'epappous-club' ); ?></span>
+                        <div class="epc-pf-value">
+                            <span class="epc-profile-badge epc-profile-badge-<?php echo esc_attr( $member['status'] ); ?>">
+                                <?php echo $is_active ? esc_html__( 'Ενεργό Μέλος', 'epappous-club' ) : esc_html( ucfirst( $member['status'] ) ); ?>
+                            </span>
+                            <label class="epc-membership-toggle">
+                                <input type="checkbox" class="epc-membership-toggle-input"
+                                       data-member-id="<?php echo (int) $member['id']; ?>"
+                                       data-nonce="<?php echo esc_attr( $nonce ); ?>"
+                                       <?php checked( $is_active ); ?> />
+                                <span class="epc-membership-toggle-slider"></span>
+                                <span class="epc-membership-toggle-label">
+                                    <?php echo $is_active ? esc_html__( 'Ενεργό', 'epappous-club' ) : esc_html__( 'Ανενεργό', 'epappous-club' ); ?>
                                 </span>
-                                <button type="button" class="button epc-enroll-member-btn"
-                                        data-user-id="<?php echo (int) $user->ID; ?>"
-                                        data-nonce="<?php echo esc_attr( $nonce ); ?>"
-                                        style="margin-left:12px;">
-                                    <span class="dashicons dashicons-plus-alt2" style="vertical-align:middle;margin-top:-2px;"></span>
-                                    <?php esc_html_e( 'Εγγραφή στο Club', 'epappous-club' ); ?>
+                            </label>
+                        </div>
+                    </div>
+
+                    <!-- Points row -->
+                    <div class="epc-pf-row">
+                        <span class="epc-pf-label"><?php esc_html_e( 'Πόντοι', 'epappous-club' ); ?></span>
+                        <div class="epc-pf-value">
+                            <strong class="epc-points-display"><?php echo esc_html( $currency . ' ' . number_format( (int) $member['points'] ) ); ?></strong>
+                            <a href="<?php echo esc_url( $log_url ); ?>" class="epc-points-history-link"><?php esc_html_e( 'Αναλυτικά', 'epappous-club' ); ?></a>
+                        </div>
+                    </div>
+
+                    <!-- Redemption row -->
+                    <div class="epc-pf-row epc-pf-row--top">
+                        <span class="epc-pf-label"><?php esc_html_e( 'Εξαργύρωση', 'epappous-club' ); ?></span>
+                        <div class="epc-pf-value epc-pf-value--col">
+                            <div class="epc-redeem-summary">
+                                <div class="epc-redeem-summary-item">
+                                    <span class="epc-redeem-summary-label">
+                                        <span class="dashicons dashicons-money-alt"></span>
+                                        <?php esc_html_e( 'Έκπτωση checkout', 'epappous-club' ); ?>
+                                    </span>
+                                    <span class="epc-redeem-summary-value">
+                                        <?php echo esc_html( $currency . ' ' . number_format( $checkout_pts ) ); ?>
+                                        <?php if ( $checkout_euro > 0 ) : ?>
+                                            <em>(<?php echo esc_html( number_format( $checkout_euro, 2 ) . ' €' ); ?>)</em>
+                                        <?php endif; ?>
+                                    </span>
+                                </div>
+                                <div class="epc-redeem-summary-item">
+                                    <span class="epc-redeem-summary-label">
+                                        <span class="dashicons dashicons-cart"></span>
+                                        <?php esc_html_e( 'Δώρα προϊόντα', 'epappous-club' ); ?>
+                                    </span>
+                                    <span class="epc-redeem-summary-value">
+                                        <?php echo esc_html( $currency . ' ' . number_format( $gift_pts ) ); ?>
+                                        <em>(<?php printf( esc_html__( '%d φορές', 'epappous-club' ), $gift_count ); ?>)</em>
+                                    </span>
+                                </div>
+                            </div>
+                            <?php if ( ! empty( $redemption_logs ) ) : ?>
+                            <div class="epc-redeem-history">
+                                <button type="button" class="epc-redeem-history-toggle">
+                                    <span class="dashicons dashicons-arrow-down-alt2"></span>
+                                    <?php esc_html_e( 'Ιστορικό εξαργύρωσης', 'epappous-club' ); ?>
                                 </button>
-                            </td>
-                        </tr>
-                    </table>
+                                <div class="epc-redeem-history-list" style="display:none;">
+                                    <?php foreach ( $redemption_logs as $rlog ) :
+                                        $rpts  = abs( (int) $rlog['points'] );
+                                        $rdate = date_i18n( 'd/m/Y H:i', strtotime( $rlog['created_at'] ) );
+                                    ?>
+                                    <div class="epc-redeem-history-item">
+                                        <span class="epc-redeem-history-date"><?php echo esc_html( $rdate ); ?></span>
+                                        <?php if ( $rlog['reason'] === 'checkout_redemption' ) : ?>
+                                            <span class="epc-redeem-history-type checkout">
+                                                <span class="dashicons dashicons-money-alt"></span>
+                                                <?php printf( esc_html__( 'Έκπτωση %s %s', 'epappous-club' ), esc_html( number_format( $rpts ) ), esc_html( $currency ) ); ?>
+                                                <?php if ( $point_value > 0 ) : ?>
+                                                    <em>(<?php echo esc_html( number_format( $rpts * $point_value, 2 ) . ' €' ); ?>)</em>
+                                                <?php endif; ?>
+                                                <?php if ( ! empty( $rlog['reference_id'] ) ) : ?>
+                                                    — <a href="<?php echo esc_url( get_edit_post_link( (int) $rlog['reference_id'] ) ); ?>" target="_blank">
+                                                        <?php printf( esc_html__( 'Παραγγελία #%d', 'epappous-club' ), (int) $rlog['reference_id'] ); ?>
+                                                    </a>
+                                                <?php endif; ?>
+                                            </span>
+                                        <?php else : ?>
+                                            <span class="epc-redeem-history-type gift">
+                                                <span class="dashicons dashicons-cart"></span>
+                                                <?php printf( esc_html__( 'Δώρο: %s (%s %s)', 'epappous-club' ), esc_html( $rlog['gift_title'] ?: __( 'Άγνωστο', 'epappous-club' ) ), esc_html( number_format( $rpts ) ), esc_html( $currency ) ); ?>
+                                            </span>
+                                        <?php endif; ?>
+                                    </div>
+                                    <?php endforeach; ?>
+                                </div>
+                            </div>
+                            <?php endif; ?>
+                        </div>
+                    </div>
+
+                    <!-- Adjust points row -->
+                    <div class="epc-pf-row epc-pf-row--top">
+                        <span class="epc-pf-label"><?php esc_html_e( 'Προσαρμογή', 'epappous-club' ); ?></span>
+                        <div class="epc-pf-value epc-pf-value--col">
+                            <div class="epc-points-adjust-row">
+                                <select class="epc-points-adjust-type">
+                                    <option value="add">+ <?php esc_html_e( 'Προσθήκη', 'epappous-club' ); ?></option>
+                                    <option value="remove">− <?php esc_html_e( 'Αφαίρεση', 'epappous-club' ); ?></option>
+                                </select>
+                                <input type="number" class="epc-points-adjust-amount" min="1" placeholder="<?php esc_attr_e( 'Πόντοι', 'epappous-club' ); ?>" />
+                                <input type="text" class="epc-points-adjust-reason" placeholder="<?php esc_attr_e( 'Λόγος (προαιρετικό)', 'epappous-club' ); ?>" />
+                                <button type="button" class="button button-primary epc-points-adjust-btn"
+                                        data-member-id="<?php echo (int) $member['id']; ?>"
+                                        data-nonce="<?php echo esc_attr( $nonce ); ?>">
+                                    <?php esc_html_e( 'Εφαρμογή', 'epappous-club' ); ?>
+                                </button>
+                            </div>
+                            <span class="epc-points-adjust-msg" style="display:none;"></span>
+                        </div>
+                    </div>
+
+                    <div class="epc-pf-divider"></div>
+
+                    <!-- Birthday row -->
+                    <div class="epc-pf-row">
+                        <span class="epc-pf-label"><?php esc_html_e( 'Γενέθλια', 'epappous-club' ); ?></span>
+                        <div class="epc-pf-value">
+                            <?php if ( ! empty( $member['date_of_birth'] ) ) : ?>
+                                <strong><?php echo esc_html( date_i18n( 'd/m/Y', strtotime( $member['date_of_birth'] ) ) ); ?></strong>
+                            <?php else : ?>
+                                <em class="epc-pf-empty"><?php esc_html_e( 'Δεν έχει οριστεί', 'epappous-club' ); ?></em>
+                            <?php endif; ?>
+                        </div>
+                    </div>
+
+                    <!-- Referrals row -->
+                    <div class="epc-pf-row">
+                        <span class="epc-pf-label"><?php esc_html_e( 'Referrals', 'epappous-club' ); ?></span>
+                        <div class="epc-pf-value">
+                            <strong><?php echo (int) $referral_count; ?></strong>
+                            <span class="epc-pf-sub"><?php esc_html_e( 'φίλοι', 'epappous-club' ); ?></span>
+                            <code class="epc-pf-code"><?php echo esc_html( $member['referral_code'] ); ?></code>
+                        </div>
+                    </div>
+
+                    <!-- Member since row -->
+                    <div class="epc-pf-row">
+                        <span class="epc-pf-label"><?php esc_html_e( 'Μέλος από', 'epappous-club' ); ?></span>
+                        <div class="epc-pf-value">
+                            <?php echo esc_html( date_i18n( 'd/m/Y', strtotime( $member['joined_at'] ) ) ); ?>
+                        </div>
+                    </div>
+
+                <?php else : ?>
+
+                    <div class="epc-pf-row">
+                        <span class="epc-pf-label"><?php esc_html_e( 'Κατάσταση', 'epappous-club' ); ?></span>
+                        <div class="epc-pf-value">
+                            <span class="epc-pf-not-member"><?php esc_html_e( 'Δεν είναι μέλος του club', 'epappous-club' ); ?></span>
+                            <button type="button" class="button epc-enroll-member-btn"
+                                    data-user-id="<?php echo (int) $user->ID; ?>"
+                                    data-nonce="<?php echo esc_attr( $nonce ); ?>">
+                                <span class="dashicons dashicons-plus-alt2"></span>
+                                <?php esc_html_e( 'Εγγραφή στο Club', 'epappous-club' ); ?>
+                            </button>
+                        </div>
+                    </div>
+
                 <?php endif; ?>
 
             </div>

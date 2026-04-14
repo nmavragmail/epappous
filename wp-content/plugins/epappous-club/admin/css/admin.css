@@ -1050,8 +1050,8 @@
 /* ── User Profile Box ── */
 
 .epc-profile-box {
-    max-width: 800px;
-    margin: 30px 0 20px;
+    max-width: 760px;
+    margin: 24px 0 0;
     border: 1px solid var(--epc-gray-200);
     border-radius: var(--epc-radius);
     background: #fff;
@@ -1061,32 +1061,105 @@
 .epc-profile-box-header {
     display: flex;
     align-items: center;
-    gap: 8px;
-    padding: 14px 20px;
+    gap: 10px;
+    padding: 14px 24px;
     background: linear-gradient(135deg, var(--epc-primary), var(--epc-primary-dark));
     color: #fff;
-    font-size: 16px;
+    font-size: 15px;
     font-weight: 600;
     border-radius: var(--epc-radius) var(--epc-radius) 0 0;
+    letter-spacing: 0.01em;
 }
 
 .epc-profile-box-header .dashicons {
     font-size: 20px;
     width: 20px;
     height: 20px;
+    opacity: 0.9;
 }
 
 .epc-profile-box-body {
-    padding: 0 20px 20px;
+    padding: 8px 24px 20px;
 }
 
-.epc-profile-box-body .epc-profile-table {
-    max-width: 100%;
+/* ── Profile field rows (replaces form-table) ── */
+
+.epc-pf-row {
+    display: flex;
+    align-items: center;
+    gap: 0;
+    padding: 11px 0;
+    border-bottom: 1px solid var(--epc-gray-100);
 }
 
-.epc-profile-box-body .epc-profile-table th {
-    width: 140px;
-    padding-left: 0;
+.epc-pf-row:last-child {
+    border-bottom: none;
+}
+
+.epc-pf-row--top {
+    align-items: flex-start;
+}
+
+.epc-pf-label {
+    flex: 0 0 150px;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--epc-gray-500);
+    padding-right: 16px;
+}
+
+.epc-pf-value {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+    font-size: 13px;
+    color: var(--epc-gray-800);
+}
+
+.epc-pf-value--col {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+}
+
+.epc-pf-sub {
+    color: var(--epc-gray-500);
+    font-size: 13px;
+}
+
+.epc-pf-code {
+    font-size: 12px;
+    background: var(--epc-gray-100);
+    border: 1px solid var(--epc-gray-200);
+    border-radius: 4px;
+    padding: 1px 7px;
+    color: var(--epc-gray-600);
+}
+
+.epc-pf-empty {
+    color: var(--epc-gray-400);
+    font-style: normal;
+}
+
+.epc-pf-not-member {
+    color: var(--epc-danger);
+    font-weight: 600;
+    font-size: 13px;
+}
+
+.epc-pf-divider {
+    height: 1px;
+    background: var(--epc-gray-200);
+    margin: 4px 0;
+}
+
+.epc-points-display {
+    font-size: 20px;
+    font-weight: 700;
+    color: var(--epc-primary);
+    line-height: 1;
 }
 
 /* ── Membership Toggle ── */
@@ -1146,11 +1219,15 @@
 /* ── Notes Box (standalone, separate from Pappou Club box) ── */
 
 .epc-notes-box {
-    margin-top: 16px;
+    margin-top: 12px;
 }
 
 .epc-notes-box-header {
     background: linear-gradient(135deg, var(--epc-gray-700), var(--epc-gray-800)) !important;
+}
+
+.epc-notes-box .epc-profile-box-body {
+    padding: 16px 24px 20px;
 }
 
 /* Legacy – kept for backward compatibility but no longer used as inner section */
@@ -1637,6 +1714,36 @@
     color: var(--epc-gray-500);
     margin-right: 8px;
 }
+
+/* ── Hide tier/level elements (tiers disabled for now, kept in code) ── */
+
+/* Settings: hide Βαθμίδες tab link */
+.epc-tabs-nav a[href*="tab=tiers"] { display: none !important; }
+
+/* User profile: hide tier badge next to status */
+.epc-profile-tier-badge { display: none !important; }
+
+/* Admin gifts page: hide tier column header & cells, tier badge in table */
+.epc-table th:nth-child(5),
+.epc-table td:nth-child(5),
+.epc-gift-tier { display: none !important; }
+
+/* Gift rule modal: hide "Ελάχιστη Βαθμίδα" field */
+#epc-rule-tier,
+label[for="epc-rule-tier"] { display: none !important; }
+.epc-field-row:has(#epc-rule-tier) { display: none !important; }
+
+/* Settings gifts tab: hide "Ελάχιστη Βαθμίδα" field */
+#epc_gifts_min_tier,
+label[for="epc_gifts_min_tier"] { display: none !important; }
+.epc-field-row:has(#epc_gifts_min_tier) { display: none !important; }
+
+/* Gift card tier badge */
+.epc-gift-tier { display: none !important; }
+
+/* Points log: hide tier in debug modal */
+.epc-debug-grid .epc-debug-label:nth-of-type(4),
+.epc-debug-grid .epc-debug-value:nth-of-type(4) { display: none !important; }
 
 /* ── Responsive ── */
 
