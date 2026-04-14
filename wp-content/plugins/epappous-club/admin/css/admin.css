@@ -1287,6 +1287,67 @@
     padding: 8px 0;
 }
 
+/* ── Points Adjustment (User Profile) ── */
+
+.epc-points-adjust-row {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+.epc-points-adjust-row select {
+    width: 130px;
+    border: 1px solid var(--epc-gray-300);
+    border-radius: 6px;
+    padding: 6px 10px;
+    font-size: 13px;
+}
+
+.epc-points-adjust-row input[type="number"] {
+    width: 100px;
+    border: 1px solid var(--epc-gray-300);
+    border-radius: 6px;
+    padding: 6px 10px;
+    font-size: 13px;
+}
+
+.epc-points-adjust-row input[type="text"] {
+    flex: 1;
+    min-width: 160px;
+    border: 1px solid var(--epc-gray-300);
+    border-radius: 6px;
+    padding: 6px 10px;
+    font-size: 13px;
+}
+
+.epc-points-adjust-msg {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    margin-top: 6px;
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.epc-points-adjust-msg.success {
+    color: var(--epc-success);
+}
+
+.epc-points-adjust-msg.error {
+    color: var(--epc-danger);
+}
+
+.epc-points-adjust-msg .dashicons {
+    font-size: 16px;
+    width: 16px;
+    height: 16px;
+}
+
+/* ── Points Log Admin Column ── */
+
+.epc-points-table .column-admin { width: 100px; }
+
 /* ── Responsive ── */
 
 @media (max-width: 782px) {

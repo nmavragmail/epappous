@@ -46,9 +46,11 @@ $logs = $wpdb->get_results(
     $wpdb->prepare(
         "SELECT pl.*,
                 m.first_name, m.last_name, m.email, m.points AS current_points,
-                m.tier, m.referral_code
+                m.tier, m.referral_code,
+                u.display_name AS admin_name
          FROM {$wpdb->prefix}epc_points_log pl
          LEFT JOIN {$wpdb->prefix}epc_members m ON pl.member_id = m.id
+         LEFT JOIN {$wpdb->users} u ON pl.admin_user_id = u.ID
          WHERE {$where}
          ORDER BY pl.created_at DESC
          LIMIT %d OFFSET %d",
@@ -80,9 +82,15 @@ $reason_labels = [
             <span class="dashicons dashicons-list-view"></span>
             <?php esc_html_e( 'Ιστορικό Πόντων', 'epappous-club' ); ?>
         </h1>
-        <span class="epc-header-count">
-            <?php printf( esc_html__( '%s εγγραφές', 'epappous-club' ), number_format( $total ) ); ?>
-        </span>
+        <div style="display:flex;align-items:center;gap:12px;">
+            <span class="epc-header-count">
+                <?php printf( esc_html__( '%s εγγραφές', 'epappous-club' ), number_format( $total ) ); ?>
+            </span>
+            <button type="button" class="button" id="epc-log-adjust-btn" style="background:rgba(255,255,255,0.2);color:#fff;border-color:rgba(255,255,255,0.3);">
+                <span class="dashicons dashicons-plus-alt2" style="margin-top:3px;"></span>
+                <?php esc_html_e( 'Προσθήκη / Αφαίρεση Πόντων', 'epappous-club' ); ?>
+            </button>
+        </div>
     </div>
 
     <!-- Search Bar -->
@@ -132,6 +140,7 @@ $reason_labels = [
                     <th class="column-points"><?php esc_html_e( 'Πόντοι', 'epappous-club' ); ?></th>
                     <th class="column-reason"><?php esc_html_e( 'Λόγος', 'epappous-club' ); ?></th>
                     <th class="column-ref"><?php esc_html_e( 'Αναφορά', 'epappous-club' ); ?></th>
+                    <th class="column-admin"><?php esc_html_e( 'Από', 'epappous-club' ); ?></th>
                     <th class="column-date"><?php esc_html_e( 'Ημερομηνία', 'epappous-club' ); ?></th>
                     <th class="column-debug"><?php esc_html_e( 'Debug', 'epappous-club' ); ?></th>
                 </tr>
@@ -173,6 +182,13 @@ $reason_labels = [
                         <td class="column-ref">
                             <?php if ( ! empty( $log['reference_type'] ) ) : ?>
                                 <code><?php echo esc_html( $log['reference_type'] ); ?>#<?php echo (int) $log['reference_id']; ?></code>
+                            <?php else : ?>
+                                <span class="epc-na">—</span>
+                            <?php endif; ?>
+                        </td>
+                        <td class="column-admin">
+                            <?php if ( ! empty( $log['admin_name'] ) ) : ?>
+                                <small><?php echo esc_html( $log['admin_name'] ); ?></small>
                             <?php else : ?>
                                 <span class="epc-na">—</span>
                             <?php endif; ?>
@@ -226,6 +242,50 @@ $reason_labels = [
             </div>
         <?php endif; ?>
     <?php endif; ?>
+</div>
+
+<!-- Points Adjustment Modal -->
+<div id="epc-log-adjust-modal" class="epc-modal" style="display:none;">
+    <div class="epc-modal-overlay"></div>
+    <div class="epc-modal-content" style="max-width:520px;">
+        <div class="epc-modal-header">
+            <h2>
+                <span class="dashicons dashicons-plus-alt2"></span>
+                <?php esc_html_e( 'Προσθήκη / Αφαίρεση Πόντων', 'epappous-club' ); ?>
+            </h2>
+            <button type="button" class="epc-modal-close">&times;</button>
+        </div>
+        <div class="epc-modal-body">
+            <div class="epc-field-row" style="margin-bottom:16px;">
+                <label><?php esc_html_e( 'Αναζήτηση Μέλους', 'epappous-club' ); ?></label>
+                <input type="text" id="epc-log-member-search" placeholder="<?php esc_attr_e( 'Πληκτρολόγησε όνομα ή email...', 'epappous-club' ); ?>" autocomplete="off" />
+                <div id="epc-log-member-results" style="display:none;border:1px solid #e5e7eb;border-radius:6px;max-height:180px;overflow-y:auto;margin-top:4px;background:#fff;"></div>
+                <input type="hidden" id="epc-log-member-id" value="" />
+                <div id="epc-log-member-selected" style="display:none;margin-top:8px;padding:8px 12px;background:#f3f4f6;border-radius:6px;font-size:13px;"></div>
+            </div>
+            <div class="epc-field-row-inline" style="margin-bottom:16px;">
+                <div>
+                    <label><?php esc_html_e( 'Ενέργεια', 'epappous-club' ); ?></label>
+                    <select id="epc-log-adjust-type">
+                        <option value="add">+ <?php esc_html_e( 'Προσθήκη', 'epappous-club' ); ?></option>
+                        <option value="remove">− <?php esc_html_e( 'Αφαίρεση', 'epappous-club' ); ?></option>
+                    </select>
+                </div>
+                <div>
+                    <label><?php esc_html_e( 'Πόντοι', 'epappous-club' ); ?></label>
+                    <input type="number" id="epc-log-adjust-amount" min="1" placeholder="0" />
+                </div>
+            </div>
+            <div class="epc-field-row" style="margin-bottom:0;">
+                <label><?php esc_html_e( 'Λόγος', 'epappous-club' ); ?></label>
+                <input type="text" id="epc-log-adjust-reason" placeholder="<?php esc_attr_e( 'π.χ. Επιστροφή πόντων, Μπόνους κ.λπ. (προαιρετικό)', 'epappous-club' ); ?>" />
+            </div>
+        </div>
+        <div class="epc-modal-footer">
+            <button type="button" class="button epc-modal-close-btn"><?php esc_html_e( 'Ακύρωση', 'epappous-club' ); ?></button>
+            <button type="button" class="button button-primary" id="epc-log-adjust-submit"><?php esc_html_e( 'Εφαρμογή', 'epappous-club' ); ?></button>
+        </div>
+    </div>
 </div>
 
 <!-- Debug Modal -->

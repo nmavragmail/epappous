@@ -6,7 +6,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 class EPC_Database {
 
     const DB_VERSION_OPTION = 'epc_db_version';
-    const DB_VERSION        = '1.0.0';
+    const DB_VERSION        = '1.1.0';
 
     public static function activate() {
         self::create_tables();
@@ -135,6 +135,7 @@ class EPC_Database {
             reason VARCHAR(255) NOT NULL,
             reference_type VARCHAR(50) DEFAULT '',
             reference_id BIGINT UNSIGNED DEFAULT NULL,
+            admin_user_id BIGINT UNSIGNED DEFAULT NULL,
             created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
             PRIMARY KEY (id),
             KEY member_id (member_id)
@@ -146,6 +147,18 @@ class EPC_Database {
         }
 
         update_option( self::DB_VERSION_OPTION, self::DB_VERSION );
+    }
+
+    public static function maybe_upgrade() {
+        $current = get_option( self::DB_VERSION_OPTION, '1.0.0' );
+        if ( version_compare( $current, '1.1.0', '<' ) ) {
+            global $wpdb;
+            $col = $wpdb->get_results( "SHOW COLUMNS FROM {$wpdb->prefix}epc_points_log LIKE 'admin_user_id'" );
+            if ( empty( $col ) ) {
+                $wpdb->query( "ALTER TABLE {$wpdb->prefix}epc_points_log ADD COLUMN admin_user_id BIGINT UNSIGNED DEFAULT NULL AFTER reference_id" );
+            }
+            update_option( self::DB_VERSION_OPTION, self::DB_VERSION );
+        }
     }
 
     public static function seed_defaults() {
