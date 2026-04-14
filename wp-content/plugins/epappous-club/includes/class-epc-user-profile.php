@@ -21,12 +21,34 @@ class EPC_User_Profile {
     }
 
     private function __construct() {
-        add_action( 'show_user_profile', [ $this, 'render_section' ] );
-        add_action( 'edit_user_profile', [ $this, 'render_section' ] );
+        add_action( 'show_user_profile', [ $this, 'render_section' ], 1 );
+        add_action( 'edit_user_profile', [ $this, 'render_section' ], 1 );
+
+        add_action( 'admin_head-profile.php', [ $this, 'hide_wp_profile_sections' ] );
+        add_action( 'admin_head-user-edit.php', [ $this, 'hide_wp_profile_sections' ] );
 
         add_action( 'wp_ajax_epc_add_note', [ $this, 'ajax_add_note' ] );
         add_action( 'wp_ajax_epc_delete_note', [ $this, 'ajax_delete_note' ] );
         add_action( 'wp_ajax_epc_toggle_membership', [ $this, 'ajax_toggle_membership' ] );
+        add_action( 'wp_ajax_epc_adjust_points', [ $this, 'ajax_adjust_points' ] );
+        add_action( 'wp_ajax_epc_search_members', [ $this, 'ajax_search_members' ] );
+    }
+
+    /**
+     * Hide color scheme, syntax highlighting, keyboard shortcuts, toolbar rows.
+     */
+    public function hide_wp_profile_sections() {
+        if ( ! current_user_can( 'manage_options' ) && ! current_user_can( 'manage_woocommerce' ) ) {
+            return;
+        }
+        ?>
+        <style>
+            .user-admin-color-wrap,
+            .user-syntax-highlighting-wrap,
+            .user-comment-shortcuts-wrap,
+            .show-admin-bar.user-admin-bar-front-wrap { display: none !important; }
+        </style>
+        <?php
     }
 
     public function render_section( $user ) {
@@ -97,9 +119,28 @@ class EPC_User_Profile {
                         <tr>
                             <th><?php esc_html_e( 'Πόντοι', 'epappous-club' ); ?></th>
                             <td>
-                                <strong style="font-size:18px;color:#4f46e5;">
+                                <strong class="epc-points-display" style="font-size:18px;color:#4f46e5;">
                                     <?php echo esc_html( $currency . ' ' . number_format( (int) $member['points'] ) ); ?>
                                 </strong>
+                            </td>
+                        </tr>
+                        <tr>
+                            <th><?php esc_html_e( 'Προσαρμογή Πόντων', 'epappous-club' ); ?></th>
+                            <td>
+                                <div class="epc-points-adjust-row">
+                                    <select class="epc-points-adjust-type">
+                                        <option value="add">+ <?php esc_html_e( 'Προσθήκη', 'epappous-club' ); ?></option>
+                                        <option value="remove">− <?php esc_html_e( 'Αφαίρεση', 'epappous-club' ); ?></option>
+                                    </select>
+                                    <input type="number" class="epc-points-adjust-amount" min="1" placeholder="<?php esc_attr_e( 'Πόντοι', 'epappous-club' ); ?>" />
+                                    <input type="text" class="epc-points-adjust-reason" placeholder="<?php esc_attr_e( 'Λόγος (προαιρετικό)', 'epappous-club' ); ?>" />
+                                    <button type="button" class="button button-primary epc-points-adjust-btn"
+                                            data-member-id="<?php echo (int) $member['id']; ?>"
+                                            data-nonce="<?php echo esc_attr( $nonce ); ?>">
+                                        <?php esc_html_e( 'Εφαρμογή', 'epappous-club' ); ?>
+                                    </button>
+                                </div>
+                                <span class="epc-points-adjust-msg" style="display:none;"></span>
                             </td>
                         </tr>
                         <tr>
@@ -366,5 +407,135 @@ class EPC_User_Profile {
         }
 
         wp_send_json_error( 'Missing data' );
+    }
+
+    /**
+     * AJAX: Add or remove points from a member (manual adjustment).
+     */
+    public function ajax_adjust_points() {
+        check_ajax_referer( 'epc_admin_nonce', 'nonce' );
+        if ( ! current_user_can( 'manage_options' ) && ! current_user_can( 'manage_woocommerce' ) ) {
+            wp_send_json_error( 'Unauthorized' );
+        }
+
+        $member_id = (int) ( $_POST['member_id'] ?? 0 );
+        $type      = sanitize_text_field( $_POST['type'] ?? 'add' );
+        $amount    = (int) ( $_POST['amount'] ?? 0 );
+        $reason    = sanitize_text_field( $_POST['reason'] ?? '' );
+
+        if ( $member_id < 1 || $amount < 1 ) {
+            wp_send_json_error( __( 'Λείπουν δεδομένα', 'epappous-club' ) );
+        }
+
+        global $wpdb;
+
+        $member = $wpdb->get_row(
+            $wpdb->prepare(
+                "SELECT id, points FROM {$wpdb->prefix}epc_members WHERE id = %d",
+                $member_id
+            )
+        );
+
+        if ( ! $member ) {
+            wp_send_json_error( __( 'Δεν βρέθηκε μέλος', 'epappous-club' ) );
+        }
+
+        $points_delta = $type === 'remove' ? -$amount : $amount;
+        $admin_id     = get_current_user_id();
+
+        if ( $type === 'remove' ) {
+            $wpdb->query(
+                $wpdb->prepare(
+                    "UPDATE {$wpdb->prefix}epc_members SET points = GREATEST(0, CAST(points AS SIGNED) - %d) WHERE id = %d",
+                    $amount,
+                    $member_id
+                )
+            );
+        } else {
+            $wpdb->query(
+                $wpdb->prepare(
+                    "UPDATE {$wpdb->prefix}epc_members SET points = points + %d WHERE id = %d",
+                    $amount,
+                    $member_id
+                )
+            );
+        }
+
+        $log_reason = ! empty( $reason ) ? $reason : 'manual_adjustment';
+
+        $wpdb->insert(
+            "{$wpdb->prefix}epc_points_log",
+            [
+                'member_id'      => $member_id,
+                'points'         => $points_delta,
+                'reason'         => $log_reason,
+                'reference_type' => 'manual',
+                'reference_id'   => $admin_id,
+                'admin_user_id'  => $admin_id,
+            ],
+            [ '%d', '%d', '%s', '%s', '%d', '%d' ]
+        );
+
+        do_action( 'epc_points_changed', $member_id );
+
+        $new_points = (int) $wpdb->get_var(
+            $wpdb->prepare(
+                "SELECT points FROM {$wpdb->prefix}epc_members WHERE id = %d",
+                $member_id
+            )
+        );
+
+        $admin = wp_get_current_user();
+
+        wp_send_json_success( [
+            'new_points'   => $new_points,
+            'points_delta' => $points_delta,
+            'admin_name'   => $admin->display_name,
+            'date'         => date_i18n( 'd/m/Y H:i' ),
+        ] );
+    }
+
+    /**
+     * AJAX: Search members for points adjustment modal.
+     */
+    public function ajax_search_members() {
+        check_ajax_referer( 'epc_admin_nonce', 'nonce' );
+        if ( ! current_user_can( 'manage_options' ) && ! current_user_can( 'manage_woocommerce' ) ) {
+            wp_send_json_error( 'Unauthorized' );
+        }
+
+        $q = sanitize_text_field( $_GET['q'] ?? '' );
+        if ( strlen( $q ) < 2 ) {
+            wp_send_json_success( [] );
+        }
+
+        global $wpdb;
+        $like = '%' . $wpdb->esc_like( $q ) . '%';
+
+        $members = $wpdb->get_results(
+            $wpdb->prepare(
+                "SELECT id, first_name, last_name, email, points
+                 FROM {$wpdb->prefix}epc_members
+                 WHERE first_name LIKE %s OR last_name LIKE %s OR email LIKE %s
+                 ORDER BY first_name ASC
+                 LIMIT 10",
+                $like,
+                $like,
+                $like
+            ),
+            ARRAY_A
+        );
+
+        $results = [];
+        foreach ( $members as $m ) {
+            $results[] = [
+                'id'     => (int) $m['id'],
+                'name'   => $m['first_name'] . ' ' . $m['last_name'],
+                'email'  => $m['email'],
+                'points' => (int) $m['points'],
+            ];
+        }
+
+        wp_send_json_success( $results );
     }
 }

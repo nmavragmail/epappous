@@ -400,6 +400,172 @@
         });
     });
 
+    /* ─── Points Adjustment (User Profile) ─── */
+
+    $(document).on('click', '.epc-points-adjust-btn', function () {
+        var $btn = $(this);
+        var memberId = $btn.data('member-id');
+        var nonce = $btn.data('nonce');
+        var $row = $btn.closest('.epc-points-adjust-row');
+        var type = $row.find('.epc-points-adjust-type').val();
+        var amount = parseInt($row.find('.epc-points-adjust-amount').val(), 10);
+        var reason = $row.find('.epc-points-adjust-reason').val().trim();
+        var $msg = $btn.closest('td').find('.epc-points-adjust-msg');
+
+        if (!amount || amount < 1) {
+            $msg.removeClass('success').addClass('error').html('<span class="dashicons dashicons-warning"></span> Συμπλήρωσε πόντους').stop(true).fadeIn(200);
+            setTimeout(function () { $msg.fadeOut(400); }, 3000);
+            return;
+        }
+
+        $btn.prop('disabled', true);
+
+        $.post(epcAdmin.ajaxUrl, {
+            action: 'epc_adjust_points',
+            member_id: memberId,
+            type: type,
+            amount: amount,
+            reason: reason,
+            nonce: nonce
+        }, function (response) {
+            if (response.success) {
+                var d = response.data;
+                var currency = $('.epc-points-display').text().split(' ')[0] || '';
+                $('.epc-points-display').text(currency + ' ' + d.new_points.toLocaleString('el-GR'));
+
+                var sign = d.points_delta >= 0 ? '+' : '';
+                $msg.removeClass('error').addClass('success')
+                    .html('<span class="dashicons dashicons-yes-alt"></span> ' + sign + d.points_delta + ' πόντοι — ' + d.admin_name + ' — ' + d.date)
+                    .stop(true).fadeIn(200);
+                setTimeout(function () { $msg.fadeOut(400); }, 4000);
+
+                $row.find('.epc-points-adjust-amount').val('');
+                $row.find('.epc-points-adjust-reason').val('');
+            } else {
+                $msg.removeClass('success').addClass('error')
+                    .html('<span class="dashicons dashicons-warning"></span> ' + (response.data || 'Σφάλμα'))
+                    .stop(true).fadeIn(200);
+                setTimeout(function () { $msg.fadeOut(400); }, 3000);
+            }
+        }).always(function () {
+            $btn.prop('disabled', false);
+        });
+    });
+
+    /* ─── Points Adjustment Modal (Points Log Page) ─── */
+
+    $(document).on('click', '#epc-log-adjust-btn', function () {
+        $('#epc-log-adjust-modal').show();
+        $('#epc-log-member-search').val('').focus();
+        $('#epc-log-member-id').val('');
+        $('#epc-log-member-selected').hide().empty();
+        $('#epc-log-member-results').hide().empty();
+        $('#epc-log-adjust-amount').val('');
+        $('#epc-log-adjust-reason').val('');
+        $('#epc-log-adjust-type').val('add');
+    });
+
+    $(document).on('click', '#epc-log-adjust-modal .epc-modal-close, #epc-log-adjust-modal .epc-modal-close-btn, #epc-log-adjust-modal .epc-modal-overlay', function () {
+        $('#epc-log-adjust-modal').hide();
+    });
+
+    var memberSearchTimer = null;
+
+    $(document).on('input', '#epc-log-member-search', function () {
+        var q = $(this).val().trim();
+        var $results = $('#epc-log-member-results');
+
+        clearTimeout(memberSearchTimer);
+
+        if (q.length < 2) {
+            $results.hide().empty();
+            return;
+        }
+
+        memberSearchTimer = setTimeout(function () {
+            $.get(epcAdmin.ajaxUrl, {
+                action: 'epc_search_members',
+                q: q,
+                nonce: epcAdmin.nonce
+            }, function (response) {
+                $results.empty();
+                if (response.success && response.data.length) {
+                    response.data.forEach(function (m) {
+                        $results.append(
+                            '<div class="epc-member-result" data-id="' + m.id + '" data-name="' + $('<span>').text(m.name).html() + '" data-email="' + $('<span>').text(m.email).html() + '" data-points="' + m.points + '" ' +
+                            'style="padding:8px 12px;cursor:pointer;font-size:13px;border-bottom:1px solid #f3f4f6;">' +
+                            '<strong>' + $('<span>').text(m.name).html() + '</strong> <small style="color:#9ca3af;">' + $('<span>').text(m.email).html() + '</small>' +
+                            ' <span style="color:#4f46e5;font-weight:600;float:right;">' + m.points + ' πόντοι</span>' +
+                            '</div>'
+                        );
+                    });
+                } else {
+                    $results.append('<div style="padding:8px 12px;font-size:13px;color:#9ca3af;">Δεν βρέθηκαν μέλη</div>');
+                }
+                $results.show();
+            });
+        }, 300);
+    });
+
+    $(document).on('click', '.epc-member-result', function () {
+        var id = $(this).data('id');
+        var name = $(this).data('name');
+        var email = $(this).data('email');
+        var points = $(this).data('points');
+        $('#epc-log-member-id').val(id);
+        $('#epc-log-member-search').val('');
+        $('#epc-log-member-results').hide().empty();
+        $('#epc-log-member-selected').html('<strong>' + name + '</strong> — ' + email + ' — <span style="color:#4f46e5;">' + points + ' πόντοι</span> <button type="button" class="epc-log-member-clear" style="background:none;border:none;color:#ef4444;cursor:pointer;font-size:12px;margin-left:8px;">✕</button>').show();
+    });
+
+    $(document).on('mouseenter', '.epc-member-result', function () {
+        $(this).css('background', '#f3f4f6');
+    }).on('mouseleave', '.epc-member-result', function () {
+        $(this).css('background', '#fff');
+    });
+
+    $(document).on('click', '.epc-log-member-clear', function () {
+        $('#epc-log-member-id').val('');
+        $('#epc-log-member-selected').hide().empty();
+    });
+
+    $(document).on('click', '#epc-log-adjust-submit', function () {
+        var $btn = $(this);
+        var memberId = $('#epc-log-member-id').val();
+        var type = $('#epc-log-adjust-type').val();
+        var amount = parseInt($('#epc-log-adjust-amount').val(), 10);
+        var reason = $('#epc-log-adjust-reason').val().trim();
+
+        if (!memberId) {
+            alert('Επίλεξε μέλος');
+            return;
+        }
+        if (!amount || amount < 1) {
+            alert('Συμπλήρωσε πόντους');
+            return;
+        }
+
+        $btn.prop('disabled', true).text('Αποθήκευση...');
+
+        $.post(epcAdmin.ajaxUrl, {
+            action: 'epc_adjust_points',
+            member_id: memberId,
+            type: type,
+            amount: amount,
+            reason: reason,
+            nonce: epcAdmin.nonce
+        }, function (response) {
+            if (response.success) {
+                location.reload();
+            } else {
+                alert(response.data || 'Σφάλμα');
+                $btn.prop('disabled', false).text('Εφαρμογή');
+            }
+        }).fail(function () {
+            $btn.prop('disabled', false).text('Εφαρμογή');
+        });
+    });
+
     /* ─── Gift Rules Management ─── */
 
     $(document).on('click', '#epc-add-rule-btn', function () {
