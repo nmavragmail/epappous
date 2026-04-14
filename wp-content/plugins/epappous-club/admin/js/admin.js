@@ -360,6 +360,18 @@
 
     $('#epc-rule-form').on('submit', function (e) {
         e.preventDefault();
+
+        var type = $('#epc-rule-type').val();
+        var val = '';
+        if (type === 'product') {
+            val = $('#epc-product-search-value').val();
+        } else if (type === 'category') {
+            val = $('select[name="rule_value_category"]').val();
+        } else if (type === 'tag') {
+            val = $('select[name="rule_value_tag"]').val();
+        }
+        $('#epc-rule-value-hidden').val(val);
+
         var data = $(this).serialize();
         var ruleId = $('#epc-rule-id').val();
         var action = ruleId ? 'epc_update_gift_rule' : 'epc_add_gift_rule';
