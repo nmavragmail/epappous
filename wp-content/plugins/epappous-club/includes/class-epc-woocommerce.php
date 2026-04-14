@@ -35,6 +35,7 @@ class EPC_WooCommerce {
         add_action( 'wp_ajax_epc_remove_points_discount', [ $this, 'ajax_remove_discount' ] );
         add_action( 'woocommerce_cart_calculate_fees', [ $this, 'apply_points_fee' ] );
         add_action( 'woocommerce_checkout_order_processed', [ $this, 'record_points_redemption' ], 20 );
+        add_action( 'woocommerce_store_api_checkout_order_processed', [ $this, 'record_points_redemption_from_blocks' ], 20 );
 
         add_action( 'wp_enqueue_scripts', [ $this, 'enqueue_checkout_js' ] );
     }
@@ -327,6 +328,19 @@ class EPC_WooCommerce {
         WC()->session->set( 'epc_points_member_id', 0 );
 
         do_action( 'epc_points_changed', $member_id );
+    }
+
+    /**
+     * Block-checkout variant: receives WC_Order (1 arg), delegates to record_points_redemption().
+     *
+     * woocommerce_store_api_checkout_order_processed passes a single WC_Order object,
+     * unlike woocommerce_checkout_order_processed which passes an order ID.
+     */
+    public function record_points_redemption_from_blocks( $order ) {
+        if ( ! $order instanceof \WC_Order ) {
+            return;
+        }
+        $this->record_points_redemption( $order->get_id() );
     }
 
     /**
