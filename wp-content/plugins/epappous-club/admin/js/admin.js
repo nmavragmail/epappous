@@ -697,6 +697,16 @@
                 }
             });
         }
+
+        /* ─── Move EPC profile boxes to the top of the profile form ─── */
+        var $form = $('#your-profile, #createuser');
+        if ($form.length) {
+            var $boxes = $form.find('.epc-profile-box');
+            if ($boxes.length) {
+                var $firstChild = $form.children().first();
+                $boxes.detach().insertBefore($firstChild);
+            }
+        }
     });
 
 })(jQuery);

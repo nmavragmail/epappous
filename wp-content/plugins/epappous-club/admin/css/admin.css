@@ -1143,12 +1143,21 @@
     color: var(--epc-gray-500);
 }
 
-/* ── Notes Section (inside profile box) ── */
+/* ── Notes Box (standalone, separate from Pappou Club box) ── */
 
+.epc-notes-box {
+    margin-top: 16px;
+}
+
+.epc-notes-box-header {
+    background: linear-gradient(135deg, var(--epc-gray-700), var(--epc-gray-800)) !important;
+}
+
+/* Legacy – kept for backward compatibility but no longer used as inner section */
 .epc-notes-section {
-    margin-top: 20px;
-    padding-top: 20px;
-    border-top: 1px solid var(--epc-gray-200);
+    margin-top: 0;
+    padding-top: 0;
+    border-top: none;
 }
 
 .epc-notes-heading {
