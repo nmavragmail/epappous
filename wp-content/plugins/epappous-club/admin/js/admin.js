@@ -301,17 +301,21 @@
         }, function (response) {
             if (response.success) {
                 var d = response.data;
-                var html = '<div class="epc-note-item" data-note-id="' + d.id + '" style="display:flex;gap:12px;padding:12px 0;border-bottom:1px solid #e5e7eb;">' +
-                    '<div class="epc-note-date" style="flex:0 0 90px;font-size:12px;color:#6b7280;font-weight:600;">' + d.date +
-                    '<br /><span style="font-weight:400;color:#9ca3af;">' + d.time + '</span></div>' +
-                    '<div class="epc-note-body" style="flex:1;font-size:13px;color:#374151;white-space:pre-wrap;">' + $('<span>').text(d.note).html() + '</div>' +
-                    '<div class="epc-note-meta" style="flex:0 0 auto;text-align:right;">' +
-                    '<small style="color:#9ca3af;">' + d.author_name + '</small><br />' +
-                    '<button type="button" class="epc-delete-note-btn" style="background:none;border:none;color:#ef4444;cursor:pointer;font-size:12px;padding:0;" data-note-id="' + d.id + '" data-nonce="' + nonce + '">Διαγραφή</button>' +
+                var html = '<div class="epc-note-item" data-note-id="' + d.id + '">' +
+                    '<div class="epc-note-date">' + d.date +
+                    '<br /><span>' + d.time + '</span></div>' +
+                    '<div class="epc-note-body">' + $('<span>').text(d.note).html() + '</div>' +
+                    '<div class="epc-note-meta">' +
+                    '<small>' + d.author_name + '</small><br />' +
+                    '<button type="button" class="epc-delete-note-btn" data-note-id="' + d.id + '" data-nonce="' + nonce + '">Διαγραφή</button>' +
                     '</div></div>';
                 $('.epc-no-notes').remove();
                 $('#epc-notes-timeline').prepend(html);
                 $textarea.val('');
+
+                var $msg = $('.epc-note-saved-msg');
+                $msg.stop(true).fadeIn(200);
+                setTimeout(function () { $msg.fadeOut(400); }, 2000);
             }
         }).always(function () {
             $btn.prop('disabled', false);
@@ -332,6 +336,67 @@
             if (response.success) {
                 $btn.closest('.epc-note-item').fadeOut(200, function () { $(this).remove(); });
             }
+        });
+    });
+
+    /* ─── Membership Toggle (User Profile) ─── */
+
+    $(document).on('change', '.epc-membership-toggle-input', function () {
+        var $toggle = $(this);
+        var memberId = $toggle.data('member-id');
+        var nonce = $toggle.data('nonce');
+        var enable = $toggle.is(':checked');
+
+        $toggle.prop('disabled', true);
+
+        $.post(epcAdmin.ajaxUrl, {
+            action: 'epc_toggle_membership',
+            member_id: memberId,
+            enable: enable ? 1 : 0,
+            nonce: nonce
+        }, function (response) {
+            if (response.success) {
+                var $label = $toggle.closest('.epc-membership-toggle').find('.epc-membership-toggle-label');
+                $label.text(enable ? 'Ενεργό' : 'Ανενεργό');
+
+                var $badge = $toggle.closest('td').find('.epc-profile-badge');
+                $badge.removeClass('epc-profile-badge-active epc-profile-badge-inactive');
+                if (enable) {
+                    $badge.addClass('epc-profile-badge-active').text('Ενεργό Μέλος');
+                } else {
+                    $badge.addClass('epc-profile-badge-inactive').text('Inactive');
+                }
+            } else {
+                $toggle.prop('checked', !enable);
+            }
+        }).always(function () {
+            $toggle.prop('disabled', false);
+        });
+    });
+
+    /* ─── Enroll Non-member (User Profile) ─── */
+
+    $(document).on('click', '.epc-enroll-member-btn', function () {
+        var $btn = $(this);
+        var userId = $btn.data('user-id');
+        var nonce = $btn.data('nonce');
+
+        $btn.prop('disabled', true).text('Εγγραφή...');
+
+        $.post(epcAdmin.ajaxUrl, {
+            action: 'epc_toggle_membership',
+            user_id: userId,
+            enable: 1,
+            nonce: nonce
+        }, function (response) {
+            if (response.success && response.data.reload) {
+                location.reload();
+            } else {
+                $btn.prop('disabled', false).text('Εγγραφή στο Club');
+                alert(response.data || 'Σφάλμα');
+            }
+        }).fail(function () {
+            $btn.prop('disabled', false).text('Εγγραφή στο Club');
         });
     });
 
