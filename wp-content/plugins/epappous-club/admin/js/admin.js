@@ -341,9 +341,11 @@
         $('#epc-gift-rule-modal').show();
         $('#epc-rule-form')[0].reset();
         $('#epc-rule-id').val('');
+        $('#epc-product-search-value').val('');
+        $('#epc-product-search-input').val('');
+        $('#epc-product-search-results').hide().empty();
         $('.epc-rule-value-group').hide();
         $('#epc-rule-value-product').show();
-        initProductSearch();
     });
 
     $(document).on('click', '#epc-gift-rule-modal .epc-modal-close, #epc-gift-rule-modal .epc-modal-close-btn, #epc-gift-rule-modal .epc-modal-overlay', function () {
@@ -394,36 +396,63 @@
         });
     });
 
-    /* ─── WC Product Search (Select2) ─── */
+    /* ─── WC Product Search (native AJAX) ─── */
 
-    function initProductSearch() {
-        var $el = $('#epc-rule-product-search');
-        if (!$el.length) return;
+    var productSearchTimer = null;
 
-        if (!$.fn.select2) return;
+    $(document).on('input', '#epc-product-search-input', function () {
+        var q = $(this).val().trim();
+        var $results = $('#epc-product-search-results');
 
-        if ($el.hasClass('select2-hidden-accessible')) {
-            $el.select2('destroy');
+        clearTimeout(productSearchTimer);
+
+        if (q.length < 2) {
+            $results.hide().empty();
+            return;
         }
 
-        $el.select2({
-            ajax: {
-                url: epcAdmin.ajaxUrl,
-                dataType: 'json',
-                delay: 300,
-                data: function (params) {
-                    return { action: 'epc_search_products', q: params.term, nonce: epcAdmin.nonce };
-                },
-                processResults: function (data) {
-                    return { results: data.data || [] };
+        productSearchTimer = setTimeout(function () {
+            $.get(epcAdmin.ajaxUrl, {
+                action: 'epc_search_products',
+                q: q,
+                nonce: epcAdmin.nonce
+            }, function (response) {
+                $results.empty();
+                if (response.success && response.data.length) {
+                    response.data.forEach(function (item) {
+                        $results.append(
+                            '<div class="epc-product-result" data-id="' + item.id + '" data-text="' + $('<span>').text(item.text).html() + '" ' +
+                            'style="padding:8px 12px;cursor:pointer;font-size:13px;border-bottom:1px solid #f3f4f6;">' +
+                            $('<span>').text(item.text).html() + '</div>'
+                        );
+                    });
+                } else {
+                    $results.append('<div style="padding:8px 12px;font-size:13px;color:#9ca3af;">Δεν βρέθηκαν προϊόντα</div>');
                 }
-            },
-            minimumInputLength: 2,
-            placeholder: 'Αναζήτηση προϊόντος...',
-            width: '100%',
-            dropdownParent: $('#epc-gift-rule-modal .epc-modal-content')
-        });
-    }
+                $results.show();
+            });
+        }, 300);
+    });
+
+    $(document).on('click', '.epc-product-result', function () {
+        var id = $(this).data('id');
+        var text = $(this).data('text');
+        $('#epc-product-search-input').val(text);
+        $('#epc-product-search-value').val(id);
+        $('#epc-product-search-results').hide().empty();
+    });
+
+    $(document).on('mouseenter', '.epc-product-result', function () {
+        $(this).css('background', '#f3f4f6');
+    }).on('mouseleave', '.epc-product-result', function () {
+        $(this).css('background', '#fff');
+    });
+
+    $(document).on('click', function (e) {
+        if (!$(e.target).closest('#epc-rule-value-product').length) {
+            $('#epc-product-search-results').hide();
+        }
+    });
 
     /* ─── Init Color Pickers ─── */
 

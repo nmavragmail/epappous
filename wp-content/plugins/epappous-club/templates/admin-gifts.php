@@ -149,12 +149,16 @@ if ( taxonomy_exists( 'product_tag' ) ) {
                     </select>
                 </div>
 
-                <!-- Product search -->
+                <!-- Product search (native, no Select2 dependency) -->
                 <div class="epc-field-row epc-rule-value-group" id="epc-rule-value-product">
                     <label><?php esc_html_e( 'Προϊόν', 'epappous-club' ); ?></label>
-                    <select id="epc-rule-product-search" name="rule_value_product" style="width:100%;">
-                        <option value=""><?php esc_html_e( 'Αναζήτηση προϊόντος...', 'epappous-club' ); ?></option>
-                    </select>
+                    <div style="position:relative;">
+                        <input type="text" id="epc-product-search-input" autocomplete="off"
+                               placeholder="<?php esc_attr_e( 'Πληκτρολόγησε όνομα προϊόντος...', 'epappous-club' ); ?>"
+                               style="width:100%;border:1px solid #d1d5db;border-radius:6px;padding:8px 12px;font-size:14px;" />
+                        <input type="hidden" id="epc-product-search-value" name="rule_value_product" value="" />
+                        <div id="epc-product-search-results" style="display:none;position:absolute;left:0;right:0;top:100%;z-index:100;background:#fff;border:1px solid #d1d5db;border-radius:0 0 6px 6px;max-height:200px;overflow-y:auto;box-shadow:0 4px 12px rgba(0,0,0,0.1);"></div>
+                    </div>
                 </div>
 
                 <!-- Category select -->

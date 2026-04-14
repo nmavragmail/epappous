@@ -96,21 +96,6 @@ class EPC_Admin {
             wp_enqueue_media();
         }
 
-        // Load Select2 for gift rules product search
-        if ( $is_epc_page ) {
-            // Try WooCommerce's bundled selectWoo first, then select2, then CDN fallback
-            if ( wp_script_is( 'selectWoo', 'registered' ) ) {
-                wp_enqueue_script( 'selectWoo' );
-                wp_enqueue_style( 'select2' );
-            } elseif ( wp_script_is( 'select2', 'registered' ) ) {
-                wp_enqueue_script( 'select2' );
-                wp_enqueue_style( 'select2' );
-            } else {
-                wp_enqueue_script( 'epc-select2', 'https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js', [ 'jquery' ], '4.1.0', true );
-                wp_enqueue_style( 'epc-select2', 'https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css', [], '4.1.0' );
-            }
-        }
-
         wp_localize_script( 'epc-admin-js', 'epcAdmin', [
             'ajaxUrl' => admin_url( 'admin-ajax.php' ),
             'nonce'   => wp_create_nonce( 'epc_admin_nonce' ),
