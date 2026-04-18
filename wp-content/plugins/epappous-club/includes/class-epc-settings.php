@@ -103,6 +103,9 @@ class EPC_Settings {
             'epc_woo_earn_statuses'         => wp_json_encode( [ 'completed' ] ),
             'epc_woo_exclude_sale_items'    => '0',
             'epc_woo_exclude_categories'    => wp_json_encode( [] ),
+
+            // ── B2B King (Pappou Club = this group ID; changes on site migration) ──
+            'epc_b2bking_club_group_id'     => '1446',
         ];
     }
 
@@ -152,6 +155,16 @@ class EPC_Settings {
                 'sanitize_callback' => [ $this, 'sanitize_setting' ],
             ] );
         }
+
+        register_setting(
+            'epc_settings_group',
+            'epc_b2bking_club_group_id',
+            [
+                'type'              => 'integer',
+                'sanitize_callback' => 'absint',
+                'default'           => 1446,
+            ]
+        );
     }
 
     public function sanitize_setting( $value ) {

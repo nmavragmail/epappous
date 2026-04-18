@@ -200,6 +200,10 @@ class EPC_Gifts {
             return [ 'success' => false, 'message' => __( 'Μέλος δεν βρέθηκε.', 'epappous-club' ) ];
         }
 
+        if ( ! EPC_B2BKing::member_id_in_pappou_club( $member_id ) ) {
+            return [ 'success' => false, 'message' => __( 'Η εξαργύρωση είναι διαθέσιμη μόνο για την ομάδα Pappou Club (B2B King).', 'epappous-club' ) ];
+        }
+
         // Check tier
         $tiers = self::tier_hierarchy();
         $member_tier_idx = array_search( $member['tier'], $tiers, true );
@@ -214,17 +218,35 @@ class EPC_Gifts {
             return [ 'success' => false, 'message' => __( 'Δεν έχετε αρκετούς πόντους.', 'epappous-club' ) ];
         }
 
-        // Deduct points
-        $wpdb->query(
+        $wpdb->query( 'START TRANSACTION' );
+
+        $points_updated = $wpdb->query(
             $wpdb->prepare(
-                "UPDATE {$wpdb->prefix}epc_members SET points = points - %d WHERE id = %d",
+                "UPDATE {$wpdb->prefix}epc_members SET points = CAST(points AS SIGNED) - %d WHERE id = %d AND CAST(points AS SIGNED) >= %d",
                 $points_needed,
-                $member_id
+                $member_id,
+                $points_needed
             )
         );
+        if ( 1 !== $points_updated ) {
+            $wpdb->query( 'ROLLBACK' );
+            return [ 'success' => false, 'message' => __( 'Δεν έχετε αρκετούς πόντους.', 'epappous-club' ) ];
+        }
 
-        // Log points
-        $wpdb->insert(
+        if ( (int) $gift['stock'] > 0 ) {
+            $stock_updated = $wpdb->query(
+                $wpdb->prepare(
+                    "UPDATE {$wpdb->prefix}epc_gift_products SET stock = stock - 1 WHERE id = %d AND stock > 0",
+                    $gift_id
+                )
+            );
+            if ( 1 !== $stock_updated ) {
+                $wpdb->query( 'ROLLBACK' );
+                return [ 'success' => false, 'message' => __( 'Το δώρο έχει εξαντληθεί.', 'epappous-club' ) ];
+            }
+        }
+
+        $log_inserted = $wpdb->insert(
             "{$wpdb->prefix}epc_points_log",
             [
                 'member_id'      => $member_id,
@@ -235,19 +257,12 @@ class EPC_Gifts {
             ],
             [ '%d', '%d', '%s', '%s', '%d' ]
         );
-
-        // Decrease stock
-        if ( (int) $gift['stock'] > 0 ) {
-            $wpdb->query(
-                $wpdb->prepare(
-                    "UPDATE {$wpdb->prefix}epc_gift_products SET stock = stock - 1 WHERE id = %d AND stock > 0",
-                    $gift_id
-                )
-            );
+        if ( false === $log_inserted ) {
+            $wpdb->query( 'ROLLBACK' );
+            return [ 'success' => false, 'message' => __( 'Αποτυχία καταγραφής εξαργύρωσης.', 'epappous-club' ) ];
         }
 
-        // Record redemption
-        $wpdb->insert(
+        $redemption_inserted = $wpdb->insert(
             "{$wpdb->prefix}epc_gift_redemptions",
             [
                 'member_id'       => $member_id,
@@ -257,8 +272,14 @@ class EPC_Gifts {
             ],
             [ '%d', '%d', '%d', '%s' ]
         );
+        if ( false === $redemption_inserted ) {
+            $wpdb->query( 'ROLLBACK' );
+            return [ 'success' => false, 'message' => __( 'Αποτυχία καταχώρησης εξαργύρωσης.', 'epappous-club' ) ];
+        }
 
-        do_action( 'epc_gift_redeemed', $member_id, $gift_id, $wpdb->insert_id );
+        $wpdb->query( 'COMMIT' );
+
+        do_action( 'epc_gift_redeemed', $member_id, $gift_id, (int) $wpdb->insert_id );
 
         return [ 'success' => true, 'message' => __( 'Το δώρο εξαργυρώθηκε επιτυχώς!', 'epappous-club' ) ];
     }

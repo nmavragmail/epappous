@@ -12,6 +12,8 @@ if ( ! defined( 'ABSPATH' ) ) {
 class EPC_Gift_Rules {
 
     private static $instance = null;
+    private const CACHE_GROUP = 'epc_gift_rules';
+    private const CACHE_VERSION_OPTION = 'epc_gift_rules_cache_version';
 
     public static function instance() {
         if ( null === self::$instance ) {
@@ -26,6 +28,14 @@ class EPC_Gift_Rules {
         add_action( 'wp_ajax_epc_delete_gift_rule', [ $this, 'ajax_delete' ] );
         add_action( 'wp_ajax_epc_toggle_gift_rule', [ $this, 'ajax_toggle' ] );
         add_action( 'wp_ajax_epc_search_products', [ $this, 'ajax_search_products' ] );
+        add_action( 'save_post_product', [ $this, 'bump_cache_version' ] );
+        add_action( 'set_object_terms', [ $this, 'maybe_bump_cache_on_terms' ], 10, 6 );
+        add_action( 'created_product_cat', [ $this, 'bump_cache_version' ] );
+        add_action( 'edited_product_cat', [ $this, 'bump_cache_version' ] );
+        add_action( 'delete_product_cat', [ $this, 'bump_cache_version' ] );
+        add_action( 'created_product_tag', [ $this, 'bump_cache_version' ] );
+        add_action( 'edited_product_tag', [ $this, 'bump_cache_version' ] );
+        add_action( 'delete_product_tag', [ $this, 'bump_cache_version' ] );
     }
 
     /**
@@ -33,10 +43,18 @@ class EPC_Gift_Rules {
      */
     public static function get_all(): array {
         global $wpdb;
-        return $wpdb->get_results(
+        $cache_key = 'rules_all_' . self::cache_version();
+        $cached    = wp_cache_get( $cache_key, self::CACHE_GROUP );
+        if ( false !== $cached && is_array( $cached ) ) {
+            return $cached;
+        }
+
+        $rules = $wpdb->get_results(
             "SELECT * FROM {$wpdb->prefix}epc_gift_rules ORDER BY rule_type, created_at DESC",
             ARRAY_A
         ) ?: [];
+        wp_cache_set( $cache_key, $rules, self::CACHE_GROUP, HOUR_IN_SECONDS );
+        return $rules;
     }
 
     /**
@@ -58,13 +76,24 @@ class EPC_Gift_Rules {
     public static function resolve_products( string $member_tier = '' ): array {
         global $wpdb;
 
-        $rules = $wpdb->get_results(
+        $rules_cache_key = 'rules_active_' . self::cache_version();
+        $rules           = wp_cache_get( $rules_cache_key, self::CACHE_GROUP );
+        if ( false === $rules || ! is_array( $rules ) ) {
+            $rules = $wpdb->get_results(
             "SELECT * FROM {$wpdb->prefix}epc_gift_rules WHERE is_active = 1",
             ARRAY_A
-        );
+            );
+            wp_cache_set( $rules_cache_key, $rules, self::CACHE_GROUP, HOUR_IN_SECONDS );
+        }
 
         if ( empty( $rules ) ) {
             return [];
+        }
+
+        $resolve_cache_key = 'resolved_' . md5( wp_json_encode( [ $member_tier, $rules ] ) ) . '_' . self::cache_version();
+        $resolved_cached   = wp_cache_get( $resolve_cache_key, self::CACHE_GROUP );
+        if ( false !== $resolved_cached && is_array( $resolved_cached ) ) {
+            return $resolved_cached;
         }
 
         $products = [];
@@ -115,10 +144,22 @@ class EPC_Gift_Rules {
             }
         }
 
+        wp_cache_set( $resolve_cache_key, $products, self::CACHE_GROUP, 10 * MINUTE_IN_SECONDS );
         return $products;
     }
 
     private static function get_products_by_taxonomy( string $taxonomy, int $term_id ): array {
+        $cache_key = sprintf(
+            'taxonomy_%s_%d_%s',
+            $taxonomy,
+            $term_id,
+            self::cache_version()
+        );
+        $cached = wp_cache_get( $cache_key, self::CACHE_GROUP );
+        if ( false !== $cached && is_array( $cached ) ) {
+            return $cached;
+        }
+
         $args = [
             'post_type'      => 'product',
             'post_status'    => 'publish',
@@ -132,7 +173,9 @@ class EPC_Gift_Rules {
                 ],
             ],
         ];
-        return get_posts( $args ) ?: [];
+        $product_ids = get_posts( $args ) ?: [];
+        wp_cache_set( $cache_key, $product_ids, self::CACHE_GROUP, HOUR_IN_SECONDS );
+        return $product_ids;
     }
 
     private static function tier_hierarchy(): array {
@@ -196,6 +239,7 @@ class EPC_Gift_Rules {
             ],
             [ '%s', '%d', '%d', '%s', '%d' ]
         );
+        self::invalidate_cache();
 
         wp_send_json_success( [ 'id' => (int) $wpdb->insert_id ] );
     }
@@ -222,6 +266,7 @@ class EPC_Gift_Rules {
             [ '%d', '%s' ],
             [ '%d' ]
         );
+        self::invalidate_cache();
 
         wp_send_json_success();
     }
@@ -239,6 +284,7 @@ class EPC_Gift_Rules {
 
         global $wpdb;
         $wpdb->delete( "{$wpdb->prefix}epc_gift_rules", [ 'id' => $id ], [ '%d' ] );
+        self::invalidate_cache();
         wp_send_json_success();
     }
 
@@ -262,6 +308,7 @@ class EPC_Gift_Rules {
             [ '%d' ],
             [ '%d' ]
         );
+        self::invalidate_cache();
         wp_send_json_success();
     }
 
@@ -279,6 +326,12 @@ class EPC_Gift_Rules {
             wp_send_json_success( [] );
         }
 
+        $cache_key = 'search_' . md5( strtolower( $q ) ) . '_' . self::cache_version();
+        $results   = wp_cache_get( $cache_key, self::CACHE_GROUP );
+        if ( false !== $results && is_array( $results ) ) {
+            wp_send_json_success( $results );
+        }
+
         $products = wc_get_products( [
             'limit'  => 20,
             'status' => 'publish',
@@ -293,7 +346,32 @@ class EPC_Gift_Rules {
                 'text' => $p->get_name() . ' (#' . $p->get_id() . ')',
             ];
         }
+        wp_cache_set( $cache_key, $results, self::CACHE_GROUP, 10 * MINUTE_IN_SECONDS );
 
         wp_send_json_success( $results );
+    }
+
+    public function bump_cache_version() {
+        self::invalidate_cache();
+    }
+
+    public function maybe_bump_cache_on_terms( $object_id, $terms, $tt_ids, $taxonomy, $append, $old_tt_ids ) {
+        unset( $object_id, $terms, $tt_ids, $append, $old_tt_ids );
+        if ( in_array( $taxonomy, [ 'product_cat', 'product_tag' ], true ) ) {
+            self::invalidate_cache();
+        }
+    }
+
+    private static function cache_version(): string {
+        $version = get_option( self::CACHE_VERSION_OPTION, '' );
+        if ( ! is_string( $version ) || '' === $version ) {
+            $version = (string) microtime( true );
+            update_option( self::CACHE_VERSION_OPTION, $version, true );
+        }
+        return $version;
+    }
+
+    private static function invalidate_cache() {
+        update_option( self::CACHE_VERSION_OPTION, (string) microtime( true ), true );
     }
 }

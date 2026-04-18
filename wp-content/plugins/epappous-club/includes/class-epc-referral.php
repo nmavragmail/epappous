@@ -181,9 +181,17 @@ class EPC_Referral {
      */
     public function attach_referral_to_order( $order_id ) {
         $ref_code = $_COOKIE['epc_ref'] ?? '';
-        if ( ! empty( $ref_code ) ) {
-            update_post_meta( $order_id, '_epc_referral_code', sanitize_text_field( $ref_code ) );
+        if ( empty( $ref_code ) ) {
+            return;
         }
+
+        $order = wc_get_order( $order_id );
+        if ( ! $order ) {
+            return;
+        }
+
+        $order->update_meta_data( '_epc_referral_code', sanitize_text_field( $ref_code ) );
+        $order->save();
     }
 
     /**
@@ -197,22 +205,22 @@ class EPC_Referral {
             return;
         }
 
-        $ref_code = get_post_meta( $order_id, '_epc_referral_code', true );
+        $order = wc_get_order( $order_id );
+        if ( ! $order ) {
+            return;
+        }
+
+        $ref_code = $order->get_meta( '_epc_referral_code', true );
         if ( empty( $ref_code ) ) {
             return;
         }
 
         // Already processed
-        if ( get_post_meta( $order_id, '_epc_referral_processed', true ) ) {
+        if ( $order->get_meta( '_epc_referral_processed', true ) ) {
             return;
         }
 
         $min_order = (float) EPC_Settings::get( 'epc_referral_min_order' );
-        $order     = wc_get_order( $order_id );
-        if ( ! $order ) {
-            return;
-        }
-
         if ( $min_order > 0 && (float) $order->get_total() < $min_order ) {
             return;
         }
@@ -265,7 +273,6 @@ class EPC_Referral {
             ],
             [ '%d', '%d', '%s', '%s', '%d', '%d', '%s', '%d', '%s', '%s' ]
         );
-
         if ( false === $inserted ) {
             if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
                 error_log( 'ePappous Club: Failed to insert purchase referral for order #' . $order_id );
@@ -276,7 +283,8 @@ class EPC_Referral {
         $this->give_points( $referrer->id, $reward_referrer, 'referral_purchase_referrer', $order_id );
         $this->give_points( $referred->id, $reward_referred, 'referral_purchase_referred', $order_id );
 
-        update_post_meta( $order_id, '_epc_referral_processed', '1' );
+        $order->update_meta_data( '_epc_referral_processed', '1' );
+        $order->save();
 
         do_action( 'epc_referral_completed', $referrer->id, $referred->id, 'purchase' );
         do_action( 'epc_points_changed', (int) $referrer->id );
@@ -360,7 +368,13 @@ class EPC_Referral {
             return false;
         }
 
+        if ( ! EPC_B2BKing::member_id_in_pappou_club( $member_id ) ) {
+            return false;
+        }
+
         global $wpdb;
+
+        $ref_log_id = null !== $reference_id ? (int) $reference_id : 0;
 
         $wpdb->query( 'START TRANSACTION' );
 
@@ -371,8 +385,7 @@ class EPC_Referral {
                 $member_id
             )
         );
-
-        if ( false === $updated ) {
+        if ( 1 !== $updated ) {
             $wpdb->query( 'ROLLBACK' );
             return false;
         }
@@ -384,11 +397,10 @@ class EPC_Referral {
                 'points'         => $points,
                 'reason'         => $reason,
                 'reference_type' => 'referral',
-                'reference_id'   => $reference_id,
+                'reference_id'   => $ref_log_id,
             ],
             [ '%d', '%d', '%s', '%s', '%d' ]
         );
-
         if ( false === $inserted ) {
             $wpdb->query( 'ROLLBACK' );
             return false;

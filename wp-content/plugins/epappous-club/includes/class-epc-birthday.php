@@ -67,7 +67,7 @@ class EPC_Birthday {
 
         $members = $wpdb->get_results(
             $wpdb->prepare(
-                "SELECT id, first_name, email
+                "SELECT id, first_name, email, user_id
                  FROM {$wpdb->prefix}epc_members
                  WHERE status = 'active'
                    AND date_of_birth IS NOT NULL
@@ -84,6 +84,10 @@ class EPC_Birthday {
 
         foreach ( $members as $member ) {
             if ( $this->already_awarded_this_year( (int) $member->id, $this_year ) ) {
+                continue;
+            }
+
+            if ( ! EPC_B2BKing::user_in_pappou_club( (int) $member->user_id ) ) {
                 continue;
             }
 

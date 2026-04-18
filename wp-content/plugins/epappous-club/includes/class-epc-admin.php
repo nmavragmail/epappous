@@ -32,6 +32,15 @@ class EPC_Admin {
 
         add_submenu_page(
             'epc-dashboard',
+            __( 'Μέλη', 'epappous-club' ),
+            __( 'Μέλη', 'epappous-club' ),
+            'manage_options',
+            'epc-members',
+            [ $this, 'render_members' ]
+        );
+
+        add_submenu_page(
+            'epc-dashboard',
             __( 'Ρυθμίσεις', 'epappous-club' ),
             __( 'Ρυθμίσεις', 'epappous-club' ),
             'manage_options',
@@ -109,6 +118,10 @@ class EPC_Admin {
 
     public function render_dashboard() {
         include EPC_PLUGIN_DIR . 'templates/admin-dashboard.php';
+    }
+
+    public function render_members() {
+        include EPC_PLUGIN_DIR . 'templates/admin-members.php';
     }
 
     public function render_settings() {

@@ -454,6 +454,28 @@ if ( ! is_array( $tiers ) ) {
                         </div>
                         <div class="epc-card-body">
                             <div class="epc-field-row">
+                                <label for="epc_b2bking_club_group_id"><?php esc_html_e( 'B2B King — Group ID «Pappou Club»', 'epappous-club' ); ?></label>
+                                <input type="number"
+                                       id="epc_b2bking_club_group_id"
+                                       name="epc_b2bking_club_group_id"
+                                       value="<?php echo esc_attr( (string) max( 0, (int) EPC_Settings::get( 'epc_b2bking_club_group_id' ) ) ); ?>"
+                                       class="small-text"
+                                       min="0"
+                                       step="1" />
+                                <p class="description">
+                                    <?php esc_html_e( 'Post ID της ομάδας στο B2B King (B2BKing → Groups). Μετά migration ενημερώστε το εδώ. Μόνο χρήστες αυτής της ομάδας κερδίζουν και εξαργυρώνουν πόντους· το υπόλοιπο παραμένει αν αλλάξει ομάδα.', 'epappous-club' ); ?>
+                                </p>
+                                <?php if ( ! function_exists( 'b2bking' ) ) : ?>
+                                    <p class="description" style="color:#b45309;">
+                                        <span class="dashicons dashicons-warning"></span>
+                                        <?php esc_html_e( 'Το B2B King δεν φαίνεται ενεργό — οι έλεγχοι ομάδας θα απορρίπτουν όλους μέχρι να φορτωθεί το plugin.', 'epappous-club' ); ?>
+                                    </p>
+                                <?php endif; ?>
+                            </div>
+
+                            <hr class="epc-divider" />
+
+                            <div class="epc-field-row">
                                 <label for="epc_woo_earn_on_complete"><?php esc_html_e( 'Πόντοι στην Ολοκλήρωση', 'epappous-club' ); ?></label>
                                 <label class="epc-toggle">
                                     <input type="hidden" name="epc_woo_earn_on_complete" value="0" />

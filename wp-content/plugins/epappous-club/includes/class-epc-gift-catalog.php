@@ -54,6 +54,10 @@ class EPC_Gift_Catalog {
             return '<p>' . esc_html__( 'Δεν είσαι μέλος του club.', 'epappous-club' ) . '</p>';
         }
 
+        if ( ! EPC_B2BKing::member_row_in_pappou_club( $member ) ) {
+            return '<p>' . esc_html__( 'Η εξαργύρωση δώρων είναι διαθέσιμη μόνο για λογαριασμούς στην ομάδα Pappou Club (B2B King). Το υπόλοιπό σου σε πόντους παραμένει αποθηκευμένο.', 'epappous-club' ) . '</p>';
+        }
+
         $gift_products = EPC_Gift_Rules::resolve_products( $member['tier'] );
 
         $show_stock = EPC_Settings::get( 'epc_gifts_show_stock' ) === '1';
@@ -161,6 +165,10 @@ class EPC_Gift_Catalog {
             wp_send_json_error( __( 'Δεν βρέθηκε μέλος.', 'epappous-club' ) );
         }
 
+        if ( ! EPC_B2BKing::member_row_in_pappou_club( $member ) ) {
+            wp_send_json_error( __( 'Η εξαργύρωση είναι διαθέσιμη μόνο για την ομάδα Pappou Club (B2B King).', 'epappous-club' ) );
+        }
+
         $product_id = (int) ( $_POST['gift_id'] ?? 0 );
         $rule_id    = (int) ( $_POST['rule_id'] ?? 0 );
 
@@ -180,17 +188,32 @@ class EPC_Gift_Catalog {
             wp_send_json_error( __( 'Δεν έχεις αρκετούς πόντους.', 'epappous-club' ) );
         }
 
-        // Deduct points
-        $wpdb->query(
+        $wpdb->query( 'START TRANSACTION' );
+
+        // Deduct points atomically so concurrent redemptions cannot overspend.
+        $updated = $wpdb->query(
             $wpdb->prepare(
-                "UPDATE {$wpdb->prefix}epc_members SET points = GREATEST(0, CAST(points AS SIGNED) - %d) WHERE id = %d",
+                "UPDATE {$wpdb->prefix}epc_members SET points = CAST(points AS SIGNED) - %d WHERE id = %d AND CAST(points AS SIGNED) >= %d",
                 $points_needed,
-                (int) $member['id']
+                (int) $member['id'],
+                $points_needed
             )
         );
+        if ( 1 !== $updated ) {
+            $wpdb->query( 'ROLLBACK' );
+            wp_send_json_error( __( 'Δεν έχεις αρκετούς πόντους.', 'epappous-club' ) );
+        }
+
+        if ( $product->managing_stock() ) {
+            $new_stock = wc_update_product_stock( $product, 1, 'decrease' );
+            if ( false === $new_stock || is_wp_error( $new_stock ) ) {
+                $wpdb->query( 'ROLLBACK' );
+                wp_send_json_error( __( 'Αποτυχία ενημέρωσης αποθέματος.', 'epappous-club' ) );
+            }
+        }
 
         // Log
-        $wpdb->insert(
+        $log_inserted = $wpdb->insert(
             "{$wpdb->prefix}epc_points_log",
             [
                 'member_id'      => (int) $member['id'],
@@ -201,9 +224,13 @@ class EPC_Gift_Catalog {
             ],
             [ '%d', '%d', '%s', '%s', '%d' ]
         );
+        if ( false === $log_inserted ) {
+            $wpdb->query( 'ROLLBACK' );
+            wp_send_json_error( __( 'Αποτυχία καταγραφής εξαργύρωσης.', 'epappous-club' ) );
+        }
 
         // Record redemption
-        $wpdb->insert(
+        $redemption_inserted = $wpdb->insert(
             "{$wpdb->prefix}epc_gift_redemptions",
             [
                 'member_id'       => (int) $member['id'],
@@ -213,8 +240,13 @@ class EPC_Gift_Catalog {
             ],
             [ '%d', '%d', '%d', '%s' ]
         );
+        if ( false === $redemption_inserted ) {
+            $wpdb->query( 'ROLLBACK' );
+            wp_send_json_error( __( 'Αποτυχία καταχώρησης εξαργύρωσης.', 'epappous-club' ) );
+        }
 
         $redemption_id = (int) $wpdb->insert_id;
+        $wpdb->query( 'COMMIT' );
 
         do_action( 'epc_gift_redeemed', (int) $member['id'], $product_id, $redemption_id );
         do_action( 'epc_points_changed', (int) $member['id'] );

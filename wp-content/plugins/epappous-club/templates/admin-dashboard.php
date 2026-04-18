@@ -61,6 +61,10 @@ $total_redemptions = (int) $wpdb->get_var( "SELECT COUNT(*) FROM {$wpdb->prefix}
     <div class="epc-quick-links">
         <h2><?php esc_html_e( 'Γρήγοροι Σύνδεσμοι', 'epappous-club' ); ?></h2>
         <div class="epc-links-grid">
+            <a href="<?php echo esc_url( admin_url( 'admin.php?page=epc-members' ) ); ?>" class="epc-link-card">
+                <span class="dashicons dashicons-admin-users"></span>
+                <span><?php esc_html_e( 'Μέλη', 'epappous-club' ); ?></span>
+            </a>
             <a href="<?php echo esc_url( admin_url( 'admin.php?page=epc-settings' ) ); ?>" class="epc-link-card">
                 <span class="dashicons dashicons-admin-settings"></span>
                 <span><?php esc_html_e( 'Ρυθμίσεις', 'epappous-club' ); ?></span>

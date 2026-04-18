@@ -3,7 +3,7 @@
  * Plugin Name: ePappous Club
  * Plugin URI: https://epappous.gr
  * Description: Loyalty & membership club with referral tracking, gift products, and full settings management.
- * Version: 1.7.0
+ * Version: 1.8.0
  * Author: ePappous
  * Author URI: https://epappous.gr
  * Text Domain: epappous-club
@@ -17,13 +17,15 @@ if ( ! defined( 'ABSPATH' ) ) {
     exit;
 }
 
-define( 'EPC_VERSION', '1.7.0' );
+define( 'EPC_VERSION', '1.8.0' );
 define( 'EPC_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'EPC_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
 define( 'EPC_PLUGIN_BASENAME', plugin_basename( __FILE__ ) );
 
 require_once EPC_PLUGIN_DIR . 'includes/class-epc-database.php';
 require_once EPC_PLUGIN_DIR . 'includes/class-epc-settings.php';
+require_once EPC_PLUGIN_DIR . 'includes/class-epc-b2bking.php';
+require_once EPC_PLUGIN_DIR . 'includes/class-epc-member-sync.php';
 require_once EPC_PLUGIN_DIR . 'includes/class-epc-referral.php';
 require_once EPC_PLUGIN_DIR . 'includes/class-epc-gifts.php';
 require_once EPC_PLUGIN_DIR . 'includes/class-epc-birthday.php';
@@ -39,6 +41,16 @@ require_once EPC_PLUGIN_DIR . 'includes/class-epc-admin.php';
 
 register_activation_hook( __FILE__, 'epc_activate' );
 register_deactivation_hook( __FILE__, 'epc_deactivate' );
+
+add_action( 'before_woocommerce_init', 'epc_declare_woocommerce_compatibility' );
+
+function epc_declare_woocommerce_compatibility() {
+    if ( ! class_exists( '\Automattic\WooCommerce\Utilities\FeaturesUtil' ) ) {
+        return;
+    }
+
+    \Automattic\WooCommerce\Utilities\FeaturesUtil::declare_compatibility( 'custom_order_tables', __FILE__, true );
+}
 
 function epc_activate() {
     EPC_Database::activate();
@@ -60,6 +72,7 @@ function epc_init() {
     EPC_Database::maybe_upgrade();
 
     EPC_Settings::instance();
+    EPC_Member_Sync::instance();
     EPC_Referral::instance();
     EPC_Gifts::instance();
     EPC_Birthday::instance();

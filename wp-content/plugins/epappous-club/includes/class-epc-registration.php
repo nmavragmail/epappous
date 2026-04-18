@@ -320,6 +320,8 @@ class EPC_Registration {
             'last_name'  => $last,
         ] );
 
+        EPC_Member_Sync::after_club_registration( $member_id, $email );
+
         wp_send_json_success( [
             'message'       => sprintf(
                 __( 'Καλώς ήρθες στο %s! Ο κωδικός referral σου είναι: %s', 'epappous-club' ),
