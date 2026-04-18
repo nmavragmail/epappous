@@ -54,6 +54,10 @@ class EPC_WooCommerce {
         // Redeem points at checkout
         add_action( 'woocommerce_cart_totals_before_order_total', [ $this, 'render_redeem_ui' ] );
         add_action( 'woocommerce_review_order_before_order_total', [ $this, 'render_redeem_ui' ] );
+
+        // Referral link box at cart/checkout
+        add_action( 'woocommerce_before_cart_totals', [ $this, 'render_referral_cart_box' ] );
+        add_action( 'woocommerce_review_order_after_submit', [ $this, 'render_referral_cart_box' ] );
         add_action( 'wp_ajax_epc_apply_points_discount', [ $this, 'ajax_apply_discount' ] );
         add_action( 'wp_ajax_epc_remove_points_discount', [ $this, 'ajax_remove_discount' ] );
         add_action( 'woocommerce_cart_calculate_fees', [ $this, 'apply_points_fee' ] );
@@ -1371,51 +1375,181 @@ class EPC_WooCommerce {
         $max_percent  = (int) EPC_Settings::get( 'epc_max_redeem_percent' );
         $member_pts   = (int) $member->points;
         $currency     = EPC_Settings::get( 'epc_currency_label' );
+        $club_name    = EPC_Settings::get( 'epc_club_name' );
+        $step_points  = 10;
 
-        if ( $member_pts < $min_points ) {
+        if ( $point_value <= 0 ) {
+            return;
+        }
+
+        if ( $member_pts < max( $min_points, $step_points ) ) {
             return;
         }
 
         $cart_total    = (float) WC()->cart->get_subtotal();
+        if ( $cart_total <= 0 ) {
+            return;
+        }
+
         $max_discount  = $cart_total * ( $max_percent / 100 );
         $max_from_pts  = $member_pts * $point_value;
         $max_usable    = min( $max_discount, $max_from_pts );
-        $points_needed = (int) floor( $max_usable / $point_value );
+        $points_max    = (int) floor( $max_usable / $point_value );
+        // Snap max down to the nearest step so the slider lands on a clean value.
+        $points_max    = (int) ( floor( $points_max / $step_points ) * $step_points );
 
-        $already_applied = WC()->session->get( 'epc_points_discount', 0 );
+        if ( $points_max < $step_points ) {
+            return;
+        }
+
+        $points_min      = max( $step_points, $min_points );
+        if ( $points_min > $points_max ) {
+            $points_min = $step_points;
+        }
+
+        $already_applied = (float) WC()->session->get( 'epc_points_discount', 0 );
+        $already_used    = (int) WC()->session->get( 'epc_points_used', 0 );
+        $default_value   = $already_used > 0 ? $already_used : $points_min;
         ?>
         <tr class="epc-checkout-redeem">
-            <th><?php echo esc_html( EPC_Settings::get( 'epc_club_name' ) ); ?></th>
-            <td>
-                <?php if ( $already_applied > 0 ) : ?>
-                    <span class="epc-checkout-applied">
-                        <?php printf(
-                            esc_html__( 'Χρησιμοποιείτε %d %s (-%s)', 'epappous-club' ),
-                            (int) WC()->session->get( 'epc_points_used', 0 ),
-                            esc_html( $currency ),
-                            wc_price( $already_applied )
-                        ); ?>
-                    </span>
-                    <button type="button" class="epc-remove-points-btn" style="margin-left:8px;cursor:pointer;color:#ef4444;background:none;border:none;font-size:12px;">
-                        <?php esc_html_e( 'Αφαίρεση', 'epappous-club' ); ?>
-                    </button>
-                <?php else : ?>
-                    <span class="epc-checkout-info">
-                        <?php printf(
-                            esc_html__( 'Έχεις %d %s (αξία: %s, μέγιστο: %s)', 'epappous-club' ),
-                            $member_pts,
-                            esc_html( $currency ),
-                            wc_price( $max_from_pts ),
-                            wc_price( $max_usable )
-                        ); ?>
-                    </span>
-                    <br />
-                    <button type="button" class="epc-apply-points-btn button" data-max="<?php echo (int) $points_needed; ?>">
-                        <?php printf( esc_html__( 'Χρήση %d %s', 'epappous-club' ), $points_needed, esc_html( $currency ) ); ?>
-                    </button>
-                <?php endif; ?>
+            <td colspan="2" class="epc-redeem-cell">
+                <div class="epc-redeem-box" data-min="<?php echo (int) $points_min; ?>" data-max="<?php echo (int) $points_max; ?>" data-step="<?php echo (int) $step_points; ?>" data-point-value="<?php echo esc_attr( (string) $point_value ); ?>" data-currency="<?php echo esc_attr( $currency ); ?>">
+                    <div class="epc-redeem-header">
+                        <h4 class="epc-redeem-title"><?php esc_html_e( 'Εξαργύρωσε τους πόντους σου σε χρήματα!', 'epappous-club' ); ?></h4>
+                        <label class="epc-redeem-toggle">
+                            <input type="checkbox" class="epc-redeem-toggle-input" <?php checked( $already_applied > 0 ); ?> />
+                            <span class="epc-redeem-toggle-slider" aria-hidden="true"></span>
+                        </label>
+                    </div>
+
+                    <div class="epc-redeem-meta">
+                        <span class="epc-redeem-available">
+                            <?php
+                            printf(
+                                /* translators: 1: points balance, 2: points label (e.g. "πόντοι") */
+                                esc_html__( '%1$s διαθέσιμοι %2$s', 'epappous-club' ),
+                                number_format_i18n( $member_pts ),
+                                esc_html( $currency )
+                            );
+                            ?>
+                        </span>
+                        <span class="epc-redeem-current">
+                            <strong class="epc-redeem-current-points"><?php echo (int) $default_value; ?></strong>
+                            <span><?php esc_html_e( 'Πόντοι', 'epappous-club' ); ?></span>
+                        </span>
+                    </div>
+
+                    <input type="range" class="epc-redeem-slider" min="<?php echo (int) $points_min; ?>" max="<?php echo (int) $points_max; ?>" step="<?php echo (int) $step_points; ?>" value="<?php echo (int) $default_value; ?>" aria-label="<?php esc_attr_e( 'Επίλεξε πόντους προς εξαργύρωση', 'epappous-club' ); ?>" />
+
+                    <div class="epc-redeem-footer">
+                        <span class="epc-redeem-hint"><?php esc_html_e( 'Οι πόντοι αφαιρούνται απευθείας από την παραγγελία σου', 'epappous-club' ); ?></span>
+                        <span class="epc-redeem-amount" data-prefix="-"><?php echo wp_kses_post( wc_price( $default_value * $point_value ) ); ?></span>
+                    </div>
+
+                    <div class="epc-redeem-actions">
+                        <button type="button" class="epc-apply-points-btn button"><?php esc_html_e( 'Εφαρμογή πόντων', 'epappous-club' ); ?></button>
+                        <button type="button" class="epc-remove-points-btn"<?php echo $already_applied > 0 ? '' : ' style="display:none;"'; ?>><?php esc_html_e( 'Αφαίρεση', 'epappous-club' ); ?></button>
+                    </div>
+
+                    <p class="epc-redeem-foot-note">
+                        <?php
+                        printf(
+                            /* translators: 1: max percent (e.g. 40), 2: club name */
+                            esc_html__( 'Έως %1$d%% της αξίας της παραγγελίας — έκπτωση από το %2$s.', 'epappous-club' ),
+                            (int) $max_percent,
+                            esc_html( $club_name )
+                        );
+                        ?>
+                    </p>
+                </div>
             </td>
         </tr>
+        <?php
+    }
+
+    /**
+     * Render the referral link box on cart / checkout (encourage sharing).
+     */
+    public function render_referral_cart_box() {
+        if ( EPC_Settings::get( 'epc_club_enabled' ) !== '1' ) {
+            return;
+        }
+        if ( EPC_Settings::get( 'epc_referral_enabled' ) !== '1' ) {
+            return;
+        }
+        if ( ! is_user_logged_in() ) {
+            return;
+        }
+
+        $track_mem      = EPC_Settings::get( 'epc_referral_track_membership' ) === '1';
+        $track_purchase = EPC_Settings::get( 'epc_referral_track_purchase' ) === '1';
+        if ( ! $track_mem && ! $track_purchase ) {
+            return;
+        }
+
+        global $wpdb;
+        $user   = wp_get_current_user();
+        $member = $wpdb->get_row(
+            $wpdb->prepare(
+                "SELECT id, referral_code FROM {$wpdb->prefix}epc_members WHERE (user_id = %d OR email = %s) AND status = 'active' LIMIT 1",
+                $user->ID,
+                $user->user_email
+            )
+        );
+
+        if ( ! $member || empty( $member->referral_code ) ) {
+            return;
+        }
+
+        $reward_ref   = (int) EPC_Settings::get( 'epc_referral_reward_referrer' );
+        $club_name    = EPC_Settings::get( 'epc_club_name' );
+        $share_link   = add_query_arg( 'ref', rawurlencode( $member->referral_code ), home_url( '/' ) );
+        $email_subject = sprintf(
+            /* translators: %s: club name */
+            __( 'Έλα στο %s!', 'epappous-club' ),
+            $club_name
+        );
+        $email_body = sprintf(
+            /* translators: 1: club name, 2: share link */
+            __( "Σου προτείνω να εγγραφείς στο %1\$s. Πάρε τους πόντους εγγραφής σου από αυτό το link:\n%2\$s", 'epappous-club' ),
+            $club_name,
+            $share_link
+        );
+        $mailto = 'mailto:?subject=' . rawurlencode( $email_subject ) . '&body=' . rawurlencode( $email_body );
+        ?>
+        <div class="epc-cart-referral-box">
+            <p class="epc-cart-referral-lead">
+                <?php
+                if ( $track_mem && $reward_ref > 0 ) {
+                    printf(
+                        /* translators: 1: reward points, 2: club name */
+                        wp_kses_post( __( '<strong>Κέρδισε extra Πόντους!</strong> Με κάθε νέα σύσταση, <strong>%1$s πόντοι</strong> μπαίνουν στον λογαριασμό σου μόλις ο φίλος σου εγγραφεί στο %2$s μέσω του referral link σου.', 'epappous-club' ) ),
+                        number_format_i18n( $reward_ref ),
+                        esc_html( $club_name )
+                    );
+                } else {
+                    printf(
+                        /* translators: %s: club name */
+                        wp_kses_post( __( '<strong>Κέρδισε extra Πόντους!</strong> Μοιράσου το referral link σου και κέρδισε πόντους όταν ο φίλος σου εγγραφεί ή αγοράσει από το %s.', 'epappous-club' ) ),
+                        esc_html( $club_name )
+                    );
+                }
+                ?>
+            </p>
+
+            <div class="epc-cart-referral-row">
+                <span class="epc-cart-referral-label"><?php esc_html_e( 'REFERRAL LINK', 'epappous-club' ); ?></span>
+                <input type="text" readonly class="epc-cart-referral-input" id="epc-cart-ref-link" value="<?php echo esc_attr( $share_link ); ?>" aria-label="<?php esc_attr_e( 'Referral link', 'epappous-club' ); ?>" />
+                <button type="button" class="epc-cart-referral-copy epc-copy-ref-link" data-copy="<?php echo esc_attr( $share_link ); ?>" title="<?php esc_attr_e( 'Αντιγραφή', 'epappous-club' ); ?>" aria-label="<?php esc_attr_e( 'Αντιγραφή', 'epappous-club' ); ?>">
+                    <span class="dashicons dashicons-admin-page" aria-hidden="true"></span>
+                </button>
+                <a class="epc-cart-referral-email" href="<?php echo esc_url( $mailto ); ?>" title="<?php esc_attr_e( 'Αποστολή με email', 'epappous-club' ); ?>" aria-label="<?php esc_attr_e( 'Αποστολή με email', 'epappous-club' ); ?>">
+                    <span class="dashicons dashicons-email-alt" aria-hidden="true"></span>
+                </a>
+            </div>
+
+            <p class="epc-cart-referral-hint"><?php esc_html_e( 'Αντέγραψέ το ή στείλε το απευθείας με email σε έναν φίλο σου & δες τους πόντους να αυξάνονται!', 'epappous-club' ); ?></p>
+        </div>
         <?php
     }
 
@@ -1449,17 +1583,46 @@ class EPC_WooCommerce {
 
         $point_value  = (float) EPC_Settings::get( 'epc_points_value_euro' );
         $max_percent  = (int) EPC_Settings::get( 'epc_max_redeem_percent' );
+        $min_points   = (int) EPC_Settings::get( 'epc_min_redeem_points' );
+        $step_points  = 10;
         $cart_total   = (float) WC()->cart->get_subtotal();
+
+        if ( $point_value <= 0 || $cart_total <= 0 ) {
+            wp_send_json_error();
+        }
+
         $max_discount = $cart_total * ( $max_percent / 100 );
         $max_from_pts = (int) $member->points * $point_value;
-        $discount     = min( $max_discount, $max_from_pts );
-        $pts_used     = (int) floor( $discount / $point_value );
+        $cap_discount = min( $max_discount, $max_from_pts );
+        $cap_points   = (int) floor( $cap_discount / $point_value );
+        $cap_points   = (int) ( floor( $cap_points / $step_points ) * $step_points );
+
+        // Requested points (from slider). Falls back to "use max" if missing.
+        $requested = isset( $_POST['points'] ) ? (int) $_POST['points'] : $cap_points;
+        $requested = (int) ( floor( $requested / $step_points ) * $step_points );
+        $floor_min = max( $step_points, $min_points );
+
+        if ( $requested < $floor_min ) {
+            wp_send_json_error( [ 'message' => __( 'Επίλεξε περισσότερους πόντους για να συνεχίσεις.', 'epappous-club' ) ] );
+        }
+
+        $pts_used = min( $requested, $cap_points );
+        $discount = $pts_used * $point_value;
+
+        if ( $pts_used < 1 || $discount <= 0 ) {
+            wp_send_json_error();
+        }
 
         WC()->session->set( 'epc_points_discount', $discount );
         WC()->session->set( 'epc_points_used', $pts_used );
         WC()->session->set( 'epc_points_member_id', (int) $member->id );
 
-        wp_send_json_success();
+        wp_send_json_success(
+            [
+                'points'   => $pts_used,
+                'discount' => $discount,
+            ]
+        );
     }
 
     /**
@@ -1670,17 +1833,23 @@ class EPC_WooCommerce {
             );
         }
 
+        // Front-end styles are needed on both cart and checkout for the
+        // redeem slider and the referral box.
+        if ( EPC_Settings::get( 'epc_club_enabled' ) === '1' ) {
+            wp_enqueue_style( 'dashicons' );
+            wp_enqueue_style(
+                'epc-front-css',
+                EPC_PLUGIN_URL . 'admin/css/front.css',
+                [ 'dashicons' ],
+                EPC_VERSION
+            );
+        }
+
         $localized = [
             'ajaxUrl' => admin_url( 'admin-ajax.php' ),
             'nonce'   => wp_create_nonce( 'epc_front_nonce' ),
         ];
         if ( function_exists( 'is_checkout' ) && is_checkout() && EPC_Settings::get( 'epc_club_enabled' ) === '1' ) {
-            wp_enqueue_style(
-                'epc-front-css',
-                EPC_PLUGIN_URL . 'admin/css/front.css',
-                [],
-                EPC_VERSION
-            );
             $checkout = \WC_Checkout::instance();
             $localized['checkoutClub'] = [
                 'needsCreateAccount' => ! is_user_logged_in()
