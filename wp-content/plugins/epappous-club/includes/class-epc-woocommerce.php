@@ -186,9 +186,8 @@ class EPC_WooCommerce {
             return (int) $meta;
         }
 
-        // Only show for statuses where points can apply.
-        $status = (string) $order->get_status();
-        if ( ! in_array( $status, [ 'processing', 'completed' ], true ) ) {
+        // Only show for statuses where points can apply by current settings.
+        if ( ! $this->order_status_is_eligible_for_earning( $order ) ) {
             return null;
         }
 
@@ -256,6 +255,9 @@ class EPC_WooCommerce {
 
         $order = wc_get_order( $order_id );
         if ( ! $order ) {
+            return;
+        }
+        if ( ! $this->order_status_is_eligible_for_earning( $order ) ) {
             return;
         }
         if ( $order->get_meta( '_epc_club_loyalty_settled', true ) === '1' ) {
@@ -374,6 +376,26 @@ class EPC_WooCommerce {
         $wpdb->query( 'COMMIT' );
 
         do_action( 'epc_points_changed', (int) $member['id'] );
+    }
+
+    /**
+     * Whether current order status is configured to award points.
+     */
+    private function order_status_is_eligible_for_earning( \WC_Order $order ): bool {
+        $status = (string) $order->get_status();
+
+        $allowed = json_decode( (string) EPC_Settings::get( 'epc_woo_earn_statuses' ), true );
+        if ( ! is_array( $allowed ) || empty( $allowed ) ) {
+            $allowed = [ 'completed' ];
+        }
+        $allowed = array_values(
+            array_intersect( array_map( 'sanitize_key', $allowed ), [ 'processing', 'completed' ] )
+        );
+        if ( empty( $allowed ) ) {
+            $allowed = [ 'completed' ];
+        }
+
+        return in_array( $status, $allowed, true );
     }
 
     /**

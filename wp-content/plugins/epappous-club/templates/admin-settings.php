@@ -489,14 +489,42 @@ if ( ! is_array( $tiers ) ) {
                             <hr class="epc-divider" />
 
                             <div class="epc-field-row">
-                                <label for="epc_woo_earn_on_complete"><?php esc_html_e( 'Πόντοι στην Ολοκλήρωση', 'epappous-club' ); ?></label>
+                                <label for="epc_woo_earn_on_complete"><?php esc_html_e( 'Ενεργοποίηση απονομής πόντων παραγγελίας', 'epappous-club' ); ?></label>
                                 <label class="epc-toggle">
                                     <input type="hidden" name="epc_woo_earn_on_complete" value="0" />
                                     <input type="checkbox" id="epc_woo_earn_on_complete" name="epc_woo_earn_on_complete" value="1"
                                            <?php checked( EPC_Settings::get( 'epc_woo_earn_on_complete' ), '1' ); ?> />
                                     <span class="epc-toggle-slider"></span>
                                 </label>
-                                <p class="description"><?php esc_html_e( 'Τα μέλη κερδίζουν πόντους αυτόματα κατά την ολοκλήρωση παραγγελίας.', 'epappous-club' ); ?></p>
+                                <p class="description"><?php esc_html_e( 'Ενεργοποιεί την απονομή πόντων σύμφωνα με τα επιλεγμένα status παρακάτω.', 'epappous-club' ); ?></p>
+                            </div>
+
+                            <?php
+                            $earn_statuses = json_decode( (string) EPC_Settings::get( 'epc_woo_earn_statuses' ), true );
+                            if ( ! is_array( $earn_statuses ) ) {
+                                $earn_statuses = [ 'completed' ];
+                            }
+                            $status_options = [
+                                'processing' => __( 'Processing', 'epappous-club' ),
+                                'completed'  => __( 'Completed', 'epappous-club' ),
+                            ];
+                            ?>
+                            <div class="epc-field-row">
+                                <label><?php esc_html_e( 'Status απονομής πόντων', 'epappous-club' ); ?></label>
+                                <div style="display:flex;gap:16px;flex-wrap:wrap;">
+                                    <?php foreach ( $status_options as $status_key => $status_label ) : ?>
+                                        <label style="display:inline-flex;align-items:center;gap:6px;">
+                                            <input type="checkbox"
+                                                   class="epc-woo-earn-status"
+                                                   value="<?php echo esc_attr( $status_key ); ?>"
+                                                   <?php checked( in_array( $status_key, $earn_statuses, true ) ); ?> />
+                                            <span><?php echo esc_html( $status_label ); ?></span>
+                                        </label>
+                                    <?php endforeach; ?>
+                                </div>
+                                <input type="hidden" id="epc_woo_earn_statuses_json" name="epc_woo_earn_statuses"
+                                       value="<?php echo esc_attr( wp_json_encode( array_values( $earn_statuses ) ) ); ?>" />
+                                <p class="description"><?php esc_html_e( 'Επίλεξε σε ποια status παραγγελίας αποδίδονται πόντοι. Σε cancelled/refunded οι αποδοθέντες πόντοι ακυρώνονται αυτόματα.', 'epappous-club' ); ?></p>
                             </div>
 
                             <div class="epc-field-row">

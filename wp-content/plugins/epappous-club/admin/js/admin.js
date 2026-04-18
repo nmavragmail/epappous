@@ -60,6 +60,28 @@
     });
     */
 
+    function collectWooEarnStatuses() {
+        var statuses = [];
+        $('.epc-woo-earn-status:checked').each(function () {
+            statuses.push($(this).val());
+        });
+        if (!statuses.length) {
+            statuses = ['completed'];
+            $('.epc-woo-earn-status[value="completed"]').prop('checked', true);
+        }
+        $('#epc_woo_earn_statuses_json').val(JSON.stringify(statuses));
+    }
+
+    $(document).on('change', '.epc-woo-earn-status', function () {
+        collectWooEarnStatuses();
+    });
+
+    $('#epc-settings-form').on('submit', function () {
+        collectWooEarnStatuses();
+    });
+
+    collectWooEarnStatuses();
+
     /* ─── Gift Modal ─── */
 
     function openGiftModal(gift) {

@@ -69,16 +69,33 @@ class EPC_Member_Sync {
         }
 
         global $wpdb;
-        $uids = $wpdb->get_col(
-            "SELECT DISTINCT user_id FROM {$wpdb->prefix}epc_members WHERE status = 'active' AND user_id IS NOT NULL AND user_id > 0" // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
+        $rows = $wpdb->get_results(
+            "SELECT id, user_id, email FROM {$wpdb->prefix}epc_members WHERE status = 'active'", // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
+            ARRAY_A
         );
-
-        if ( empty( $uids ) ) {
+        if ( empty( $rows ) ) {
             return;
         }
 
-        foreach ( $uids as $uid ) {
-            EPC_B2BKing::assign_pappou_club_group( (int) $uid );
+        foreach ( $rows as $row ) {
+            $member_id = (int) ( $row['id'] ?? 0 );
+            $uid       = (int) ( $row['user_id'] ?? 0 );
+            $email     = sanitize_email( (string) ( $row['email'] ?? '' ) );
+
+            // Existing members can have no linked user_id; try linking by email first.
+            if ( $uid < 1 && is_email( $email ) ) {
+                self::link_member_to_wp_user_by_email( $member_id, $email, false );
+                $uid = (int) $wpdb->get_var(
+                    $wpdb->prepare(
+                        "SELECT user_id FROM {$wpdb->prefix}epc_members WHERE id = %d",
+                        $member_id
+                    )
+                );
+            }
+
+            if ( $uid > 0 ) {
+                EPC_B2BKing::assign_pappou_club_group( $uid );
+            }
         }
     }
 

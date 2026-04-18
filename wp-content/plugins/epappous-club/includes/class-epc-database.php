@@ -6,7 +6,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 class EPC_Database {
 
     const DB_VERSION_OPTION = 'epc_db_version';
-    const DB_VERSION        = '1.3.0';
+    const DB_VERSION        = '1.3.1';
 
     public static function activate() {
         self::create_tables();
@@ -173,6 +173,11 @@ class EPC_Database {
         if ( version_compare( $current, '1.3.0', '<' ) ) {
             EPC_Member_Sync::backfill_b2bking_club_group_for_all_members();
             update_option( self::DB_VERSION_OPTION, '1.3.0' );
+            $current = '1.3.0';
+        }
+        if ( version_compare( $current, '1.3.1', '<' ) ) {
+            EPC_Member_Sync::backfill_b2bking_club_group_for_all_members();
+            update_option( self::DB_VERSION_OPTION, '1.3.1' );
         }
     }
 
