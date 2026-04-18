@@ -44,6 +44,13 @@ class EPC_WooCommerce {
         // Catch up legacy / imported orders when admin opens them.
         add_action( 'admin_init', [ $this, 'maybe_catch_up_order_on_admin_view' ] );
 
+        // Persist a "would-be earned points" meta on every order, regardless of status,
+        // so admin metabox + transactional emails can always show it.
+        add_action( 'woocommerce_new_order', [ $this, 'maybe_persist_potential_points' ], 30 );
+        add_action( 'woocommerce_checkout_order_processed', [ $this, 'maybe_persist_potential_points' ], 30 );
+        add_action( 'woocommerce_store_api_checkout_order_processed', [ $this, 'maybe_persist_potential_points_blocks' ], 30 );
+        add_action( 'woocommerce_order_status_changed', [ $this, 'refresh_potential_points_on_status' ], 30, 4 );
+
         // Redeem points at checkout
         add_action( 'woocommerce_cart_totals_before_order_total', [ $this, 'render_redeem_ui' ] );
         add_action( 'woocommerce_review_order_before_order_total', [ $this, 'render_redeem_ui' ] );
@@ -331,9 +338,13 @@ class EPC_WooCommerce {
             return;
         }
 
-        $earned  = (int) $order->get_meta( '_epc_points_earned', true );
-        $redeem  = (int) $order->get_meta( '_epc_points_redeemed', true );
-        $gift_in = (string) $order->get_meta( '_epc_order_includes_club_gift_product', true );
+        $earned_meta = $order->get_meta( '_epc_points_earned', true );
+        $earned      = '' !== (string) $earned_meta ? (int) $earned_meta : null;
+        $settled     = $order->get_meta( '_epc_club_loyalty_settled', true ) === '1';
+        $revoked     = $order->get_meta( '_epc_points_revoked', true ) === '1';
+        $potential   = $this->ensure_potential_points_meta( $order );
+        $redeem      = (int) $order->get_meta( '_epc_points_redeemed', true );
+        $gift_in     = (string) $order->get_meta( '_epc_order_includes_club_gift_product', true );
 
         $gift_catalog = EPC_Gift_Rules::resolve_products( 'basic' );
         $gift_names   = [];
@@ -357,7 +368,21 @@ class EPC_WooCommerce {
         }
         $gift_names = array_values( array_unique( array_filter( $gift_names ) ) );
 
-        echo '<p><strong>' . esc_html__( 'Πόντοι που κέρδισε:', 'epappous-club' ) . '</strong> ' . esc_html( (string) $earned ) . '</p>';
+        if ( $revoked ) {
+            $revoked_amount = (int) $order->get_meta( '_epc_points_revoked_amount', true );
+            echo '<p><strong>' . esc_html__( 'Πόντοι παραγγελίας:', 'epappous-club' ) . '</strong> ' .
+                esc_html(
+                    $revoked_amount > 0
+                        ? sprintf( __( 'Ακυρώθηκαν (%d πόντοι)', 'epappous-club' ), $revoked_amount )
+                        : __( 'Ακυρώθηκαν', 'epappous-club' )
+                ) . '</p>';
+        } elseif ( $settled && null !== $earned ) {
+            echo '<p><strong>' . esc_html__( 'Πόντοι που κέρδισε:', 'epappous-club' ) . '</strong> ' . esc_html( (string) $earned ) . '</p>';
+        } else {
+            echo '<p><strong>' . esc_html__( 'Πόντοι (εκκρεμείς):', 'epappous-club' ) . '</strong> ' . esc_html( (string) $potential ) . '</p>';
+            echo '<p style="color:#666;font-size:11px;margin-top:-6px;">' .
+                esc_html__( 'Θα προστεθούν στον χρήστη όταν η παραγγελία περάσει σε επιλέξιμο status (processing/completed).', 'epappous-club' ) . '</p>';
+        }
         echo '<p><strong>' . esc_html__( 'Πόντοι που εξαργύρωσε:', 'epappous-club' ) . '</strong> ' . esc_html( (string) $redeem ) . '</p>';
 
         if ( ! empty( $gift_names ) ) {
@@ -418,13 +443,22 @@ class EPC_WooCommerce {
             return;
         }
 
-        // If points haven't been awarded yet, show 0/skip instead of forcing DB writes from email hook.
         $points = $this->get_points_earned_for_order_display( $order );
         if ( null === $points ) {
             return;
         }
 
-        $label = __( 'Πόντοι από αυτή την παραγγελία', 'epappous-club' );
+        $settled = $order->get_meta( '_epc_club_loyalty_settled', true ) === '1';
+        $revoked = $order->get_meta( '_epc_points_revoked', true ) === '1';
+
+        if ( $revoked ) {
+            return;
+        }
+
+        $label = $settled
+            ? __( 'Πόντοι από αυτή την παραγγελία', 'epappous-club' )
+            : __( 'Πόντοι που θα κερδίσετε όταν επιβεβαιωθεί η παραγγελία', 'epappous-club' );
+
         $value = (string) (int) $points;
 
         if ( $plain_text ) {
@@ -436,11 +470,11 @@ class EPC_WooCommerce {
     }
 
     /**
-     * Returns points earned for display in emails.
-     * - If order meta exists, use it.
-     * - If not settled yet (rare), compute safely without persisting.
+     * Returns the "earned or potential" points for display purposes (emails / metaboxes).
      *
-     * @return int|null null means "do not show".
+     * - If `_epc_points_earned` meta is already persisted (i.e. earning ran), use it.
+     * - Otherwise return the value of `calculate_potential_points_for_order()`.
+     * - Returns null when the order has no club-eligible customer.
      */
     private function get_points_earned_for_order_display( \WC_Order $order ): ?int {
         $meta = $order->get_meta( '_epc_points_earned', true );
@@ -448,9 +482,22 @@ class EPC_WooCommerce {
             return (int) $meta;
         }
 
-        // Only show for statuses where points can apply by current settings.
-        if ( ! $this->order_status_is_eligible_for_earning( $order ) ) {
+        if ( ! EPC_B2BKing::order_customer_in_pappou_club( $order ) ) {
             return null;
+        }
+
+        return $this->calculate_potential_points_for_order( $order );
+    }
+
+    /**
+     * Pure calculation of how many points this order WOULD award based on current settings + items.
+     * No side effects (no DB writes, no member balance changes, no order meta updates).
+     *
+     * Returns 0 for non-club orders or when nothing is eligible.
+     */
+    public function calculate_potential_points_for_order( \WC_Order $order ): int {
+        if ( EPC_Settings::get( 'epc_club_enabled' ) !== '1' ) {
+            return 0;
         }
 
         if ( ! EPC_B2BKing::order_customer_in_pappou_club( $order ) ) {
@@ -465,7 +512,7 @@ class EPC_WooCommerce {
 
         $member = $wpdb->get_row(
             $wpdb->prepare(
-                "SELECT tier FROM {$wpdb->prefix}epc_members WHERE email = %s AND status = 'active' LIMIT 1",
+                "SELECT id FROM {$wpdb->prefix}epc_members WHERE email = %s AND status = 'active' LIMIT 1",
                 $email
             ),
             ARRAY_A
@@ -499,9 +546,71 @@ class EPC_WooCommerce {
         }
 
         $raw_points = $eligible_total * $points_per_euro;
-        $points     = (int) floor( $raw_points * 1.0 );
+        $points     = (int) floor( $raw_points );
 
         return max( 0, $points );
+    }
+
+    /**
+     * Persist `_epc_points_potential` on the order so it's always available for admin / emails.
+     *
+     * @param int|\WC_Order $order_or_id
+     * @param bool          $force Recompute even if already stored.
+     */
+    public function ensure_potential_points_meta( $order_or_id, bool $force = false ): int {
+        $order = $order_or_id instanceof \WC_Order ? $order_or_id : wc_get_order( (int) $order_or_id );
+        if ( ! $order instanceof \WC_Order ) {
+            return 0;
+        }
+
+        if ( ! $force ) {
+            $stored = $order->get_meta( '_epc_points_potential', true );
+            if ( '' !== (string) $stored ) {
+                return (int) $stored;
+            }
+        }
+
+        $points = $this->calculate_potential_points_for_order( $order );
+        $order->update_meta_data( '_epc_points_potential', (int) $points );
+        $order->save_meta_data();
+
+        return (int) $points;
+    }
+
+    /**
+     * Hook: persist potential points the moment an order is created.
+     */
+    public function maybe_persist_potential_points( $order_id ): void {
+        $this->ensure_potential_points_meta( (int) $order_id );
+    }
+
+    /**
+     * Hook: persist potential points for Block-checkout created orders.
+     */
+    public function maybe_persist_potential_points_blocks( $order ): void {
+        if ( $order instanceof \WC_Order ) {
+            $this->ensure_potential_points_meta( $order );
+        }
+    }
+
+    /**
+     * Hook: refresh potential meta on every status change while not yet settled.
+     *
+     * Once `_epc_club_loyalty_settled=1` exists we leave the recorded value alone — `_epc_points_earned`
+     * is the source of truth from then on (and revocation is handled separately).
+     */
+    public function refresh_potential_points_on_status( $order_id, $from, $to, $order ): void {
+        unset( $from, $to );
+        if ( ! $order instanceof \WC_Order ) {
+            $order = wc_get_order( (int) $order_id );
+        }
+        if ( ! $order instanceof \WC_Order ) {
+            return;
+        }
+        if ( $order->get_meta( '_epc_club_loyalty_settled', true ) === '1' ) {
+            return;
+        }
+        $this->ensure_potential_points_meta( $order, true );
     }
 
     /**
@@ -568,10 +677,15 @@ class EPC_WooCommerce {
             '_epc_order_includes_club_gift_product',
             '_epc_points_revoked',
             '_epc_points_revoked_amount',
+            '_epc_points_potential',
         ] as $meta_key ) {
             $order->delete_meta_data( $meta_key );
         }
         $order->save();
+
+        // Refresh the potential first so admin metabox / emails always have something to show,
+        // even if status isn't eligible yet.
+        $this->ensure_potential_points_meta( $order, true );
 
         $this->earn_points_on_order( $order_id );
 
