@@ -9,7 +9,7 @@ global $wpdb;
 $search    = isset( $_GET['s'] )         ? sanitize_text_field( wp_unslash( $_GET['s'] ) )   : ''; // phpcs:ignore
 $filter_mid = isset( $_GET['member_id'] ) ? (int) $_GET['member_id']                          : 0;  // phpcs:ignore
 $page      = max( 1, (int) ( $_GET['paged'] ?? 1 ) ); // phpcs:ignore
-$per_page  = 50;
+$per_page  = 5;
 $offset    = ( $page - 1 ) * $per_page;
 
 $where  = '1=1';
