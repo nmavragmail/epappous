@@ -26,6 +26,60 @@ class EPC_Member_Sync {
         add_action( 'user_register', [ $this, 'on_user_register' ], 25, 1 );
         add_action( 'woocommerce_created_customer', [ $this, 'on_woocommerce_created_customer' ], 25, 3 );
         add_action( 'admin_post_epc_add_member', [ $this, 'handle_admin_add_member' ] );
+        add_action( 'epc_member_registered', [ __CLASS__, 'on_member_registered_assign_b2b_group' ], 5, 2 );
+    }
+
+    /**
+     * After any club registration path: ensure linked WP user is in the B2B King Pappou Club group.
+     *
+     * @param int   $member_id epc_members.id.
+     * @param array $context   Hook payload (unused; kept for signature compatibility).
+     */
+    public static function on_member_registered_assign_b2b_group( int $member_id, array $context = [] ): void { // phpcs:ignore Generic.CodeAnalysis.UnusedFunctionParameter.FoundAfterLastUsed
+        self::ensure_b2b_group_for_member( $member_id );
+    }
+
+    /**
+     * Assign B2B King group when the member row is linked to a WP user (active member only).
+     */
+    public static function ensure_b2b_group_for_member( int $member_id ): void {
+        if ( $member_id < 1 || EPC_Settings::get( 'epc_club_enabled' ) !== '1' ) {
+            return;
+        }
+
+        global $wpdb;
+        $uid = (int) $wpdb->get_var(
+            $wpdb->prepare(
+                "SELECT user_id FROM {$wpdb->prefix}epc_members WHERE id = %d AND status = 'active'",
+                $member_id
+            )
+        );
+
+        if ( $uid > 0 ) {
+            EPC_B2BKing::assign_pappou_club_group( $uid );
+        }
+    }
+
+    /**
+     * One-time migration: put every active club member’s WP user into the configured B2B King group.
+     */
+    public static function backfill_b2bking_club_group_for_all_members(): void {
+        if ( EPC_Settings::get( 'epc_club_enabled' ) !== '1' ) {
+            return;
+        }
+
+        global $wpdb;
+        $uids = $wpdb->get_col(
+            "SELECT DISTINCT user_id FROM {$wpdb->prefix}epc_members WHERE status = 'active' AND user_id IS NOT NULL AND user_id > 0" // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
+        );
+
+        if ( empty( $uids ) ) {
+            return;
+        }
+
+        foreach ( $uids as $uid ) {
+            EPC_B2BKing::assign_pappou_club_group( (int) $uid );
+        }
     }
 
     /**
@@ -33,6 +87,7 @@ class EPC_Member_Sync {
      */
     public static function after_club_registration( int $member_id, string $email ): void {
         self::link_member_to_wp_user_by_email( $member_id, $email, true );
+        self::ensure_b2b_group_for_member( $member_id );
     }
 
     /**
@@ -212,9 +267,7 @@ class EPC_Member_Sync {
 
         $member_id = (int) $wpdb->insert_id;
 
-        if ( $wp_uid ) {
-            EPC_B2BKing::assign_pappou_club_group( $wp_uid );
-        }
+        self::after_club_registration( $member_id, $email );
 
         do_action(
             'epc_member_registered',

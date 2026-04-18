@@ -45,6 +45,7 @@ class EPC_WooCommerce {
             add_action( '__experimental_woocommerce_blocks_checkout_update_order_from_request', [ $this, 'record_points_redemption_from_blocks' ], 20, 2 );
         }
 
+        add_action( 'woocommerce_admin_order_data_after_billing_address', [ $this, 'render_club_loyalty_order_summary' ], 12, 1 );
         add_action( 'woocommerce_admin_order_data_after_billing_address', [ $this, 'render_cassette_gift_order_panel' ], 15, 1 );
         add_action( 'woocommerce_admin_order_data_after_billing_address', [ $this, 'render_checkout_club_order_meta' ], 16, 1 );
 
@@ -126,7 +127,7 @@ class EPC_WooCommerce {
     }
 
     /**
-     * Award points when an order is completed.
+     * Award points when an order is completed; persist order meta for admin / exports.
      */
     public function earn_points_on_order( $order_id ) {
         if ( EPC_Settings::get( 'epc_woo_earn_on_complete' ) !== '1' ) {
@@ -140,34 +141,40 @@ class EPC_WooCommerce {
         if ( ! $order ) {
             return;
         }
-        if ( $order->get_meta( '_epc_points_earned', true ) ) {
+        if ( $order->get_meta( '_epc_club_loyalty_settled', true ) === '1' ) {
             return;
         }
 
-        if ( ! EPC_B2BKing::order_customer_in_pappou_club( $order ) ) {
-            return;
-        }
+        $in_club = EPC_B2BKing::order_customer_in_pappou_club( $order );
 
         global $wpdb;
         $email  = $order->get_billing_email();
-        $member = $wpdb->get_row(
-            $wpdb->prepare(
-                "SELECT * FROM {$wpdb->prefix}epc_members WHERE email = %s AND status = 'active'",
-                $email
-            ),
-            ARRAY_A
-        );
+        $member = null;
+        if ( is_email( $email ) ) {
+            $member = $wpdb->get_row(
+                $wpdb->prepare(
+                    "SELECT * FROM {$wpdb->prefix}epc_members WHERE email = %s AND status = 'active'",
+                    $email
+                ),
+                ARRAY_A
+            );
+        }
 
-        if ( ! $member ) {
+        if ( ! $in_club || ! $member ) {
+            $order->update_meta_data( '_epc_club_loyalty_settled', '1' );
+            $order->update_meta_data( '_epc_order_includes_club_gift_product', 'n/a' );
+            $order->save();
             return;
         }
 
-        $points_per_euro    = (float) EPC_Settings::get( 'epc_points_per_euro' );
-        $exclude_sale       = EPC_Settings::get( 'epc_woo_exclude_sale_items' ) === '1';
-        $exclude_cats_json  = EPC_Settings::get( 'epc_woo_exclude_categories' );
-        $exclude_cats       = json_decode( $exclude_cats_json, true ) ?: [];
+        $gift_catalog = EPC_Gift_Rules::resolve_products( (string) ( $member['tier'] ?? 'basic' ) );
+        $gift_line    = $this->order_contains_catalog_gift_product( $order, $gift_catalog );
 
-        // $tier_multiplier = $this->get_tier_multiplier( $member['tier'] );
+        $points_per_euro   = (float) EPC_Settings::get( 'epc_points_per_euro' );
+        $exclude_sale      = EPC_Settings::get( 'epc_woo_exclude_sale_items' ) === '1';
+        $exclude_cats_json = EPC_Settings::get( 'epc_woo_exclude_categories' );
+        $exclude_cats      = json_decode( $exclude_cats_json, true ) ?: [];
+
         $tier_multiplier = 1.0;
         $eligible_total  = 0;
 
@@ -192,14 +199,18 @@ class EPC_WooCommerce {
             $eligible_total += (float) $item->get_total();
         }
 
-        if ( $eligible_total <= 0 ) {
-            return;
-        }
-
         $raw_points = $eligible_total * $points_per_euro;
         $points     = (int) floor( $raw_points * $tier_multiplier );
 
-        if ( $points < 1 ) {
+        if ( $eligible_total <= 0 || $points < 1 ) {
+            try {
+                $order->update_meta_data( '_epc_points_earned', 0 );
+                $order->update_meta_data( '_epc_club_loyalty_settled', '1' );
+                $order->update_meta_data( '_epc_order_includes_club_gift_product', $gift_line ? 'yes' : 'no' );
+                $order->save();
+            } catch ( Throwable $e ) {
+                return;
+            }
             return;
         }
 
@@ -235,6 +246,8 @@ class EPC_WooCommerce {
 
         try {
             $order->update_meta_data( '_epc_points_earned', $points );
+            $order->update_meta_data( '_epc_club_loyalty_settled', '1' );
+            $order->update_meta_data( '_epc_order_includes_club_gift_product', $gift_line ? 'yes' : 'no' );
             $order->save();
         } catch ( Throwable $e ) {
             $wpdb->query( 'ROLLBACK' );
@@ -244,6 +257,100 @@ class EPC_WooCommerce {
         $wpdb->query( 'COMMIT' );
 
         do_action( 'epc_points_changed', (int) $member['id'] );
+    }
+
+    /**
+     * True if any line item is a product that appears in the active gift catalog (rules).
+     *
+     * @param \WC_Order              $order         Order.
+     * @param array<int,array>       $gift_catalog Keys = WC product IDs from EPC_Gift_Rules::resolve_products().
+     */
+    private function order_contains_catalog_gift_product( \WC_Order $order, array $gift_catalog ): bool {
+        if ( empty( $gift_catalog ) ) {
+            return false;
+        }
+        foreach ( $order->get_items() as $item ) {
+            $product = $item->get_product();
+            if ( ! $product ) {
+                continue;
+            }
+            $ids = [ (int) $product->get_id() ];
+            if ( $product->is_type( 'variation' ) ) {
+                $ids[] = (int) $product->get_parent_id();
+            }
+            foreach ( array_unique( array_filter( $ids ) ) as $pid ) {
+                if ( isset( $gift_catalog[ $pid ] ) ) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    /**
+     * WooCommerce admin: summary of Club loyalty data stored on this order.
+     *
+     * @param \WC_Order|false $order Order.
+     */
+    public function render_club_loyalty_order_summary( $order ): void {
+        if ( ! $order instanceof \WC_Order ) {
+            return;
+        }
+
+        $settled       = $order->get_meta( '_epc_club_loyalty_settled', true ) === '1';
+        $earned_meta   = $order->get_meta( '_epc_points_earned', true );
+        $redeem        = $order->get_meta( '_epc_points_redeemed', true );
+        $disc          = $order->get_meta( '_epc_discount_amount', true );
+        $gift          = (string) $order->get_meta( '_epc_order_includes_club_gift_product', true );
+
+        if ( ! $settled && '' === (string) $earned_meta && '' === (string) $redeem && '' === $gift ) {
+            return;
+        }
+
+        if ( $settled ) {
+            $earned_display = (string) (int) $order->get_meta( '_epc_points_earned', true );
+        } elseif ( '' !== (string) $earned_meta ) {
+            $earned_display = (string) (int) $earned_meta;
+        } else {
+            $earned_display = '—';
+        }
+
+        $gift_labels = [
+            'yes' => __( 'Ναι — περιλαμβάνει προϊόν από τον κατάλογο δώρων του Club (WC γραμμή παραγγελίας).', 'epappous-club' ),
+            'no'  => __( 'Όχι — δεν εντοπίστηκε προϊόν καταλόγου δώρων στις γραμμές της παραγγελίας.', 'epappous-club' ),
+            'n/a' => __( 'Δεν εφαρμόζεται (όχι μέλος ή όχι σε ομάδα Club / χωρίς εκτίμηση).', 'epappous-club' ),
+        ];
+        $gift_text = $gift_labels[ $gift ] ?? '—';
+
+        ?>
+        <div class="address" style="clear:both;margin-top:12px;padding:12px;background:#f0f6fc;border:1px solid #c3d9ed;border-radius:4px;">
+            <p style="margin:0 0 8px;"><strong><?php esc_html_e( 'Pappou Club — πόντοι & δώρο (μετα-δεδομένα παραγγελίας)', 'epappous-club' ); ?></strong></p>
+            <p style="margin:4px 0;font-size:13px;">
+                <?php esc_html_e( 'Πόντοι από αυτή την παραγγελία (ολοκλήρωση):', 'epappous-club' ); ?>
+                <strong><?php echo esc_html( $earned_display ); ?></strong>
+            </p>
+            <p style="margin:4px 0;font-size:13px;">
+                <?php esc_html_e( 'Πόντοι που εξαργυρώθηκαν στο checkout:', 'epappous-club' ); ?>
+                <strong><?php echo '' !== (string) $redeem ? esc_html( (string) (int) $redeem ) : '—'; ?></strong>
+                <?php if ( '' !== (string) $disc ) : ?>
+                    <?php
+                    printf(
+                        ' — %1$s %2$s €',
+                        esc_html__( 'έκπτωση', 'epappous-club' ),
+                        esc_html( wc_format_decimal( (float) $disc, 2 ) )
+                    );
+                    ?>
+                <?php endif; ?>
+            </p>
+            <p style="margin:4px 0;font-size:13px;">
+                <?php esc_html_e( 'Γραμμή παραγγελίας με προϊόν από κατάλογο δώρων Club:', 'epappous-club' ); ?>
+                <strong><?php echo esc_html( $gift_text ); ?></strong>
+            </p>
+            <p style="margin:8px 0 0;font-size:11px;color:#50575e;">
+                <?php esc_html_e( 'Η εξαργύρωση δώρου από τη σελίδα δώρων (χωρίς παραγγελία WooCommerce) καταγράφεται στις εγγραφές εξαργύρωσης του plugin, όχι σε μετα-δεδομένα παραγγελίας.', 'epappous-club' ); ?>
+            </p>
+        </div>
+        <?php
     }
 
     /**
@@ -992,6 +1099,8 @@ class EPC_WooCommerce {
 
         $member_id = (int) $wpdb->insert_id;
 
+        EPC_Member_Sync::after_club_registration( $member_id, $email );
+
         do_action(
             'epc_member_registered',
             $member_id,
@@ -1002,8 +1111,6 @@ class EPC_WooCommerce {
                 'source'     => 'checkout',
             ]
         );
-
-        EPC_Member_Sync::after_club_registration( $member_id, $email );
 
         $order->update_meta_data( '_epc_checkout_club_processed', '1' );
         $order->add_order_note(

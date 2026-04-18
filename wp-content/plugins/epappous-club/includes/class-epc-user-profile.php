@@ -708,6 +708,8 @@ class EPC_User_Profile {
 
             $new_member_id = (int) $wpdb->insert_id;
 
+            EPC_Member_Sync::after_club_registration( $new_member_id, $wp_user->user_email );
+
             do_action( 'epc_member_registered', $new_member_id, [
                 'email'      => $wp_user->user_email,
                 'first_name' => $wp_user->first_name ?: $wp_user->display_name,

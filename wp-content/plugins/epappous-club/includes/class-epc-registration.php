@@ -33,6 +33,72 @@ class EPC_Registration {
         add_action( 'wp_enqueue_scripts', [ $this, 'enqueue_assets' ] );
 
         add_action( 'plugins_loaded', [ $this, 'register_woocommerce_my_account' ], 20 );
+
+        add_action( 'epc_member_registered', [ __CLASS__, 'on_member_registered_award_signup_bonus' ], 25, 2 );
+    }
+
+    /**
+     * Award configured signup bonus once per member (points log reason signup_bonus).
+     *
+     * @param int   $member_id New member row id.
+     * @param array $data      Hook payload (email, names, …).
+     */
+    public static function on_member_registered_award_signup_bonus( int $member_id, array $data ): void { // phpcs:ignore Generic.CodeAnalysis.UnusedFunctionParameter.FoundAfterLastUsed
+        if ( EPC_Settings::get( 'epc_club_enabled' ) !== '1' ) {
+            return;
+        }
+
+        $bonus = (int) EPC_Settings::get( 'epc_signup_bonus_points' );
+        if ( $bonus < 1 || $member_id < 1 ) {
+            return;
+        }
+
+        global $wpdb;
+        $table = "{$wpdb->prefix}epc_points_log";
+        $dup   = (int) $wpdb->get_var(
+            $wpdb->prepare(
+                "SELECT COUNT(*) FROM {$table} WHERE member_id = %d AND reason = %s",
+                $member_id,
+                'signup_bonus'
+            )
+        );
+        if ( $dup > 0 ) {
+            return;
+        }
+
+        $wpdb->query( 'START TRANSACTION' );
+
+        $updated = $wpdb->query(
+            $wpdb->prepare(
+                "UPDATE {$wpdb->prefix}epc_members SET points = points + %d WHERE id = %d",
+                $bonus,
+                $member_id
+            )
+        );
+        if ( 1 !== $updated ) {
+            $wpdb->query( 'ROLLBACK' );
+            return;
+        }
+
+        $inserted = $wpdb->insert(
+            $table,
+            [
+                'member_id'      => $member_id,
+                'points'         => $bonus,
+                'reason'         => 'signup_bonus',
+                'reference_type' => 'membership',
+                'reference_id'   => $member_id,
+            ],
+            [ '%d', '%d', '%s', '%s', '%d' ]
+        );
+        if ( false === $inserted ) {
+            $wpdb->query( 'ROLLBACK' );
+            return;
+        }
+
+        $wpdb->query( 'COMMIT' );
+
+        do_action( 'epc_points_changed', $member_id );
     }
 
     /**
@@ -484,13 +550,13 @@ class EPC_Registration {
 
         $member_id = (int) $wpdb->insert_id;
 
+        EPC_Member_Sync::after_club_registration( $member_id, $email );
+
         do_action( 'epc_member_registered', $member_id, [
             'email'      => $email,
             'first_name' => $first,
             'last_name'  => $last,
         ] );
-
-        EPC_Member_Sync::after_club_registration( $member_id, $email );
 
         wp_send_json_success( [
             'message'       => sprintf(
