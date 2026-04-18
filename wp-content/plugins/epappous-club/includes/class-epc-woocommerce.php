@@ -48,9 +48,7 @@ class EPC_WooCommerce {
             add_action( '__experimental_woocommerce_blocks_checkout_update_order_from_request', [ $this, 'record_points_redemption_from_blocks' ], 20, 2 );
         }
 
-        add_action( 'woocommerce_admin_order_data_after_billing_address', [ $this, 'render_club_loyalty_order_summary' ], 12, 1 );
-        add_action( 'woocommerce_admin_order_data_after_billing_address', [ $this, 'render_cassette_gift_order_panel' ], 15, 1 );
-        add_action( 'woocommerce_admin_order_data_after_billing_address', [ $this, 'render_checkout_club_order_meta' ], 16, 1 );
+        // Old inline admin order panels removed; using sidebar metaboxes instead.
         add_action( 'add_meta_boxes', [ $this, 'register_order_side_metaboxes' ], 35 );
 
         add_action( 'wp_enqueue_scripts', [ $this, 'enqueue_checkout_js' ] );
