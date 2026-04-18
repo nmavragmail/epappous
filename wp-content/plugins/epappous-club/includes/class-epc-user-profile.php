@@ -11,7 +11,32 @@ if ( ! defined( 'ABSPATH' ) ) {
  */
 class EPC_User_Profile {
 
+    const USER_META_CASSETTE         = 'epc_cassette_gift_received';
+    const USER_META_CASSETTE_DATE    = 'epc_cassette_gift_date';
+    const USER_META_CASSETTE_EDITED_BY = 'epc_cassette_gift_edited_by';
+    const USER_META_CASSETTE_EDITED_AT = 'epc_cassette_gift_edited_at';
+
     private static $instance = null;
+
+    /**
+     * Last admin who saved cassette gift fields (ΝΑΙ/ΟΧΙ/ημερομηνία) for display on profile and orders.
+     */
+    public static function get_cassette_audit_for_display( int $wp_user_id ): ?array {
+        $by = (int) get_user_meta( $wp_user_id, self::USER_META_CASSETTE_EDITED_BY, true );
+        $at = get_user_meta( $wp_user_id, self::USER_META_CASSETTE_EDITED_AT, true );
+        if ( $by < 1 || empty( $at ) || ! is_string( $at ) ) {
+            return null;
+        }
+        $u = get_userdata( $by );
+        $name = $u ? $u->display_name : sprintf( __( 'User #%d', 'epappous-club' ), $by );
+        $ts   = strtotime( $at );
+        $when = $ts ? date_i18n( 'd/m/Y H:i', $ts ) : '';
+        return [
+            'user_id'     => $by,
+            'editor_name' => $name,
+            'edited_at'   => $when,
+        ];
+    }
 
     public static function instance() {
         if ( null === self::$instance ) {
@@ -29,6 +54,8 @@ class EPC_User_Profile {
 
         add_action( 'wp_ajax_epc_add_note', [ $this, 'ajax_add_note' ] );
         add_action( 'wp_ajax_epc_delete_note', [ $this, 'ajax_delete_note' ] );
+        add_action( 'wp_ajax_epc_update_note', [ $this, 'ajax_update_note' ] );
+        add_action( 'wp_ajax_epc_save_cassette_gift', [ $this, 'ajax_save_cassette_gift' ] );
         add_action( 'wp_ajax_epc_toggle_membership', [ $this, 'ajax_toggle_membership' ] );
         add_action( 'wp_ajax_epc_adjust_points', [ $this, 'ajax_adjust_points' ] );
         add_action( 'wp_ajax_epc_search_members', [ $this, 'ajax_search_members' ] );
@@ -322,6 +349,12 @@ class EPC_User_Profile {
             ),
             ARRAY_A
         ) ?: [];
+
+        $cassette      = get_user_meta( $wp_user_id, self::USER_META_CASSETTE, true );
+        $cassette      = ( $cassette === 'yes' ) ? 'yes' : 'no';
+        $cassette_date = get_user_meta( $wp_user_id, self::USER_META_CASSETTE_DATE, true );
+        $cassette_date = is_string( $cassette_date ) ? $cassette_date : '';
+        $cassette_audit = self::get_cassette_audit_for_display( $wp_user_id );
         ?>
         <div class="epc-profile-box epc-notes-box">
             <div class="epc-profile-box-header epc-notes-box-header">
@@ -329,6 +362,44 @@ class EPC_User_Profile {
                 <?php esc_html_e( 'Σημειώσεις Admin', 'epappous-club' ); ?>
             </div>
             <div class="epc-profile-box-body">
+
+                <div class="epc-cassette-gift-row">
+                    <label class="epc-cassette-gift-label"><?php esc_html_e( 'Έχει πάρει δώρο κασετίνα;', 'epappous-club' ); ?></label>
+                    <div class="epc-cassette-gift-controls">
+                        <label class="epc-cassette-option">
+                            <input type="radio" name="epc_cassette_received" value="no" class="epc-cassette-received-input" <?php checked( $cassette, 'no' ); ?> />
+                            <?php esc_html_e( 'ΟΧΙ', 'epappous-club' ); ?>
+                        </label>
+                        <label class="epc-cassette-option">
+                            <input type="radio" name="epc_cassette_received" value="yes" class="epc-cassette-received-input" <?php checked( $cassette, 'yes' ); ?> />
+                            <?php esc_html_e( 'ΝΑΙ', 'epappous-club' ); ?>
+                        </label>
+                        <label class="epc-cassette-date-wrap">
+                            <span class="epc-cassette-date-label"><?php esc_html_e( 'Ημερομηνία που πήρε το δώρο', 'epappous-club' ); ?></span>
+                            <input type="date" class="epc-cassette-date-input" name="epc_cassette_gift_date"
+                                   value="<?php echo esc_attr( $cassette_date ); ?>"
+                                <?php disabled( $cassette !== 'yes' ); ?> />
+                        </label>
+                        <button type="button" class="button button-primary epc-save-cassette-btn"
+                                data-user-id="<?php echo (int) $wp_user_id; ?>"
+                                data-nonce="<?php echo esc_attr( $nonce ); ?>">
+                            <?php esc_html_e( 'Αποθήκευση', 'epappous-club' ); ?>
+                        </button>
+                    </div>
+                    <p class="epc-cassette-audit description" style="<?php echo $cassette_audit ? '' : 'display:none;'; ?>">
+                        <?php
+                        if ( $cassette_audit ) {
+                            printf(
+                                /* translators: 1: admin display name, 2: datetime */
+                                esc_html__( 'Τελευταία καταχώρηση: %1$s — %2$s', 'epappous-club' ),
+                                esc_html( $cassette_audit['editor_name'] ),
+                                esc_html( $cassette_audit['edited_at'] )
+                            );
+                        }
+                        ?>
+                    </p>
+                    <span class="epc-cassette-saved-msg" style="display:none;"></span>
+                </div>
 
                 <div class="epc-note-add-row">
                     <label><?php esc_html_e( 'Νέα σημείωση', 'epappous-club' ); ?></label>
@@ -356,20 +427,44 @@ class EPC_User_Profile {
                             </p>
                         <?php else : ?>
                             <?php foreach ( $notes as $note ) : ?>
+                                <?php
+                                $note_updated = ! empty( $note['updated_at'] ) ? $note['updated_at'] : null;
+                                ?>
                                 <div class="epc-note-item" data-note-id="<?php echo (int) $note['id']; ?>">
                                     <div class="epc-note-date">
                                         <?php echo esc_html( date_i18n( 'd.m.y', strtotime( $note['created_at'] ) ) ); ?>
                                         <br /><span><?php echo esc_html( date_i18n( 'H:i', strtotime( $note['created_at'] ) ) ); ?></span>
+                                        <?php if ( $note_updated ) : ?>
+                                            <br /><span class="epc-note-updated-hint"><?php esc_html_e( 'επεξ.', 'epappous-club' ); ?> <?php echo esc_html( date_i18n( 'd.m.y H:i', strtotime( $note_updated ) ) ); ?></span>
+                                        <?php endif; ?>
                                     </div>
-                                    <div class="epc-note-body"><?php echo esc_html( $note['note'] ); ?></div>
+                                    <div class="epc-note-main">
+                                        <div class="epc-note-view">
+                                            <div class="epc-note-body"><?php echo esc_html( $note['note'] ); ?></div>
+                                            <div class="epc-note-actions">
+                                                <button type="button" class="button-link epc-edit-note-btn"><?php esc_html_e( 'Επεξεργασία', 'epappous-club' ); ?></button>
+                                                <button type="button" class="button-link epc-delete-note-btn"
+                                                        data-note-id="<?php echo (int) $note['id']; ?>"
+                                                        data-nonce="<?php echo esc_attr( $nonce ); ?>">
+                                                    <?php esc_html_e( 'Διαγραφή', 'epappous-club' ); ?>
+                                                </button>
+                                            </div>
+                                        </div>
+                                        <div class="epc-note-edit" style="display:none;">
+                                            <textarea class="epc-note-edit-text" rows="3"><?php echo esc_textarea( $note['note'] ); ?></textarea>
+                                            <div class="epc-note-edit-actions">
+                                                <button type="button" class="button button-primary epc-save-note-btn"
+                                                        data-note-id="<?php echo (int) $note['id']; ?>"
+                                                        data-user-id="<?php echo (int) $wp_user_id; ?>"
+                                                        data-nonce="<?php echo esc_attr( $nonce ); ?>">
+                                                    <?php esc_html_e( 'Αποθήκευση', 'epappous-club' ); ?>
+                                                </button>
+                                                <button type="button" class="button epc-cancel-note-edit-btn"><?php esc_html_e( 'Ακύρωση', 'epappous-club' ); ?></button>
+                                            </div>
+                                        </div>
+                                    </div>
                                     <div class="epc-note-meta">
                                         <small><?php echo esc_html( $note['author_name'] ?? '' ); ?></small>
-                                        <br />
-                                        <button type="button" class="epc-delete-note-btn"
-                                                data-note-id="<?php echo (int) $note['id']; ?>"
-                                                data-nonce="<?php echo esc_attr( $nonce ); ?>">
-                                            <?php esc_html_e( 'Διαγραφή', 'epappous-club' ); ?>
-                                        </button>
                                     </div>
                                 </div>
                             <?php endforeach; ?>
@@ -439,6 +534,107 @@ class EPC_User_Profile {
         );
 
         wp_send_json_success();
+    }
+
+    /**
+     * Update an existing admin note (same user profile).
+     */
+    public function ajax_update_note() {
+        check_ajax_referer( 'epc_admin_nonce', 'nonce' );
+        if ( ! current_user_can( 'manage_options' ) && ! current_user_can( 'manage_woocommerce' ) ) {
+            wp_send_json_error( 'Unauthorized' );
+        }
+
+        $note_id   = (int) ( $_POST['note_id'] ?? 0 );
+        $user_id   = (int) ( $_POST['user_id'] ?? 0 );
+        $note_text = sanitize_textarea_field( $_POST['note'] ?? '' );
+
+        if ( $note_id < 1 || $user_id < 1 || $note_text === '' ) {
+            wp_send_json_error( 'Missing data' );
+        }
+
+        global $wpdb;
+        $owns = (int) $wpdb->get_var(
+            $wpdb->prepare(
+                "SELECT COUNT(*) FROM {$wpdb->prefix}epc_member_notes WHERE id = %d AND user_id = %d",
+                $note_id,
+                $user_id
+            )
+        );
+        if ( $owns < 1 ) {
+            wp_send_json_error( 'Not found' );
+        }
+
+        $wpdb->update(
+            "{$wpdb->prefix}epc_member_notes",
+            [
+                'note'       => $note_text,
+                'updated_at' => current_time( 'mysql' ),
+            ],
+            [ 'id' => $note_id ],
+            [ '%s', '%s' ],
+            [ '%d' ]
+        );
+
+        wp_send_json_success( [
+            'note'        => $note_text,
+            'updated_str' => date_i18n( 'd.m.y H:i' ),
+        ] );
+    }
+
+    /**
+     * Save "cassette gift" flag and date on the WordPress user (shown on orders when ΝΑΙ).
+     */
+    public function ajax_save_cassette_gift() {
+        check_ajax_referer( 'epc_admin_nonce', 'nonce' );
+        if ( ! current_user_can( 'manage_options' ) && ! current_user_can( 'manage_woocommerce' ) ) {
+            wp_send_json_error( 'Unauthorized' );
+        }
+
+        $user_id = (int) ( $_POST['user_id'] ?? 0 );
+        $received = sanitize_text_field( $_POST['received'] ?? 'no' );
+        $date_raw = isset( $_POST['gift_date'] ) ? sanitize_text_field( wp_unslash( $_POST['gift_date'] ) ) : '';
+
+        if ( $user_id < 1 ) {
+            wp_send_json_error( __( 'Λείπει χρήστης.', 'epappous-club' ) );
+        }
+
+        if ( ! in_array( $received, [ 'yes', 'no' ], true ) ) {
+            $received = 'no';
+        }
+
+        update_user_meta( $user_id, self::USER_META_CASSETTE, $received );
+
+        if ( $received === 'yes' ) {
+            if ( $date_raw !== '' ) {
+                $d = \DateTime::createFromFormat( 'Y-m-d', $date_raw );
+                if ( $d instanceof \DateTime ) {
+                    update_user_meta( $user_id, self::USER_META_CASSETTE_DATE, $d->format( 'Y-m-d' ) );
+                }
+            } else {
+                delete_user_meta( $user_id, self::USER_META_CASSETTE_DATE );
+            }
+        } else {
+            delete_user_meta( $user_id, self::USER_META_CASSETTE_DATE );
+        }
+
+        $editor_id = get_current_user_id();
+        update_user_meta( $user_id, self::USER_META_CASSETTE_EDITED_BY, $editor_id );
+        update_user_meta( $user_id, self::USER_META_CASSETTE_EDITED_AT, current_time( 'mysql' ) );
+
+        $editor = wp_get_current_user();
+        wp_send_json_success(
+            [
+                'editor_name' => $editor->display_name,
+                'edited_at'   => date_i18n( 'd/m/Y H:i' ),
+                'audit_text'  => sprintf(
+                    /* translators: 1: admin display name, 2: datetime */
+                    __( 'Τελευταία καταχώρηση: %1$s — %2$s', 'epappous-club' ),
+                    $editor->display_name,
+                    date_i18n( 'd/m/Y H:i' )
+                ),
+            ]
+        );
     }
 
     /**

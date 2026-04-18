@@ -292,6 +292,63 @@
 
     /* ─── Admin Notes (User Profile) ─── */
 
+    function epcEscapeHtml(text) {
+        return $('<span>').text(text).html();
+    }
+
+    function epcNoteItemHtml(d, nonce) {
+        return '<div class="epc-note-item" data-note-id="' + d.id + '">' +
+            '<div class="epc-note-date">' + d.date + '<br /><span>' + d.time + '</span></div>' +
+            '<div class="epc-note-main">' +
+            '<div class="epc-note-view">' +
+            '<div class="epc-note-body">' + epcEscapeHtml(d.note) + '</div>' +
+            '<div class="epc-note-actions">' +
+            '<button type="button" class="button-link epc-edit-note-btn">Επεξεργασία</button>' +
+            '<button type="button" class="button-link epc-delete-note-btn" data-note-id="' + d.id + '" data-nonce="' + nonce + '">Διαγραφή</button>' +
+            '</div></div>' +
+            '<div class="epc-note-edit" style="display:none;">' +
+            '<textarea class="epc-note-edit-text" rows="3">' + epcEscapeHtml(d.note) + '</textarea>' +
+            '<div class="epc-note-edit-actions">' +
+            '<button type="button" class="button button-primary epc-save-note-btn" data-note-id="' + d.id + '" data-user-id="' + d.user_id + '" data-nonce="' + nonce + '">Αποθήκευση</button>' +
+            '<button type="button" class="button epc-cancel-note-edit-btn">Ακύρωση</button>' +
+            '</div></div></div>' +
+            '<div class="epc-note-meta"><small>' + epcEscapeHtml(d.author_name || '') + '</small></div></div>';
+    }
+
+    $(document).on('change', '.epc-cassette-received-input', function () {
+        var yes = $('.epc-cassette-received-input[value="yes"]').is(':checked');
+        $('.epc-cassette-date-input').prop('disabled', !yes);
+    });
+
+    $(document).on('click', '.epc-save-cassette-btn', function () {
+        var $btn = $(this);
+        var userId = $btn.data('user-id');
+        var nonce = $btn.data('nonce');
+        var received = $('.epc-cassette-received-input:checked').val() || 'no';
+        var giftDate = $('.epc-cassette-date-input').val() || '';
+        $btn.prop('disabled', true);
+        $.post(epcAdmin.ajaxUrl, {
+            action: 'epc_save_cassette_gift',
+            user_id: userId,
+            received: received,
+            gift_date: giftDate,
+            nonce: nonce
+        }, function (response) {
+            var $msg = $('.epc-cassette-saved-msg');
+            if (response.success) {
+                $msg.text(epcAdmin.i18n.saved).css('color', '#10b981').show();
+                setTimeout(function () { $msg.fadeOut(400); }, 2000);
+                if (response.data && response.data.audit_text) {
+                    $('.epc-cassette-audit').text(response.data.audit_text).show();
+                }
+            } else {
+                $msg.text(epcAdmin.i18n.error).css('color', '#ef4444').show();
+            }
+        }).always(function () {
+            $btn.prop('disabled', false);
+        });
+    });
+
     $(document).on('click', '.epc-add-note-btn', function () {
         var $btn = $(this);
         var userId = $btn.data('user-id');
@@ -310,14 +367,8 @@
         }, function (response) {
             if (response.success) {
                 var d = response.data;
-                var html = '<div class="epc-note-item" data-note-id="' + d.id + '">' +
-                    '<div class="epc-note-date">' + d.date +
-                    '<br /><span>' + d.time + '</span></div>' +
-                    '<div class="epc-note-body">' + $('<span>').text(d.note).html() + '</div>' +
-                    '<div class="epc-note-meta">' +
-                    '<small>' + d.author_name + '</small><br />' +
-                    '<button type="button" class="epc-delete-note-btn" data-note-id="' + d.id + '" data-nonce="' + nonce + '">Διαγραφή</button>' +
-                    '</div></div>';
+                d.user_id = userId;
+                var html = epcNoteItemHtml(d, nonce);
                 $('.epc-no-notes').remove();
                 $('#epc-notes-timeline').prepend(html);
                 $textarea.val('');
@@ -325,6 +376,52 @@
                 var $msg = $('.epc-note-saved-msg');
                 $msg.stop(true).fadeIn(200);
                 setTimeout(function () { $msg.fadeOut(400); }, 2000);
+            }
+        }).always(function () {
+            $btn.prop('disabled', false);
+        });
+    });
+
+    $(document).on('click', '.epc-edit-note-btn', function () {
+        var $item = $(this).closest('.epc-note-item');
+        $item.find('.epc-note-view').hide();
+        $item.find('.epc-note-edit').show();
+    });
+
+    $(document).on('click', '.epc-cancel-note-edit-btn', function () {
+        var $item = $(this).closest('.epc-note-item');
+        var original = $item.find('.epc-note-body').text();
+        $item.find('.epc-note-edit-text').val(original);
+        $item.find('.epc-note-edit').hide();
+        $item.find('.epc-note-view').show();
+    });
+
+    $(document).on('click', '.epc-save-note-btn', function () {
+        var $btn = $(this);
+        var noteId = $btn.data('note-id');
+        var userId = $btn.data('user-id');
+        var nonce = $btn.data('nonce');
+        var $item = $btn.closest('.epc-note-item');
+        var noteText = $item.find('.epc-note-edit-text').val().trim();
+        if (!noteId || !noteText) return;
+        $btn.prop('disabled', true);
+        $.post(epcAdmin.ajaxUrl, {
+            action: 'epc_update_note',
+            note_id: noteId,
+            user_id: userId,
+            note: noteText,
+            nonce: nonce
+        }, function (response) {
+            if (response.success) {
+                $item.find('.epc-note-body').text(noteText);
+                var $hint = $item.find('.epc-note-updated-hint');
+                if ($hint.length) {
+                    $hint.text('επεξ. ' + response.data.updated_str);
+                } else {
+                    $item.find('.epc-note-date').append('<br /><span class="epc-note-updated-hint">επεξ. ' + response.data.updated_str + '</span>');
+                }
+                $item.find('.epc-note-edit').hide();
+                $item.find('.epc-note-view').show();
             }
         }).always(function () {
             $btn.prop('disabled', false);

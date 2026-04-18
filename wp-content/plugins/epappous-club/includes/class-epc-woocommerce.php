@@ -40,7 +40,73 @@ class EPC_WooCommerce {
             add_action( '__experimental_woocommerce_blocks_checkout_update_order_from_request', [ $this, 'record_points_redemption_from_blocks' ], 20, 2 );
         }
 
+        add_action( 'woocommerce_admin_order_data_after_billing_address', [ $this, 'render_cassette_gift_order_panel' ], 15, 1 );
+
         add_action( 'wp_enqueue_scripts', [ $this, 'enqueue_checkout_js' ] );
+    }
+
+    /**
+     * Show cassette gift status on order screen when the customer has user meta flag (Pappou Club).
+     */
+    public function render_cassette_gift_order_panel( $order ) {
+        if ( ! $order instanceof \WC_Order ) {
+            return;
+        }
+
+        $user_id = (int) $order->get_user_id();
+        if ( $user_id < 1 ) {
+            $email = $order->get_billing_email();
+            if ( $email ) {
+                $u = get_user_by( 'email', $email );
+                if ( $u ) {
+                    $user_id = (int) $u->ID;
+                }
+            }
+        }
+
+        if ( $user_id < 1 ) {
+            return;
+        }
+
+        if ( get_user_meta( $user_id, 'epc_cassette_gift_received', true ) !== 'yes' ) {
+            return;
+        }
+
+        $raw = get_user_meta( $user_id, 'epc_cassette_gift_date', true );
+        $date_display = '';
+        if ( $raw ) {
+            $ts = strtotime( $raw . ' 12:00:00' );
+            $date_display = $ts ? date_i18n( get_option( 'date_format' ), $ts ) : '';
+        }
+
+        $audit = EPC_User_Profile::get_cassette_audit_for_display( $user_id );
+
+        ?>
+        <div class="epc-order-cassette-gift card" style="margin-top:12px;padding:12px;background:#f6f7f7;border:1px solid #c3c4c7;border-radius:4px;clear:both;">
+            <strong style="display:block;margin-bottom:6px;"><?php esc_html_e( 'ePappous Club — Δώρο κασετίνα', 'epappous-club' ); ?></strong>
+            <p style="margin:0;">
+                <?php esc_html_e( 'Έχει πάρει δώρο κασετίνα:', 'epappous-club' ); ?>
+                <strong><?php esc_html_e( 'Ναι', 'epappous-club' ); ?></strong>
+                <?php if ( $date_display !== '' ) : ?>
+                    — <?php esc_html_e( 'Ημερομηνία δώρου:', 'epappous-club' ); ?> <strong><?php echo esc_html( $date_display ); ?></strong>
+                <?php else : ?>
+                    — <?php esc_html_e( 'Ημερομηνία δώρου:', 'epappous-club' ); ?> <em><?php esc_html_e( 'δεν έχει οριστεί', 'epappous-club' ); ?></em>
+                <?php endif; ?>
+            </p>
+            <?php if ( $audit ) : ?>
+                <p style="margin:8px 0 0;font-size:12px;color:#50575e;">
+                    <?php
+                    printf(
+                        /* translators: 1: admin name, 2: datetime */
+                        esc_html__( 'Καταχώρηση πεδίου: %1$s — %2$s', 'epappous-club' ),
+                        esc_html( $audit['editor_name'] ),
+                        esc_html( $audit['edited_at'] )
+                    );
+                    ?>
+                </p>
+            <?php endif; ?>
+        </div>
+        <?php
     }
 
     /**

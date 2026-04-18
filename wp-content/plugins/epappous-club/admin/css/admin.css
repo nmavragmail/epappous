@@ -1324,6 +1324,119 @@
     border-bottom: 1px solid var(--epc-gray-200);
 }
 
+.epc-cassette-gift-row {
+    margin-bottom: 20px;
+    padding-bottom: 16px;
+    border-bottom: 1px solid var(--epc-gray-200);
+}
+
+.epc-cassette-gift-label {
+    display: block;
+    font-weight: 600;
+    font-size: 13px;
+    color: var(--epc-gray-700);
+    margin-bottom: 8px;
+}
+
+.epc-cassette-gift-controls {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 12px 16px;
+}
+
+.epc-cassette-option {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+    cursor: pointer;
+}
+
+.epc-cassette-date-wrap {
+    display: inline-flex;
+    flex-direction: column;
+    gap: 4px;
+    font-size: 12px;
+    color: var(--epc-gray-600);
+}
+
+.epc-cassette-date-label {
+    font-weight: 600;
+}
+
+.epc-cassette-date-input {
+    border: 1px solid var(--epc-gray-300);
+    border-radius: 6px;
+    padding: 4px 8px;
+    font-size: 13px;
+}
+
+.epc-cassette-saved-msg {
+    display: block;
+    margin-top: 8px;
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.epc-cassette-audit {
+    margin: 10px 0 0;
+    font-size: 12px !important;
+    color: var(--epc-gray-600) !important;
+    line-height: 1.45;
+}
+
+.epc-note-main {
+    flex: 1;
+    min-width: 0;
+}
+
+.epc-note-view {
+    width: 100%;
+}
+
+.epc-note-actions {
+    margin-top: 8px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    align-items: center;
+}
+
+.epc-edit-note-btn {
+    color: var(--epc-primary) !important;
+}
+
+.epc-note-edit {
+    width: 100%;
+}
+
+.epc-note-edit-text {
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
+    border: 1px solid var(--epc-gray-300);
+    border-radius: 6px;
+    padding: 8px 12px;
+    font-size: 13px;
+    resize: vertical;
+}
+
+.epc-note-edit-actions {
+    margin-top: 8px;
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.epc-note-updated-hint {
+    display: block;
+    font-size: 10px;
+    font-weight: 400;
+    color: var(--epc-gray-400);
+    margin-top: 4px;
+}
+
 .epc-note-date {
     flex: 0 0 80px;
     font-size: 12px;
@@ -1337,10 +1450,10 @@
 }
 
 .epc-note-body {
-    flex: 1;
     font-size: 13px;
     color: var(--epc-gray-700);
     white-space: pre-wrap;
+    word-break: break-word;
 }
 
 .epc-note-meta {

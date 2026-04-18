@@ -6,7 +6,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 class EPC_Database {
 
     const DB_VERSION_OPTION = 'epc_db_version';
-    const DB_VERSION        = '1.1.0';
+    const DB_VERSION        = '1.2.0';
 
     public static function activate() {
         self::create_tables();
@@ -108,6 +108,7 @@ class EPC_Database {
             author_id BIGINT UNSIGNED NOT NULL,
             note TEXT NOT NULL,
             created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at DATETIME DEFAULT NULL,
             PRIMARY KEY (id),
             KEY user_id (user_id),
             KEY author_id (author_id)
@@ -157,7 +158,16 @@ class EPC_Database {
             if ( empty( $col ) ) {
                 $wpdb->query( "ALTER TABLE {$wpdb->prefix}epc_points_log ADD COLUMN admin_user_id BIGINT UNSIGNED DEFAULT NULL AFTER reference_id" );
             }
-            update_option( self::DB_VERSION_OPTION, self::DB_VERSION );
+            update_option( self::DB_VERSION_OPTION, '1.1.0' );
+            $current = '1.1.0';
+        }
+        if ( version_compare( $current, '1.2.0', '<' ) ) {
+            global $wpdb;
+            $col = $wpdb->get_results( "SHOW COLUMNS FROM {$wpdb->prefix}epc_member_notes LIKE 'updated_at'" );
+            if ( empty( $col ) ) {
+                $wpdb->query( "ALTER TABLE {$wpdb->prefix}epc_member_notes ADD COLUMN updated_at DATETIME DEFAULT NULL AFTER created_at" );
+            }
+            update_option( self::DB_VERSION_OPTION, '1.2.0' );
         }
     }
 
