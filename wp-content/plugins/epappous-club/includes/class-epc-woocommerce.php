@@ -183,6 +183,14 @@ class EPC_WooCommerce {
                 'side',
                 'low'
             );
+            add_meta_box(
+                'epc-order-debug-box',
+                __( 'Pappou Club — Διαγνωστικά πόντων', 'epappous-club' ),
+                [ $this, 'render_order_points_debug_metabox' ],
+                $screen,
+                'side',
+                'low'
+            );
         }
     }
 
@@ -399,6 +407,264 @@ class EPC_WooCommerce {
             }
             echo '<p><strong>' . esc_html__( 'Προϊόν δώρου στην παραγγελία:', 'epappous-club' ) . '</strong> ' . esc_html( $gift_txt ) . '</p>';
         }
+    }
+
+    /**
+     * Sidebar metabox: step-by-step diagnosis of why the order earned (or didn't earn) club points.
+     *
+     * @param mixed $post_or_order WP_Post|WC_Order depending on storage mode.
+     */
+    public function render_order_points_debug_metabox( $post_or_order ): void {
+        $order = $this->resolve_order_from_admin_context( $post_or_order );
+        if ( ! $order ) {
+            echo '<p>' . esc_html__( 'Δεν βρέθηκε παραγγελία.', 'epappous-club' ) . '</p>';
+            return;
+        }
+
+        $diag = $this->diagnose_order_points( $order );
+
+        $verdict_color = $diag['verdict_pass'] ? '#1a7f37' : '#9a1a1a';
+        echo '<div style="padding:8px;border-left:3px solid ' . esc_attr( $verdict_color ) .
+            ';background:#f6f7f7;margin-bottom:8px;font-size:12px;line-height:1.5;">';
+        echo '<strong>' . esc_html__( 'Συμπέρασμα:', 'epappous-club' ) . '</strong> ' . esc_html( $diag['verdict'] );
+        echo '</div>';
+
+        echo '<details style="margin-bottom:8px;"><summary style="cursor:pointer;font-weight:600;">' .
+            esc_html__( 'Έλεγχοι (κάνε κλικ για ανάπτυξη)', 'epappous-club' ) . '</summary>';
+        echo '<table style="width:100%;border-collapse:collapse;font-size:11.5px;margin-top:6px;">';
+        foreach ( $diag['checks'] as $check ) {
+            $icon  = $check['pass'] ? '✓' : '✗';
+            $color = $check['pass'] ? '#1a7f37' : '#9a1a1a';
+            echo '<tr style="border-bottom:1px solid #eee;">';
+            echo '<td style="padding:4px 6px 4px 0;vertical-align:top;color:' . esc_attr( $color ) . ';font-weight:700;width:18px;">' . esc_html( $icon ) . '</td>';
+            echo '<td style="padding:4px 0;vertical-align:top;">';
+            echo '<strong>' . esc_html( $check['label'] ) . '</strong>';
+            if ( ! empty( $check['value'] ) ) {
+                echo '<br><span style="color:#555;">' . esc_html( $check['value'] ) . '</span>';
+            }
+            echo '</td>';
+            echo '</tr>';
+        }
+        echo '</table>';
+        echo '</details>';
+
+        if ( ! empty( $diag['items_breakdown'] ) ) {
+            echo '<details><summary style="cursor:pointer;font-weight:600;">' .
+                esc_html__( 'Ανάλυση προϊόντων', 'epappous-club' ) . '</summary>';
+            echo '<table style="width:100%;border-collapse:collapse;font-size:11.5px;margin-top:6px;">';
+            echo '<thead><tr style="border-bottom:1px solid #ccc;text-align:left;">';
+            echo '<th style="padding:3px 4px;">' . esc_html__( 'Προϊόν', 'epappous-club' ) . '</th>';
+            echo '<th style="padding:3px 4px;text-align:right;">' . esc_html__( 'Σύνολο', 'epappous-club' ) . '</th>';
+            echo '<th style="padding:3px 4px;">' . esc_html__( 'Status', 'epappous-club' ) . '</th>';
+            echo '</tr></thead><tbody>';
+            foreach ( $diag['items_breakdown'] as $line ) {
+                $color = $line['eligible'] ? '#1a7f37' : '#9a1a1a';
+                $label = $line['eligible'] ? __( 'Επιλέξιμο', 'epappous-club' ) : ( $line['reason'] ?? __( 'Μη επιλέξιμο', 'epappous-club' ) );
+                echo '<tr style="border-bottom:1px solid #f0f0f0;">';
+                echo '<td style="padding:3px 4px;">' . esc_html( $line['name'] ) . '</td>';
+                echo '<td style="padding:3px 4px;text-align:right;">' . esc_html( wc_price( $line['total'] ) ) . '</td>';
+                echo '<td style="padding:3px 4px;color:' . esc_attr( $color ) . ';">' . esc_html( $label ) . '</td>';
+                echo '</tr>';
+            }
+            echo '</tbody><tfoot><tr style="border-top:1px solid #ccc;font-weight:600;">';
+            echo '<td style="padding:4px;">' . esc_html__( 'Επιλέξιμο σύνολο', 'epappous-club' ) . '</td>';
+            echo '<td style="padding:4px;text-align:right;" colspan="2">' . esc_html( wc_price( $diag['eligible_total'] ) ) . '</td>';
+            echo '</tr><tr><td style="padding:4px;">' . esc_html__( 'Πόντοι/€', 'epappous-club' ) . '</td>';
+            echo '<td style="padding:4px;text-align:right;" colspan="2">' . esc_html( (string) $diag['points_per_euro'] ) . '</td>';
+            echo '</tr><tr><td style="padding:4px;font-weight:700;">' . esc_html__( 'Υπολογισμένοι πόντοι', 'epappous-club' ) . '</td>';
+            echo '<td style="padding:4px;text-align:right;font-weight:700;" colspan="2">' . esc_html( (string) $diag['potential'] ) . '</td>';
+            echo '</tr></tfoot></table>';
+            echo '</details>';
+        }
+    }
+
+    /**
+     * Build a structured diagnosis of why the given order earned (or did not earn) club points.
+     *
+     * @return array{checks:array<int,array{label:string,pass:bool,value:string}>,
+     *               items_breakdown:array<int,array{name:string,total:float,on_sale:bool,eligible:bool,reason?:string}>,
+     *               eligible_total:float, points_per_euro:float, potential:int,
+     *               earned:?int, settled:bool, revoked:bool,
+     *               verdict:string, verdict_pass:bool}
+     */
+    public function diagnose_order_points( \WC_Order $order ): array {
+        $checks = [];
+
+        $club_enabled = EPC_Settings::get( 'epc_club_enabled' ) === '1';
+        $checks[] = [
+            'label' => __( 'Pappou Club ενεργό', 'epappous-club' ),
+            'pass'  => $club_enabled,
+            'value' => $club_enabled ? __( 'Ναι', 'epappous-club' ) : __( 'Όχι (epc_club_enabled ≠ 1)', 'epappous-club' ),
+        ];
+
+        $earn_enabled = EPC_Settings::get( 'epc_woo_earn_on_complete' ) === '1';
+        $checks[] = [
+            'label' => __( 'Απονομή πόντων από WooCommerce ενεργή', 'epappous-club' ),
+            'pass'  => $earn_enabled,
+            'value' => $earn_enabled ? __( 'Ναι', 'epappous-club' ) : __( 'Όχι (epc_woo_earn_on_complete ≠ 1)', 'epappous-club' ),
+        ];
+
+        $allowed_statuses = json_decode( (string) EPC_Settings::get( 'epc_woo_earn_statuses' ), true );
+        if ( ! is_array( $allowed_statuses ) || empty( $allowed_statuses ) ) {
+            $allowed_statuses = [ 'completed' ];
+        }
+        $allowed_statuses = array_values(
+            array_intersect( array_map( 'sanitize_key', $allowed_statuses ), [ 'processing', 'completed' ] )
+        );
+        if ( empty( $allowed_statuses ) ) {
+            $allowed_statuses = [ 'completed' ];
+        }
+        $current_status = (string) $order->get_status();
+        $status_ok      = in_array( $current_status, $allowed_statuses, true );
+        $checks[] = [
+            'label' => __( 'Status παραγγελίας επιλέξιμο για απονομή', 'epappous-club' ),
+            'pass'  => $status_ok,
+            'value' => sprintf(
+                /* translators: 1: current status, 2: list of eligible statuses */
+                __( 'Τρέχον: %1$s | Επιλέξιμα: %2$s', 'epappous-club' ),
+                $current_status,
+                implode( ', ', $allowed_statuses )
+            ),
+        ];
+
+        $email   = (string) $order->get_billing_email();
+        $in_club = EPC_B2BKing::order_customer_in_pappou_club( $order );
+        $checks[] = [
+            'label' => __( 'Πελάτης σε B2B King Pappou Club group', 'epappous-club' ),
+            'pass'  => (bool) $in_club,
+            'value' => sprintf( '%s (%s)', $in_club ? __( 'Ναι', 'epappous-club' ) : __( 'Όχι', 'epappous-club' ), $email !== '' ? $email : '—' ),
+        ];
+
+        global $wpdb;
+        $member = null;
+        if ( is_email( $email ) ) {
+            $member = $wpdb->get_row(
+                $wpdb->prepare(
+                    "SELECT id, status FROM {$wpdb->prefix}epc_members WHERE email = %s LIMIT 1",
+                    $email
+                ),
+                ARRAY_A
+            );
+        }
+        $member_active = $member && ( ( $member['status'] ?? '' ) === 'active' );
+        $checks[] = [
+            'label' => __( 'Member βρέθηκε στη βάση & active', 'epappous-club' ),
+            'pass'  => (bool) $member_active,
+            'value' => $member
+                ? sprintf( 'ID #%d, status: %s', (int) $member['id'], $member['status'] )
+                : __( 'Δεν βρέθηκε καμία γραμμή στον epc_members', 'epappous-club' ),
+        ];
+
+        $settled = $order->get_meta( '_epc_club_loyalty_settled', true ) === '1';
+        $revoked = $order->get_meta( '_epc_points_revoked', true ) === '1';
+        $checks[] = [
+            'label' => __( 'Loyalty settled (έχει ήδη υπολογιστεί)', 'epappous-club' ),
+            'pass'  => $settled,
+            'value' => $settled
+                ? __( 'Ναι, _epc_club_loyalty_settled = 1', 'epappous-club' )
+                : __( 'Όχι, η earn_points_on_order δεν έχει τρέξει επιτυχώς για αυτή την παραγγελία', 'epappous-club' ),
+        ];
+
+        $points_per_euro   = (float) EPC_Settings::get( 'epc_points_per_euro' );
+        $exclude_sale      = EPC_Settings::get( 'epc_woo_exclude_sale_items' ) === '1';
+        $exclude_cats_json = EPC_Settings::get( 'epc_woo_exclude_categories' );
+        $exclude_cats      = json_decode( (string) $exclude_cats_json, true ) ?: [];
+
+        $items_breakdown = [];
+        $eligible_total  = 0.0;
+        foreach ( $order->get_items() as $item ) {
+            $product = $item->get_product();
+            $line    = [
+                'name'     => $item->get_name(),
+                'total'    => (float) $item->get_total(),
+                'on_sale'  => $product ? (bool) $product->is_on_sale() : false,
+                'eligible' => false,
+            ];
+            if ( ! $product ) {
+                $line['reason'] = __( 'Δεν βρέθηκε προϊόν', 'epappous-club' );
+            } elseif ( $exclude_sale && $product->is_on_sale() ) {
+                $line['reason'] = __( 'Σε προσφορά → εξαιρείται', 'epappous-club' );
+            } else {
+                $excluded_by_cat = false;
+                if ( ! empty( $exclude_cats ) ) {
+                    $lookup_id = $product->is_type( 'variation' ) ? $product->get_parent_id() : $product->get_id();
+                    $cats      = wp_get_post_terms( $lookup_id, 'product_cat', [ 'fields' => 'ids' ] );
+                    if ( array_intersect( (array) $cats, $exclude_cats ) ) {
+                        $excluded_by_cat   = true;
+                        $line['reason'] = __( 'Εξαιρείται λόγω κατηγορίας', 'epappous-club' );
+                    }
+                }
+                if ( ! $excluded_by_cat ) {
+                    $line['eligible'] = true;
+                    $eligible_total  += (float) $item->get_total();
+                }
+            }
+            $items_breakdown[] = $line;
+        }
+
+        $potential       = (int) floor( $eligible_total * $points_per_euro );
+        $earned_meta_raw = $order->get_meta( '_epc_points_earned', true );
+        $earned          = '' !== (string) $earned_meta_raw ? (int) $earned_meta_raw : null;
+
+        // Build a single-sentence verdict.
+        if ( $revoked ) {
+            $verdict      = __( 'Οι πόντοι ακυρώθηκαν (cancelled/refunded).', 'epappous-club' );
+            $verdict_pass = false;
+        } elseif ( $settled && null !== $earned && $earned > 0 ) {
+            $verdict = sprintf(
+                /* translators: %d: earned points */
+                __( 'Δόθηκαν %d πόντοι.', 'epappous-club' ),
+                $earned
+            );
+            $verdict_pass = true;
+        } elseif ( $settled && ( $earned === 0 || null === $earned ) ) {
+            $verdict      = __( 'Έγινε υπολογισμός αλλά δεν προέκυψαν πόντοι (μηδενικό επιλέξιμο σύνολο ή ο πελάτης δεν είναι μέλος).', 'epappous-club' );
+            $verdict_pass = false;
+        } elseif ( ! $club_enabled ) {
+            $verdict      = __( 'Το club είναι απενεργοποιημένο — δεν έγινε καν προσπάθεια υπολογισμού.', 'epappous-club' );
+            $verdict_pass = false;
+        } elseif ( ! $earn_enabled ) {
+            $verdict      = __( 'Η απονομή πόντων από το WooCommerce είναι απενεργοποιημένη.', 'epappous-club' );
+            $verdict_pass = false;
+        } elseif ( ! $status_ok ) {
+            $verdict = sprintf(
+                /* translators: 1: current status, 2: eligible statuses */
+                __( 'Το status «%1$s» δεν είναι μέσα στα επιλέξιμα (%2$s). Θα δοθούν %3$d πόντοι όταν περάσει σε επιλέξιμο status.', 'epappous-club' ),
+                $current_status,
+                implode( ', ', $allowed_statuses ),
+                $potential
+            );
+            $verdict_pass = false;
+        } elseif ( ! $in_club ) {
+            $verdict      = __( 'Ο πελάτης δεν είναι σε B2B King Pappou Club group.', 'epappous-club' );
+            $verdict_pass = false;
+        } elseif ( ! $member_active ) {
+            $verdict      = __( 'Δεν υπάρχει active γραμμή στον epc_members για αυτό το email.', 'epappous-club' );
+            $verdict_pass = false;
+        } elseif ( $potential < 1 ) {
+            $verdict      = __( 'Δεν υπάρχουν επιλέξιμα προϊόντα ή το ποσό είναι πολύ μικρό για να δώσει πόντους.', 'epappous-club' );
+            $verdict_pass = false;
+        } else {
+            $verdict = sprintf(
+                /* translators: %d: potential points */
+                __( 'Όλα ΟΚ — αναμένονται %d πόντοι. Πάτα «Recalculate Pappou Club points» αν δεν αποδόθηκαν αυτόματα.', 'epappous-club' ),
+                $potential
+            );
+            $verdict_pass = true;
+        }
+
+        return [
+            'checks'          => $checks,
+            'items_breakdown' => $items_breakdown,
+            'eligible_total'  => (float) $eligible_total,
+            'points_per_euro' => (float) $points_per_euro,
+            'potential'       => (int) $potential,
+            'earned'          => $earned,
+            'settled'         => (bool) $settled,
+            'revoked'         => (bool) $revoked,
+            'verdict'         => $verdict,
+            'verdict_pass'    => (bool) $verdict_pass,
+        ];
     }
 
     /**
@@ -689,7 +955,9 @@ class EPC_WooCommerce {
 
         $this->earn_points_on_order( $order_id );
 
-        $new_points = (int) $order->get_meta( '_epc_points_earned', true );
+        // earn_points_on_order works on a freshly fetched order instance — reload to read updated meta.
+        $fresh      = wc_get_order( $order_id );
+        $new_points = $fresh instanceof \WC_Order ? (int) $fresh->get_meta( '_epc_points_earned', true ) : 0;
         if ( $new_points > 0 ) {
             return sprintf(
                 /* translators: 1: order id, 2: points */
