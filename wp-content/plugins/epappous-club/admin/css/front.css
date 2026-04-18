@@ -436,3 +436,33 @@
 .epc-apply-points-btn {
     margin-top: 6px;
 }
+
+/* ── Checkout: Pappou Club opt-in (below order notes) ── */
+
+.epc-checkout-club-wrap {
+    margin-top: 1.25em;
+    padding-top: 1em;
+    border-top: 1px solid #e5e7eb;
+}
+
+.epc-checkout-club-inner h3 {
+    margin: 0 0 0.5em;
+    font-size: 1.05em;
+}
+
+.epc-checkout-club-hint {
+    font-size: 0.9em;
+    color: #4b5563;
+    margin-top: 0.25em !important;
+}
+
+.epc-checkout-club-checkbox label {
+    font-weight: 600;
+}
+
+#epc-checkout-club-dob-wrap .description {
+    display: block;
+    margin-top: 6px;
+    font-size: 0.85em;
+    color: #6b7280;
+}

@@ -68,7 +68,6 @@ if ( taxonomy_exists( 'product_tag' ) ) {
                     <th style="width:100px;"><?php esc_html_e( 'Τύπος', 'epappous-club' ); ?></th>
                     <th><?php esc_html_e( 'Τιμή', 'epappous-club' ); ?></th>
                     <th style="width:100px;"><?php esc_html_e( 'Πόντοι', 'epappous-club' ); ?></th>
-                    <th style="width:100px;"><?php esc_html_e( 'Βαθμίδα', 'epappous-club' ); ?></th>
                     <th style="width:80px;"><?php esc_html_e( 'Ενεργό', 'epappous-club' ); ?></th>
                     <th style="width:100px;"><?php esc_html_e( 'Ενέργειες', 'epappous-club' ); ?></th>
                 </tr>
@@ -100,11 +99,13 @@ if ( taxonomy_exists( 'product_tag' ) ) {
                         <td>
                             <strong><?php echo esc_html( EPC_Settings::get( 'epc_currency_symbol' ) . ' ' . number_format( (int) $rule['points_required'] ) ); ?></strong>
                         </td>
+                        <?php /* Tier column hidden — tier_required still in DB.
                         <td>
                             <span class="epc-gift-tier epc-tier-<?php echo esc_attr( $rule['tier_required'] ); ?>">
                                 <?php echo esc_html( ucfirst( $rule['tier_required'] ) ); ?>
                             </span>
                         </td>
+                        */ ?>
                         <td>
                             <?php if ( $rule['is_active'] ) : ?>
                                 <span style="color:#10b981;font-weight:600;">&#10003;</span>
@@ -195,6 +196,7 @@ if ( taxonomy_exists( 'product_tag' ) ) {
                     <input type="number" id="epc-rule-points" name="points_required" min="0" class="small-text" value="0" />
                 </div>
 
+                <?php if ( false ) : ?>
                 <div class="epc-field-row">
                     <label for="epc-rule-tier"><?php esc_html_e( 'Ελάχιστη Βαθμίδα', 'epappous-club' ); ?></label>
                     <select id="epc-rule-tier" name="tier_required">
@@ -205,6 +207,8 @@ if ( taxonomy_exists( 'product_tag' ) ) {
                         <?php endforeach; ?>
                     </select>
                 </div>
+                <?php endif; ?>
+                <input type="hidden" name="tier_required" value="basic" id="epc-rule-tier" />
             </div>
 
             <div class="epc-modal-footer">

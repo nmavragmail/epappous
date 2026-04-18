@@ -7,7 +7,7 @@ $active_tab = isset( $_GET['tab'] ) ? sanitize_text_field( wp_unslash( $_GET['ta
 $tabs = [
     'general'       => [ 'label' => __( 'Γενικά', 'epappous-club' ),        'icon' => 'dashicons-admin-settings' ],
     'points'        => [ 'label' => __( 'Πόντοι', 'epappous-club' ),        'icon' => 'dashicons-star-filled' ],
-    'tiers'         => [ 'label' => __( 'Βαθμίδες', 'epappous-club' ),      'icon' => 'dashicons-awards' ],
+    // 'tiers'         => [ 'label' => __( 'Βαθμίδες', 'epappous-club' ),      'icon' => 'dashicons-awards' ],
     'referral'      => [ 'label' => __( 'Referral', 'epappous-club' ),      'icon' => 'dashicons-share' ],
     'gifts'         => [ 'label' => __( 'Δώρα', 'epappous-club' ),          'icon' => 'dashicons-cart' ],
     'notifications' => [ 'label' => __( 'Ειδοποιήσεις', 'epappous-club' ),  'icon' => 'dashicons-email-alt' ],
@@ -191,7 +191,8 @@ if ( ! is_array( $tiers ) ) {
                     </div>
                 </div>
 
-                <!-- ════════ TIERS ════════ -->
+                <?php if ( false ) : ?>
+                <!-- ════════ TIERS (hidden — re-enable tab + EPC_Tiers loader) ════════ -->
                 <div class="epc-tab-panel <?php echo $active_tab === 'tiers' ? 'active' : ''; ?>" data-tab="tiers">
                     <div class="epc-card">
                         <div class="epc-card-header">
@@ -230,6 +231,7 @@ if ( ! is_array( $tiers ) ) {
                         </div>
                     </div>
                 </div>
+                <?php endif; ?>
 
                 <!-- ════════ REFERRAL ════════ -->
                 <div class="epc-tab-panel <?php echo $active_tab === 'referral' ? 'active' : ''; ?>" data-tab="referral">
@@ -372,6 +374,7 @@ if ( ! is_array( $tiers ) ) {
                                 </label>
                             </div>
 
+                            <?php if ( false ) : ?>
                             <div class="epc-field-row">
                                 <label for="epc_gifts_min_tier"><?php esc_html_e( 'Ελάχιστη Βαθμίδα', 'epappous-club' ); ?></label>
                                 <select id="epc_gifts_min_tier" name="epc_gifts_min_tier">
@@ -384,6 +387,8 @@ if ( ! is_array( $tiers ) ) {
                                 </select>
                                 <p class="description"><?php esc_html_e( 'Ελάχιστη βαθμίδα μέλους για πρόσβαση στα δώρα.', 'epappous-club' ); ?></p>
                             </div>
+                            <?php endif; ?>
+                            <input type="hidden" name="epc_gifts_min_tier" value="<?php echo esc_attr( EPC_Settings::get( 'epc_gifts_min_tier' ) ); ?>" />
 
                             <div class="epc-field-row">
                                 <label for="epc_gifts_per_page"><?php esc_html_e( 'Δώρα ανά Σελίδα', 'epappous-club' ); ?></label>
@@ -427,7 +432,7 @@ if ( ! is_array( $tiers ) ) {
                                 'epc_notify_new_member'        => __( 'Νέο Μέλος', 'epappous-club' ),
                                 'epc_notify_referral_complete' => __( 'Ολοκλήρωση Referral', 'epappous-club' ),
                                 'epc_notify_gift_redeemed'     => __( 'Εξαργύρωση Δώρου', 'epappous-club' ),
-                                'epc_notify_tier_upgrade'      => __( 'Αναβάθμιση Βαθμίδας', 'epappous-club' ),
+                                // 'epc_notify_tier_upgrade'      => __( 'Αναβάθμιση Βαθμίδας', 'epappous-club' ),
                             ];
                             foreach ( $notifications as $key => $label ) : ?>
                                 <div class="epc-field-row">
@@ -499,6 +504,8 @@ if ( ! is_array( $tiers ) ) {
                         </div>
                     </div>
                 </div>
+
+                <input type="hidden" name="epc_tiers" value="<?php echo esc_attr( $tiers_json ); ?>" />
 
                 <div class="epc-form-actions">
                     <?php submit_button( __( 'Αποθήκευση Ρυθμίσεων', 'epappous-club' ), 'primary epc-save-btn', 'submit', false ); ?>

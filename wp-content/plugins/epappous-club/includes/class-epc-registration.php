@@ -285,7 +285,9 @@ class EPC_Registration {
                             ?>
                         </li>
                         <li><?php esc_html_e( 'Μπορείς να εξαργυρώσεις πόντους στο checkout (έκπτωση) ή να επιλέξεις δώρα από τον κατάλογο δώρων του club, αν είναι διαθέσιμα.', 'epappous-club' ); ?></li>
+                        <?php /* Tiers disabled
                         <li><?php esc_html_e( 'Η βαθμίδα (tier) μπορεί να επηρεάζει τον πολλαπλασιαστή κερδών — όπως έχει οριστεί από το κατάστημα.', 'epappous-club' ); ?></li>
+                        */ ?>
                         <?php if ( $show_referral_ui ) : ?>
                             <li>
                                 <?php esc_html_e( 'Referral: μοιράζεσαι το προσωπικό σου link. Όταν κάποιος επισκέπτεται το site με αυτό το link, αποθηκεύεται για λίγες μέρες. Αν εγγραφεί ως μέλος ή/και αγοράσει, μπορείτε να κερδίσετε πόντους — ανάλογα με τις ρυθμίσεις που βλέπεις παρακάτω.', 'epappous-club' ); ?>
@@ -299,10 +301,12 @@ class EPC_Registration {
                         <span class="epc-profile-stat-value"><?php echo esc_html( $currency . ' ' . number_format( (int) $member['points'] ) ); ?></span>
                         <span class="epc-profile-stat-label"><?php echo esc_html( $currency_lbl ); ?></span>
                     </div>
+                    <?php /*
                     <div class="epc-profile-stat">
                         <span class="epc-profile-stat-value"><?php echo esc_html( ucfirst( $member['tier'] ) ); ?></span>
                         <span class="epc-profile-stat-label"><?php esc_html_e( 'Βαθμίδα', 'epappous-club' ); ?></span>
                     </div>
+                    */ ?>
                     <?php if ( $show_referral_ui ) : ?>
                     <div class="epc-profile-stat epc-profile-stat--referral">
                         <span class="epc-profile-stat-value"><?php echo esc_html( $member['referral_code'] ); ?></span>

@@ -23,7 +23,7 @@ class EPC_Notifications {
         add_action( 'epc_member_registered', [ $this, 'on_new_member' ], 99, 2 );
         add_action( 'epc_referral_completed', [ $this, 'on_referral_completed' ], 10, 3 );
         add_action( 'epc_gift_redeemed', [ $this, 'on_gift_redeemed' ], 10, 3 );
-        add_action( 'epc_tier_upgraded', [ $this, 'on_tier_upgraded' ], 10, 3 );
+        // add_action( 'epc_tier_upgraded', [ $this, 'on_tier_upgraded' ], 10, 3 );
     }
 
     private function admin_email(): string {
@@ -64,7 +64,8 @@ class EPC_Notifications {
                 $data['email'],
                 sprintf( 'Καλώς ήρθες στο %s!', $this->club_name() ),
                 sprintf(
-                    "Γεια σου %s!\n\nΗ εγγραφή σου στο %s ολοκληρώθηκε.\nΚέρδισε πόντους, ανέβα βαθμίδα, και πάρε δώρα!\n\nΕυχαριστούμε!",
+                    /* Tiers disabled: was "…ανέβα βαθμίδα…" */
+                    "Γεια σου %s!\n\nΗ εγγραφή σου στο %s ολοκληρώθηκε.\nΚέρδισε πόντους και πάρε δώρα!\n\nΕυχαριστούμε!",
                     $data['first_name'] ?? '',
                     $this->club_name()
                 )
@@ -145,7 +146,9 @@ class EPC_Notifications {
 
     /**
      * Tier upgraded.
+     * Disabled while site runs without tiers (hook above commented). Kept for re-enable.
      */
+    /*
     public function on_tier_upgraded( int $member_id, string $old_tier, string $new_tier ) {
         if ( EPC_Settings::get( 'epc_notify_tier_upgrade' ) !== '1' ) {
             return;
@@ -184,4 +187,5 @@ class EPC_Notifications {
             )
         );
     }
+    */
 }

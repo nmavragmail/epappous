@@ -82,7 +82,8 @@ class EPC_Gift_Catalog {
             <div id="epc-gift-catalog-messages"></div>
 
             <?php if ( empty( $gift_products ) ) : ?>
-                <p class="epc-no-gifts"><?php esc_html_e( 'Δεν υπάρχουν διαθέσιμα δώρα για τη βαθμίδα σου.', 'epappous-club' ); ?></p>
+                <p class="epc-no-gifts"><?php esc_html_e( 'Δεν υπάρχουν διαθέσιμα δώρα αυτή τη στιγμή.', 'epappous-club' ); ?></p>
+                <?php /* was: Δεν υπάρχουν διαθέσιμα δώρα για τη βαθμίδα σου. */ ?>
             <?php else : ?>
                 <div class="epc-gifts-grid-front">
                     <?php foreach ( $gift_products as $product_id => $cfg ) :

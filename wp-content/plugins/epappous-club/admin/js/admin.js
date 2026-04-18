@@ -1,8 +1,7 @@
 (function ($) {
     'use strict';
 
-    /* ─── Tiers Management ─── */
-
+    /* ─── Tiers Management (disabled — re-enable with admin Tiers tab + epappous-club.php EPC_Tiers loader)
     function collectTiers() {
         var tiers = [];
         $('#epc-tiers-container .epc-tier-row').each(function () {
@@ -56,11 +55,10 @@
         collectTiers();
     });
 
-    /* ─── Settings form: serialize tiers before submit ─── */
-
     $('#epc-settings-form').on('submit', function () {
         collectTiers();
     });
+    */
 
     /* ─── Gift Modal ─── */
 
@@ -73,7 +71,7 @@
             $('#epc-gift-description').val(gift.description);
             $('#epc-gift-points').val(gift.points_required);
             $('#epc-gift-stock').val(gift.stock);
-            $('#epc-gift-tier').val(gift.tier_required);
+            // $('#epc-gift-tier').val(gift.tier_required);
             $('#epc-gift-product-id').val(gift.product_id || '');
             $('#epc-gift-image').val(gift.image_url || '');
             $('#epc-gift-active').prop('checked', parseInt(gift.is_active, 10) === 1);
@@ -202,13 +200,13 @@
         gift_redemption: function (d) {
             return 'Το μέλος <strong>' + d.member_name + '</strong> εξαργύρωσε ένα δώρο (gift #' + d.reference_id + '). ' +
                 'Αφαιρέθηκαν <strong>' + Math.abs(d.points) + ' πόντοι</strong> από το υπόλοιπό του. ' +
-                'Η εξαργύρωση γίνεται μέσω της σελίδας δώρων και ελέγχεται tier, απόθεμα, και υπόλοιπο πόντων.';
+                'Η εξαργύρωση γίνεται μέσω της σελίδας δώρων και ελέγχονται απόθεμα και υπόλοιπο πόντων.';
         },
         order_earning: function (d) {
             return 'Το μέλος <strong>' + d.member_name + '</strong> ολοκλήρωσε παραγγελία #' + d.reference_id + ' ' +
                 'και κέρδισε <strong>' + d.points + ' πόντους</strong> βάσει του ποσού αγοράς. ' +
-                'Υπολογισμός: ποσό × πόντοι_ανά_€ × tier_multiplier. ' +
-                'Ρυθμίζεται στο Ρυθμίσεις → Πόντοι (Πόντοι ανά €) και Βαθμίδες (Πολλαπλασιαστής).';
+                'Υπολογισμός: ποσό × πόντοι ανά €. ' +
+                'Ρυθμίζεται στο Ρυθμίσεις → Πόντοι (Πόντοι ανά €).';
         },
         manual_adjustment: function (d) {
             return 'Χειροκίνητη προσαρμογή πόντων από διαχειριστή. ' +
@@ -252,7 +250,6 @@
             '<span class="epc-debug-label">ID Μέλους:</span><span class="epc-debug-value">' + data.member_id + '</span>' +
             '<span class="epc-debug-label">Όνομα:</span><span class="epc-debug-value">' + (data.member_name || '—') + '</span>' +
             '<span class="epc-debug-label">Email:</span><span class="epc-debug-value">' + (data.member_email || '—') + '</span>' +
-            '<span class="epc-debug-label">Tier:</span><span class="epc-debug-value">' + (data.member_tier || '—') + '</span>' +
             '<span class="epc-debug-label">Τρέχοντες Πόντοι:</span><span class="epc-debug-value">' + data.member_points + '</span>' +
             '<span class="epc-debug-label">Referral Code:</span><span class="epc-debug-value"><code>' + (data.referral_code || '—') + '</code></span>' +
             '</div></div>';
@@ -812,7 +809,9 @@
                 change: function () {
                     var color = $(this).wpColorPicker('color');
                     $(this).closest('.epc-tier-row').find('.epc-tier-color-preview').css('background', color);
-                    collectTiers();
+                    if (typeof collectTiers === 'function') {
+                        collectTiers();
+                    }
                 }
             });
         }
