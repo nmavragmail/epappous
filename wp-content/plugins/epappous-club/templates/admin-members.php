@@ -32,42 +32,7 @@ $members = $wpdb->get_results(
         <div class="notice <?php echo esc_attr( $messages[ $msg ][0] ); ?> is-dismissible"><p><?php echo esc_html( $messages[ $msg ][1] ); ?></p></div>
     <?php endif; ?>
 
-    <div class="epc-dashboard-grid" style="grid-template-columns: 1fr 2fr; align-items: start; gap: 24px;">
-        <div class="epc-card">
-            <div class="epc-card-header">
-                <h2><?php esc_html_e( 'Προσθήκη μέλους', 'epappous-club' ); ?></h2>
-                <p class="epc-card-desc">
-                    <?php esc_html_e( 'Δημιουργεί εγγραφή club. Αν υπάρχει χρήστης WooCommerce με το ίδιο email, συνδέεται αυτόματα και εντάσσεται στην ομάδα B2B King «Pappou Club» (από τις ρυθμίσεις WooCommerce plugin).', 'epappous-club' ); ?>
-                </p>
-            </div>
-            <div class="epc-card-body">
-                <form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
-                    <input type="hidden" name="action" value="epc_add_member" />
-                    <?php wp_nonce_field( 'epc_add_member' ); ?>
-
-                    <p>
-                        <label for="epc_am_first"><?php esc_html_e( 'Όνομα', 'epappous-club' ); ?> *</label><br />
-                        <input type="text" class="regular-text" id="epc_am_first" name="first_name" required />
-                    </p>
-                    <p>
-                        <label for="epc_am_last"><?php esc_html_e( 'Επώνυμο', 'epappous-club' ); ?> *</label><br />
-                        <input type="text" class="regular-text" id="epc_am_last" name="last_name" required />
-                    </p>
-                    <p>
-                        <label for="epc_am_email"><?php esc_html_e( 'Email', 'epappous-club' ); ?> *</label><br />
-                        <input type="email" class="regular-text" id="epc_am_email" name="email" required />
-                    </p>
-                    <p>
-                        <label for="epc_am_phone"><?php esc_html_e( 'Τηλέφωνο', 'epappous-club' ); ?></label><br />
-                        <input type="text" class="regular-text" id="epc_am_phone" name="phone" />
-                    </p>
-                    <p>
-                        <button type="submit" class="button button-primary"><?php esc_html_e( 'Αποθήκευση μέλους', 'epappous-club' ); ?></button>
-                    </p>
-                </form>
-            </div>
-        </div>
-
+    <div class="epc-dashboard-grid" style="grid-template-columns: 1fr; align-items: start; gap: 24px;">
         <div class="epc-card">
             <div class="epc-card-header">
                 <h2><?php esc_html_e( 'Πρόσφατα μέλη', 'epappous-club' ); ?></h2>

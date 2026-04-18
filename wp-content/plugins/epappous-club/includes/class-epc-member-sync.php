@@ -27,6 +27,9 @@ class EPC_Member_Sync {
         add_action( 'woocommerce_created_customer', [ $this, 'on_woocommerce_created_customer' ], 25, 3 );
         add_action( 'admin_post_epc_add_member', [ $this, 'handle_admin_add_member' ] );
         add_action( 'epc_member_registered', [ __CLASS__, 'on_member_registered_assign_b2b_group' ], 5, 2 );
+
+        // If a user is put into the B2B King Pappou Club group, ensure a club member row exists.
+        add_action( 'updated_user_meta', [ __CLASS__, 'maybe_create_member_on_b2b_group_change' ], 20, 4 );
     }
 
     /**
@@ -97,6 +100,153 @@ class EPC_Member_Sync {
                 EPC_B2BKing::assign_pappou_club_group( $uid );
             }
         }
+    }
+
+    /**
+     * Backfill members based on B2B King group assignment.
+     * Any WP user with meta b2bking_customergroup = configured club group will be ensured as active club member.
+     */
+    public static function backfill_members_from_b2bking_group(): void {
+        if ( EPC_Settings::get( 'epc_club_enabled' ) !== '1' ) {
+            return;
+        }
+        if ( ! EPC_B2BKing::is_active() ) {
+            return;
+        }
+
+        $gid = EPC_B2BKing::get_configured_group_id();
+        if ( $gid < 1 ) {
+            return;
+        }
+
+        $users = get_users( [
+            'fields'     => [ 'ID', 'user_email', 'first_name', 'last_name', 'display_name' ],
+            'number'     => 0,
+            'meta_key'   => 'b2bking_customergroup',
+            'meta_value' => (string) $gid,
+        ] );
+
+        if ( empty( $users ) ) {
+            return;
+        }
+
+        foreach ( $users as $u ) {
+            $uid = (int) ( is_object( $u ) ? $u->ID : 0 );
+            if ( $uid < 1 ) {
+                continue;
+            }
+            self::ensure_member_row_for_user( $uid, true );
+        }
+    }
+
+    /**
+     * If a user is assigned to Pappou Club group in B2B King, ensure club membership exists.
+     */
+    public static function maybe_create_member_on_b2b_group_change( $meta_id, $user_id, $meta_key, $meta_value ): void {
+        unset( $meta_id );
+        if ( 'b2bking_customergroup' !== (string) $meta_key ) {
+            return;
+        }
+        if ( EPC_Settings::get( 'epc_club_enabled' ) !== '1' ) {
+            return;
+        }
+        $gid = EPC_B2BKing::get_configured_group_id();
+        if ( $gid < 1 ) {
+            return;
+        }
+
+        if ( (string) $meta_value !== (string) $gid ) {
+            return;
+        }
+
+        self::ensure_member_row_for_user( (int) $user_id, true );
+    }
+
+    /**
+     * Ensure epc_members row exists for a given WP user.
+     * When $silent is true, it does not fire epc_member_registered (avoids emails).
+     */
+    public static function ensure_member_row_for_user( int $user_id, bool $silent = true ): int {
+        if ( $user_id < 1 ) {
+            return 0;
+        }
+
+        $wp_user = get_userdata( $user_id );
+        if ( ! $wp_user ) {
+            return 0;
+        }
+
+        $email = sanitize_email( (string) $wp_user->user_email );
+        if ( ! is_email( $email ) ) {
+            return 0;
+        }
+
+        global $wpdb;
+        $existing = $wpdb->get_row(
+            $wpdb->prepare(
+                "SELECT id, status FROM {$wpdb->prefix}epc_members WHERE user_id = %d OR email = %s LIMIT 1",
+                $user_id,
+                $email
+            ),
+            ARRAY_A
+        );
+
+        if ( $existing ) {
+            $mid = (int) $existing['id'];
+            // Ensure active + linked user_id
+            $wpdb->update(
+                "{$wpdb->prefix}epc_members",
+                [
+                    'user_id' => $user_id,
+                    'status'  => 'active',
+                ],
+                [ 'id' => $mid ],
+                [ '%d', '%s' ],
+                [ '%d' ]
+            );
+
+            self::ensure_b2b_group_for_member( $mid );
+            return $mid;
+        }
+
+        $referral_code = EPC_Referral::generate_code();
+        $first         = $wp_user->first_name ?: $wp_user->display_name;
+        $last          = $wp_user->last_name ?: '';
+
+        $inserted = $wpdb->insert(
+            "{$wpdb->prefix}epc_members",
+            [
+                'user_id'       => $user_id,
+                'first_name'    => sanitize_text_field( $first ),
+                'last_name'     => sanitize_text_field( $last ),
+                'email'         => $email,
+                'phone'         => '',
+                'date_of_birth' => null,
+                'referral_code' => $referral_code,
+                'points'        => 0,
+                'tier'          => 'basic',
+                'status'        => 'active',
+            ],
+            [ '%d', '%s', '%s', '%s', '%s', '%s', '%s', '%d', '%s', '%s' ]
+        );
+
+        if ( ! $inserted ) {
+            return 0;
+        }
+
+        $member_id = (int) $wpdb->insert_id;
+        self::ensure_b2b_group_for_member( $member_id );
+
+        if ( ! $silent ) {
+            do_action( 'epc_member_registered', $member_id, [
+                'email'      => $email,
+                'first_name' => sanitize_text_field( $first ),
+                'last_name'  => sanitize_text_field( $last ),
+                'source'     => 'b2bking_backfill',
+            ] );
+        }
+
+        return $member_id;
     }
 
     /**
