@@ -451,28 +451,28 @@ class EPC_WooCommerce {
         if ( ! empty( $diag['items_breakdown'] ) ) {
             echo '<details><summary style="cursor:pointer;font-weight:600;">' .
                 esc_html__( 'Ανάλυση προϊόντων', 'epappous-club' ) . '</summary>';
-            echo '<table style="width:100%;border-collapse:collapse;font-size:11.5px;margin-top:6px;">';
+            echo '<table style="width:100%;border-collapse:collapse;font-size:11.5px;margin-top:6px;table-layout:fixed;word-break:break-word;">';
             echo '<thead><tr style="border-bottom:1px solid #ccc;text-align:left;">';
-            echo '<th style="padding:3px 4px;">' . esc_html__( 'Προϊόν', 'epappous-club' ) . '</th>';
-            echo '<th style="padding:3px 4px;text-align:right;">' . esc_html__( 'Σύνολο', 'epappous-club' ) . '</th>';
-            echo '<th style="padding:3px 4px;">' . esc_html__( 'Status', 'epappous-club' ) . '</th>';
+            echo '<th style="padding:3px 4px;width:55%;">' . esc_html__( 'Προϊόν', 'epappous-club' ) . '</th>';
+            echo '<th style="padding:3px 4px;width:25%;text-align:right;white-space:nowrap;">' . esc_html__( 'Σύνολο', 'epappous-club' ) . '</th>';
+            echo '<th style="padding:3px 4px;width:20%;">' . esc_html__( 'Status', 'epappous-club' ) . '</th>';
             echo '</tr></thead><tbody>';
             foreach ( $diag['items_breakdown'] as $line ) {
                 $color = $line['eligible'] ? '#1a7f37' : '#9a1a1a';
                 $label = $line['eligible'] ? __( 'Επιλέξιμο', 'epappous-club' ) : ( $line['reason'] ?? __( 'Μη επιλέξιμο', 'epappous-club' ) );
                 echo '<tr style="border-bottom:1px solid #f0f0f0;">';
                 echo '<td style="padding:3px 4px;">' . esc_html( $line['name'] ) . '</td>';
-                echo '<td style="padding:3px 4px;text-align:right;">' . esc_html( wc_price( $line['total'] ) ) . '</td>';
+                echo '<td style="padding:3px 4px;text-align:right;white-space:nowrap;">' . wp_kses_post( wc_price( $line['total'] ) ) . '</td>';
                 echo '<td style="padding:3px 4px;color:' . esc_attr( $color ) . ';">' . esc_html( $label ) . '</td>';
                 echo '</tr>';
             }
             echo '</tbody><tfoot><tr style="border-top:1px solid #ccc;font-weight:600;">';
             echo '<td style="padding:4px;">' . esc_html__( 'Επιλέξιμο σύνολο', 'epappous-club' ) . '</td>';
-            echo '<td style="padding:4px;text-align:right;" colspan="2">' . esc_html( wc_price( $diag['eligible_total'] ) ) . '</td>';
+            echo '<td style="padding:4px;text-align:right;white-space:nowrap;" colspan="2">' . wp_kses_post( wc_price( $diag['eligible_total'] ) ) . '</td>';
             echo '</tr><tr><td style="padding:4px;">' . esc_html__( 'Πόντοι/€', 'epappous-club' ) . '</td>';
-            echo '<td style="padding:4px;text-align:right;" colspan="2">' . esc_html( (string) $diag['points_per_euro'] ) . '</td>';
+            echo '<td style="padding:4px;text-align:right;white-space:nowrap;" colspan="2">' . esc_html( (string) $diag['points_per_euro'] ) . '</td>';
             echo '</tr><tr><td style="padding:4px;font-weight:700;">' . esc_html__( 'Υπολογισμένοι πόντοι', 'epappous-club' ) . '</td>';
-            echo '<td style="padding:4px;text-align:right;font-weight:700;" colspan="2">' . esc_html( (string) $diag['potential'] ) . '</td>';
+            echo '<td style="padding:4px;text-align:right;font-weight:700;white-space:nowrap;" colspan="2">' . esc_html( (string) $diag['potential'] ) . '</td>';
             echo '</tr></tfoot></table>';
             echo '</details>';
         }
@@ -704,8 +704,19 @@ class EPC_WooCommerce {
             return;
         }
 
-        $allowed_ids = [ 'new_order', 'customer_processing_order' ];
-        if ( ! in_array( (string) $email->id, $allowed_ids, true ) ) {
+        $admin_email_ids    = [ 'new_order', 'cancelled_order', 'failed_order' ];
+        $customer_email_ids = [
+            'customer_processing_order',
+            'customer_completed_order',
+            'customer_on_hold_order',
+            'customer_invoice',
+        ];
+
+        $email_id = (string) $email->id;
+        $is_admin_recipient = $sent_to_admin || in_array( $email_id, $admin_email_ids, true );
+        $is_known_customer  = in_array( $email_id, $customer_email_ids, true );
+
+        if ( ! $is_admin_recipient && ! $is_known_customer ) {
             return;
         }
 
@@ -721,9 +732,15 @@ class EPC_WooCommerce {
             return;
         }
 
-        $label = $settled
-            ? __( 'Πόντοι από αυτή την παραγγελία', 'epappous-club' )
-            : __( 'Πόντοι που θα κερδίσετε όταν επιβεβαιωθεί η παραγγελία', 'epappous-club' );
+        if ( $is_admin_recipient ) {
+            $label = $settled
+                ? __( 'Πόντοι που κέρδισε ο πελάτης από αυτή την παραγγελία', 'epappous-club' )
+                : __( 'Πόντοι που θα κερδίσει ο πελάτης όταν επιβεβαιωθεί η παραγγελία', 'epappous-club' );
+        } else {
+            $label = $settled
+                ? __( 'Πόντοι από αυτή την παραγγελία', 'epappous-club' )
+                : __( 'Πόντοι που θα κερδίσετε όταν επιβεβαιωθεί η παραγγελία', 'epappous-club' );
+        }
 
         $value = (string) (int) $points;
 
