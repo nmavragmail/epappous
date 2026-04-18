@@ -36,6 +36,14 @@ class EPC_WooCommerce {
         add_action( 'woocommerce_order_status_cancelled', [ $this, 'revoke_points_on_order' ], 20 );
         add_action( 'woocommerce_order_status_refunded', [ $this, 'revoke_points_on_order' ], 20 );
 
+        // Backup hooks so points are never missed (payment received, thank-you, any status change to eligible).
+        add_action( 'woocommerce_payment_complete', [ $this, 'earn_points_on_order' ], 25 );
+        add_action( 'woocommerce_thankyou', [ $this, 'earn_points_on_order' ], 25 );
+        add_action( 'woocommerce_order_status_changed', [ $this, 'on_order_status_changed_backup' ], 25, 4 );
+
+        // Catch up legacy / imported orders when admin opens them.
+        add_action( 'admin_init', [ $this, 'maybe_catch_up_order_on_admin_view' ] );
+
         // Redeem points at checkout
         add_action( 'woocommerce_cart_totals_before_order_total', [ $this, 'render_redeem_ui' ] );
         add_action( 'woocommerce_review_order_before_order_total', [ $this, 'render_redeem_ui' ] );
@@ -65,6 +73,10 @@ class EPC_WooCommerce {
 
         // WooCommerce emails: show earned points in new order emails.
         add_action( 'woocommerce_email_after_order_table', [ $this, 'email_add_points_earned_line' ], 15, 4 );
+
+        // Admin order action: manually recalculate club points for this order.
+        add_filter( 'woocommerce_order_actions', [ $this, 'register_order_recalculate_action' ] );
+        add_action( 'woocommerce_order_action_epc_recalculate_points', [ $this, 'handle_order_recalculate_action' ] );
     }
 
     /**
@@ -165,6 +177,105 @@ class EPC_WooCommerce {
                 'low'
             );
         }
+    }
+
+    /**
+     * Add manual recalculate action in order actions dropdown.
+     *
+     * @param array<string,string> $actions Existing order actions.
+     * @return array<string,string>
+     */
+    public function register_order_recalculate_action( array $actions ): array {
+        $actions['epc_recalculate_points'] = __( 'Recalculate Pappou Club points', 'epappous-club' );
+        return $actions;
+    }
+
+    /**
+     * Run a manual recalculation for the order's earned points.
+     *
+     * @param \WC_Order $order Order object from WooCommerce action.
+     */
+    public function handle_order_recalculate_action( $order ): void {
+        if ( ! $order instanceof \WC_Order ) {
+            return;
+        }
+
+        $result = $this->recalculate_earned_points_for_order( $order );
+        $order->add_order_note( $result );
+        $order->save();
+    }
+
+    /**
+     * Backup hook: any status change into an eligible status (processing/completed) for an order
+     * that has not been settled yet triggers earning. Helps when the original transition happened
+     * before the dedicated status hook was registered.
+     *
+     * @param int    $order_id Order ID.
+     * @param string $from     From status.
+     * @param string $to       To status.
+     * @param mixed  $order    Order object (may be WC_Order).
+     */
+    public function on_order_status_changed_backup( $order_id, $from, $to, $order ): void {
+        unset( $from );
+        $order_id = (int) $order_id;
+        if ( $order_id < 1 ) {
+            return;
+        }
+        if ( ! in_array( (string) $to, [ 'processing', 'completed' ], true ) ) {
+            return;
+        }
+        if ( $order instanceof \WC_Order && $order->get_meta( '_epc_club_loyalty_settled', true ) === '1' ) {
+            return;
+        }
+        $this->earn_points_on_order( $order_id );
+    }
+
+    /**
+     * Catch up legacy / imported orders the moment an admin opens them.
+     *
+     * If an order is in an eligible status but was never processed for points (e.g. transition
+     * happened before this hook existed, or under a previous plugin version), run earning now.
+     */
+    public function maybe_catch_up_order_on_admin_view(): void {
+        if ( ! is_admin() || ! current_user_can( 'manage_woocommerce' ) ) {
+            return;
+        }
+        if ( EPC_Settings::get( 'epc_club_enabled' ) !== '1' ) {
+            return;
+        }
+
+        $order_id = 0;
+
+        // Legacy CPT: post.php?post=123&action=edit
+        if ( isset( $_GET['post'], $_GET['action'] ) && 'edit' === $_GET['action'] ) { // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+            $maybe = (int) $_GET['post']; // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+            if ( $maybe > 0 && get_post_type( $maybe ) === 'shop_order' ) {
+                $order_id = $maybe;
+            }
+        }
+
+        // HPOS: admin.php?page=wc-orders&action=edit&id=123
+        if ( $order_id < 1 && isset( $_GET['page'], $_GET['action'], $_GET['id'] ) // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+            && 'wc-orders' === $_GET['page'] && 'edit' === $_GET['action'] ) { // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+            $order_id = (int) $_GET['id']; // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+        }
+
+        if ( $order_id < 1 ) {
+            return;
+        }
+
+        $order = wc_get_order( $order_id );
+        if ( ! $order instanceof \WC_Order ) {
+            return;
+        }
+        if ( $order->get_meta( '_epc_club_loyalty_settled', true ) === '1' ) {
+            return;
+        }
+        if ( ! in_array( (string) $order->get_status(), [ 'processing', 'completed' ], true ) ) {
+            return;
+        }
+
+        $this->earn_points_on_order( $order_id );
     }
 
     /**
@@ -391,6 +502,94 @@ class EPC_WooCommerce {
         $points     = (int) floor( $raw_points * 1.0 );
 
         return max( 0, $points );
+    }
+
+    /**
+     * Manual recalculation helper for earned points only.
+     * It safely removes previously awarded points/log/meta for this order, then re-runs earning logic.
+     */
+    private function recalculate_earned_points_for_order( \WC_Order $order ): string {
+        if ( EPC_Settings::get( 'epc_club_enabled' ) !== '1' ) {
+            return __( 'Pappou Club: το club είναι απενεργοποιημένο, δεν έγινε επανυπολογισμός.', 'epappous-club' );
+        }
+
+        global $wpdb;
+        $order_id       = (int) $order->get_id();
+        $awarded_points = (int) $order->get_meta( '_epc_points_earned', true );
+        $was_revoked    = $order->get_meta( '_epc_points_revoked', true ) === '1';
+
+        // Undo prior awarded points if they were still applied to the member balance.
+        if ( $awarded_points > 0 && ! $was_revoked ) {
+            $email = sanitize_email( (string) $order->get_billing_email() );
+            if ( is_email( $email ) ) {
+                $member_id = (int) $wpdb->get_var(
+                    $wpdb->prepare(
+                        "SELECT id FROM {$wpdb->prefix}epc_members WHERE email = %s LIMIT 1",
+                        $email
+                    )
+                );
+                if ( $member_id > 0 ) {
+                    $wpdb->query(
+                        $wpdb->prepare(
+                            "UPDATE {$wpdb->prefix}epc_members SET points = GREATEST(points - %d, 0) WHERE id = %d",
+                            $awarded_points,
+                            $member_id
+                        )
+                    );
+                    do_action( 'epc_points_changed', $member_id );
+                }
+            }
+        }
+
+        // Remove previous points-log rows for this order so the new run writes a clean result.
+        $wpdb->delete(
+            "{$wpdb->prefix}epc_points_log",
+            [
+                'reason'         => 'order_earning',
+                'reference_type' => 'order',
+                'reference_id'   => $order_id,
+            ],
+            [ '%s', '%s', '%d' ]
+        );
+        $wpdb->delete(
+            "{$wpdb->prefix}epc_points_log",
+            [
+                'reason'         => 'order_reversal',
+                'reference_type' => 'order',
+                'reference_id'   => $order_id,
+            ],
+            [ '%s', '%s', '%d' ]
+        );
+
+        // Clear only earned-points meta so calculation can run fresh.
+        foreach ( [
+            '_epc_points_earned',
+            '_epc_club_loyalty_settled',
+            '_epc_order_includes_club_gift_product',
+            '_epc_points_revoked',
+            '_epc_points_revoked_amount',
+        ] as $meta_key ) {
+            $order->delete_meta_data( $meta_key );
+        }
+        $order->save();
+
+        $this->earn_points_on_order( $order_id );
+
+        $new_points = (int) $order->get_meta( '_epc_points_earned', true );
+        if ( $new_points > 0 ) {
+            return sprintf(
+                /* translators: 1: order id, 2: points */
+                __( 'Pappou Club: έγινε επανυπολογισμός για την παραγγελία #%1$d και αποδόθηκαν %2$d πόντοι.', 'epappous-club' ),
+                $order_id,
+                $new_points
+            );
+        }
+
+        return sprintf(
+            /* translators: %d: order id */
+            __( 'Pappou Club: έγινε επανυπολογισμός για την παραγγελία #%d αλλά δεν προέκυψαν πόντοι.', 'epappous-club' ),
+            $order_id
+        );
     }
 
     /**
