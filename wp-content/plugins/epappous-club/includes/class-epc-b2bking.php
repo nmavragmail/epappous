@@ -89,16 +89,23 @@ class EPC_B2BKing {
             return false;
         }
 
-        if ( ! method_exists( b2bking(), 'update_user_group' ) ) {
-            return false;
+        // Prefer official API, but also persist meta directly for reliability (e.g. admins).
+        if ( method_exists( b2bking(), 'update_user_group' ) ) {
+            b2bking()->update_user_group( $user_id, $gid );
         }
 
-        b2bking()->update_user_group( $user_id, $gid );
+        // B2BKing stores group in user meta; ensure it's set.
+        update_user_meta( $user_id, 'b2bking_customergroup', (string) $gid );
+        // Some installs require the B2B flag for group-based rules.
+        if ( get_user_meta( $user_id, 'b2bking_b2buser', true ) !== 'yes' ) {
+            update_user_meta( $user_id, 'b2bking_b2buser', 'yes' );
+        }
 
         if ( method_exists( b2bking(), 'clear_caches_transients' ) ) {
             b2bking()->clear_caches_transients();
         }
 
-        return true;
+        // Verify final membership.
+        return self::user_in_pappou_club( $user_id );
     }
 }
