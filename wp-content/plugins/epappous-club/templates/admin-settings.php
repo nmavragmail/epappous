@@ -213,15 +213,15 @@ if ( ! is_array( $tiers ) ) {
                                     <div class="epc-tier-row" data-index="<?php echo (int) $i; ?>">
                                         <div class="epc-tier-color-preview" style="background:<?php echo esc_attr( $tier['color'] ?? '#6b7280' ); ?>"></div>
                                         <div class="epc-tier-fields">
-                                            <input type="text" class="epc-tier-slug" placeholder="Slug"
+                                            <input type="text" class="epc-tier-slug" placeholder="<?php esc_attr_e( 'Slug', 'epappous-club' ); ?>"
                                                    value="<?php echo esc_attr( $tier['slug'] ); ?>" />
-                                            <input type="text" class="epc-tier-label" placeholder="Ετικέτα"
+                                            <input type="text" class="epc-tier-label" placeholder="<?php esc_attr_e( 'Ετικέτα', 'epappous-club' ); ?>"
                                                    value="<?php echo esc_attr( $tier['label'] ); ?>" />
-                                            <input type="number" class="epc-tier-min" placeholder="Ελ. πόντοι"
+                                            <input type="number" class="epc-tier-min" placeholder="<?php esc_attr_e( 'Ελ. πόντοι', 'epappous-club' ); ?>"
                                                    value="<?php echo (int) $tier['min_points']; ?>" min="0" />
-                                            <input type="number" class="epc-tier-mult" placeholder="Πολ/στής" step="0.1"
+                                            <input type="number" class="epc-tier-mult" placeholder="<?php esc_attr_e( 'Πολ/στής', 'epappous-club' ); ?>" step="0.1"
                                                    value="<?php echo esc_attr( $tier['multiplier'] ); ?>" min="1" />
-                                            <input type="text" class="epc-tier-color epc-color-picker" placeholder="Χρώμα"
+                                            <input type="text" class="epc-tier-color epc-color-picker" placeholder="<?php esc_attr_e( 'Χρώμα', 'epappous-club' ); ?>"
                                                    value="<?php echo esc_attr( $tier['color'] ); ?>" />
                                         </div>
                                         <button type="button" class="button epc-remove-tier" title="<?php esc_attr_e( 'Αφαίρεση', 'epappous-club' ); ?>">

@@ -1660,7 +1660,16 @@ class EPC_WooCommerce {
             return;
         }
 
-        wp_enqueue_script( 'epc-checkout-js', EPC_PLUGIN_URL . 'admin/js/checkout.js', [ 'jquery' ], EPC_VERSION, true );
+        wp_enqueue_script( 'epc-checkout-js', EPC_PLUGIN_URL . 'admin/js/checkout.js', [ 'jquery', 'wp-i18n' ], EPC_VERSION, true );
+
+        if ( function_exists( 'wp_set_script_translations' ) ) {
+            wp_set_script_translations(
+                'epc-checkout-js',
+                'epappous-club',
+                EPC_PLUGIN_DIR . 'languages'
+            );
+        }
+
         $localized = [
             'ajaxUrl' => admin_url( 'admin-ajax.php' ),
             'nonce'   => wp_create_nonce( 'epc_front_nonce' ),

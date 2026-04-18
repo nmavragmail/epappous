@@ -1,6 +1,34 @@
 (function ($) {
     'use strict';
 
+    /**
+     * Helpers for translatable strings (provided via wp_localize_script in PHP).
+     * Falls back to the raw key if PHP localization is not yet loaded.
+     */
+    function epcI(key, fallback) {
+        try {
+            var parts = key.split('.');
+            var node = epcAdmin.i18n;
+            for (var i = 0; i < parts.length; i++) {
+                if (!node || typeof node[parts[i]] === 'undefined') {
+                    return typeof fallback === 'string' ? fallback : key;
+                }
+                node = node[parts[i]];
+            }
+            return typeof node === 'string' ? node : (typeof fallback === 'string' ? fallback : key);
+        } catch (e) {
+            return typeof fallback === 'string' ? fallback : key;
+        }
+    }
+
+    /** Replace {placeholders} in a translated template with values. */
+    function epcSprintf(template, vars) {
+        if (typeof template !== 'string') return '';
+        return template.replace(/\{(\w+)\}/g, function (_, k) {
+            return (vars && typeof vars[k] !== 'undefined') ? vars[k] : '';
+        });
+    }
+
     /* ─── Tiers Management (disabled — re-enable with admin Tiers tab + epappous-club.php EPC_Tiers loader)
     function collectTiers() {
         var tiers = [];
@@ -22,12 +50,12 @@
             '<div class="epc-tier-color-preview" style="background:' + data.color + '"></div>' +
             '<div class="epc-tier-fields">' +
             '<input type="text" class="epc-tier-slug" placeholder="Slug" value="' + data.slug + '" />' +
-            '<input type="text" class="epc-tier-label" placeholder="Ετικέτα" value="' + data.label + '" />' +
-            '<input type="number" class="epc-tier-min" placeholder="Ελ. πόντοι" value="' + data.min_points + '" min="0" />' +
-            '<input type="number" class="epc-tier-mult" placeholder="Πολ/στής" step="0.1" value="' + data.multiplier + '" min="1" />' +
-            '<input type="text" class="epc-tier-color epc-color-picker" placeholder="Χρώμα" value="' + data.color + '" />' +
+            '<input type="text" class="epc-tier-label" placeholder="' + epcI('placeholderTierLabel') + '" value="' + data.label + '" />' +
+            '<input type="number" class="epc-tier-min" placeholder="' + epcI('placeholderTierMin') + '" value="' + data.min_points + '" min="0" />' +
+            '<input type="number" class="epc-tier-mult" placeholder="' + epcI('placeholderTierMult') + '" step="0.1" value="' + data.multiplier + '" min="1" />' +
+            '<input type="text" class="epc-tier-color epc-color-picker" placeholder="' + epcI('placeholderTierColor') + '" value="' + data.color + '" />' +
             '</div>' +
-            '<button type="button" class="button epc-remove-tier" title="Αφαίρεση">' +
+            '<button type="button" class="button epc-remove-tier" title="' + epcI('remove') + '">' +
             '<span class="dashicons dashicons-trash"></span>' +
             '</button>' +
             '</div>';
@@ -87,7 +115,7 @@
     function openGiftModal(gift) {
         var $modal = $('#epc-gift-modal');
         if (gift) {
-            $('#epc-gift-modal-title').text('Επεξεργασία Δώρου');
+            $('#epc-gift-modal-title').text(epcI('editGift'));
             $('#epc-gift-id').val(gift.id);
             $('#epc-gift-title').val(gift.title);
             $('#epc-gift-description').val(gift.description);
@@ -98,7 +126,7 @@
             $('#epc-gift-image').val(gift.image_url || '');
             $('#epc-gift-active').prop('checked', parseInt(gift.is_active, 10) === 1);
         } else {
-            $('#epc-gift-modal-title').text('Νέο Δώρο');
+            $('#epc-gift-modal-title').text(epcI('newGift'));
             $('#epc-gift-form')[0].reset();
             $('#epc-gift-id').val('');
             $('#epc-gift-active').prop('checked', true);
@@ -137,7 +165,7 @@
             if (response.success) {
                 location.reload();
             } else {
-                alert(epcAdmin.i18n.error + ' ' + (response.data || ''));
+                alert(epcI('error') + ' ' + (response.data || ''));
             }
         });
     });
@@ -156,7 +184,7 @@
     });
 
     $(document).on('click', '.epc-delete-gift-btn', function () {
-        if (!confirm(epcAdmin.i18n.confirmDelete)) {
+        if (!confirm(epcI('confirmDelete'))) {
             return;
         }
         var id = $(this).data('id');
@@ -177,8 +205,8 @@
         e.preventDefault();
         var $input = $(this).prev('input');
         var frame = wp.media({
-            title: 'Επιλογή εικόνας',
-            button: { text: 'Χρήση εικόνας' },
+            title: epcI('mediaSelectTitle'),
+            button: { text: epcI('mediaUseImage') },
             multiple: false
         });
         frame.on('select', function () {
@@ -190,110 +218,53 @@
 
     /* ─── Points Log Debug Modal ─── */
 
-    var debugExplanations = {
-        birthday_bonus: function (d) {
-            return 'Το μέλος <strong>' + d.member_name + '</strong> είχε γενέθλια. ' +
-                'Ένα ημερήσιο cron job ελέγχει κάθε μέρα ποια μέλη έχουν γενέθλια (βάσει date_of_birth) ' +
-                'και αποδίδει αυτόματα <strong>' + d.points + ' πόντους</strong>. ' +
-                'Αυτό γίνεται μία φορά ανά ημερολογιακό έτος (reference_id = ' + d.reference_id + ' = το έτος). ' +
-                'Η τιμή ρυθμίζεται στο Ρυθμίσεις → Πόντοι → Μπόνους Γενεθλίων.';
-        },
-        referral_bonus_referrer: function (d) {
-            return 'Το μέλος <strong>' + d.member_name + '</strong> προσκάλεσε κάποιον (μέλος #' + d.reference_id + ') ' +
-                'μέσω referral link και κέρδισε <strong>' + d.points + ' πόντους</strong> ως ανταμοιβή. ' +
-                'Η ανταμοιβή δόθηκε κατά την εγγραφή του νέου μέλους. ' +
-                'Ρυθμίζεται στο Ρυθμίσεις → Referral → Ανταμοιβή Αυτού που Προσκαλεί.';
-        },
-        referral_bonus_referred: function (d) {
-            return 'Το μέλος <strong>' + d.member_name + '</strong> εγγράφηκε μέσω referral link ' +
-                'από μέλος #' + d.reference_id + ' και κέρδισε <strong>' + d.points + ' πόντους</strong> ως μπόνους εγγραφής. ' +
-                'Ρυθμίζεται στο Ρυθμίσεις → Referral → Ανταμοιβή Νέου Μέλους.';
-        },
-        referral_purchase_referrer: function (d) {
-            return 'Ο referred φίλος ολοκλήρωσε αγορά (παραγγελία #' + d.reference_id + '). ' +
-                'Ο referrer <strong>' + d.member_name + '</strong> κέρδισε <strong>' + d.points + ' πόντους</strong>. ' +
-                'Ρυθμίζεται στο Ρυθμίσεις → Referral (Track Purchase + Reward Referrer).';
-        },
-        referral_purchase_referred: function (d) {
-            return 'Το μέλος <strong>' + d.member_name + '</strong> ολοκλήρωσε την πρώτη αγορά (παραγγελία #' + d.reference_id + ') ' +
-                'αφού εγγράφηκε μέσω referral. Κέρδισε <strong>' + d.points + ' πόντους</strong>. ' +
-                'Ρυθμίζεται στο Ρυθμίσεις → Referral (Track Purchase + Reward Referred).';
-        },
-        gift_redemption: function (d) {
-            return 'Το μέλος <strong>' + d.member_name + '</strong> εξαργύρωσε ένα δώρο (gift #' + d.reference_id + '). ' +
-                'Αφαιρέθηκαν <strong>' + Math.abs(d.points) + ' πόντοι</strong> από το υπόλοιπό του. ' +
-                'Η εξαργύρωση γίνεται μέσω της σελίδας δώρων και ελέγχονται απόθεμα και υπόλοιπο πόντων.';
-        },
-        order_earning: function (d) {
-            return 'Το μέλος <strong>' + d.member_name + '</strong> πέρασε παραγγελία #' + d.reference_id + ' σε processing/completed ' +
-                'και κέρδισε <strong>' + d.points + ' πόντους</strong> βάσει του ποσού αγοράς. ' +
-                'Υπολογισμός: ποσό × πόντοι ανά €. ' +
-                'Ρυθμίζεται στο Ρυθμίσεις → Πόντοι (Πόντοι ανά €).';
-        },
-        order_reversal: function (d) {
-            return 'Η παραγγελία #' + d.reference_id + ' ακυρώθηκε ή έγινε refunded, οπότε αφαιρέθηκαν ' +
-                '<strong>' + Math.abs(d.points) + ' πόντοι</strong> από το μέλος ' +
-                '<strong>' + d.member_name + '</strong>.';
-        },
-        manual_adjustment: function (d) {
-            return 'Χειροκίνητη προσαρμογή πόντων από διαχειριστή. ' +
-                '<strong>' + (d.points >= 0 ? '+' : '') + d.points + ' πόντοι</strong> στο μέλος ' +
-                '<strong>' + d.member_name + '</strong>.';
-        },
-        points_expiry: function (d) {
-            return 'Αυτόματη λήξη πόντων. <strong>' + Math.abs(d.points) + ' πόντοι</strong> έληξαν ' +
-                'βάσει της ρύθμισης Λήξη Πόντων (' + d.reference_id + ' ημέρες). ' +
-                'Ρυθμίζεται στο Ρυθμίσεις → Πόντοι → Λήξη Πόντων.';
-        },
-        signup_bonus: function (d) {
-            return 'Μπόνους εγγραφής. Το μέλος <strong>' + d.member_name + '</strong> κέρδισε ' +
-                '<strong>' + d.points + ' πόντους</strong> κατά την εγγραφή στο club.';
-        },
-        checkout_redemption: function (d) {
-            return 'Το μέλος <strong>' + d.member_name + '</strong> χρησιμοποίησε <strong>' + Math.abs(d.points) +
-                ' πόντους</strong> ως έκπτωση στην παραγγελία #' + d.reference_id + '. ' +
-                'Η αξία μετατράπηκε σε € βάσει της ρύθμισης Αξία Πόντου (epc_points_value_euro). ' +
-                'Μέγιστο ποσοστό έκπτωσης: epc_max_redeem_percent. Ελάχιστοι πόντοι: epc_min_redeem_points.';
+    function getReasonExplanation(d) {
+        var key = 'debug.reasons.' + d.reason;
+        var template = epcI(key, '');
+        if (!template) {
+            return epcSprintf(epcI('debug.unknownReason'), d);
         }
-    };
-
-    function getDefaultExplanation(d) {
-        return 'Ο λόγος "<strong>' + d.reason + '</strong>" δεν αναγνωρίζεται ως γνωστός τύπος. ' +
-            'Πόντοι: <strong>' + d.points + '</strong>. ' +
-            'Reference: ' + d.reference_type + ' #' + d.reference_id + '. ' +
-            'Ελέγξτε τον κώδικα για custom λόγους χρέωσης πόντων.';
+        var vars = {
+            member_name:    d.member_name || '',
+            points:         d.points,
+            abs_points:     Math.abs(d.points),
+            signed_points:  (d.points >= 0 ? '+' : '') + d.points,
+            reference_id:   d.reference_id,
+            reference_type: d.reference_type,
+            reason:         d.reason
+        };
+        return epcSprintf(template, vars);
     }
 
     $(document).on('click', '.epc-debug-btn', function () {
         var data = $(this).data('log');
         if (!data) return;
 
-        var explainFn = debugExplanations[data.reason] || getDefaultExplanation;
-        var explanation = explainFn(data);
+        var explanation = getReasonExplanation(data);
 
         var html = '<div class="epc-debug-section">' +
-            '<h4>Στοιχεία Μέλους</h4>' +
+            '<h4>' + epcI('debug.sectionMember') + '</h4>' +
             '<div class="epc-debug-grid">' +
-            '<span class="epc-debug-label">ID Μέλους:</span><span class="epc-debug-value">' + data.member_id + '</span>' +
-            '<span class="epc-debug-label">Όνομα:</span><span class="epc-debug-value">' + (data.member_name || '—') + '</span>' +
-            '<span class="epc-debug-label">Email:</span><span class="epc-debug-value">' + (data.member_email || '—') + '</span>' +
-            '<span class="epc-debug-label">Τρέχοντες Πόντοι:</span><span class="epc-debug-value">' + data.member_points + '</span>' +
-            '<span class="epc-debug-label">Referral Code:</span><span class="epc-debug-value"><code>' + (data.referral_code || '—') + '</code></span>' +
+            '<span class="epc-debug-label">' + epcI('debug.memberId') + '</span><span class="epc-debug-value">' + data.member_id + '</span>' +
+            '<span class="epc-debug-label">' + epcI('debug.name') + '</span><span class="epc-debug-value">' + (data.member_name || '—') + '</span>' +
+            '<span class="epc-debug-label">' + epcI('debug.email') + '</span><span class="epc-debug-value">' + (data.member_email || '—') + '</span>' +
+            '<span class="epc-debug-label">' + epcI('debug.currentPoints') + '</span><span class="epc-debug-value">' + data.member_points + '</span>' +
+            '<span class="epc-debug-label">' + epcI('debug.referralCode') + '</span><span class="epc-debug-value"><code>' + (data.referral_code || '—') + '</code></span>' +
             '</div></div>';
 
         html += '<div class="epc-debug-section">' +
-            '<h4>Στοιχεία Εγγραφής</h4>' +
+            '<h4>' + epcI('debug.sectionLog') + '</h4>' +
             '<div class="epc-debug-grid">' +
-            '<span class="epc-debug-label">Log ID:</span><span class="epc-debug-value">#' + data.id + '</span>' +
-            '<span class="epc-debug-label">Πόντοι:</span><span class="epc-debug-value"><strong>' + (data.points >= 0 ? '+' : '') + data.points + '</strong></span>' +
-            '<span class="epc-debug-label">Λόγος (key):</span><span class="epc-debug-value"><code>' + data.reason + '</code></span>' +
-            '<span class="epc-debug-label">Λόγος:</span><span class="epc-debug-value">' + data.reason_label + '</span>' +
-            '<span class="epc-debug-label">Reference:</span><span class="epc-debug-value"><code>' + data.reference_type + ' #' + data.reference_id + '</code></span>' +
-            '<span class="epc-debug-label">Ημερομηνία:</span><span class="epc-debug-value">' + data.created_at + '</span>' +
+            '<span class="epc-debug-label">' + epcI('debug.logId') + '</span><span class="epc-debug-value">#' + data.id + '</span>' +
+            '<span class="epc-debug-label">' + epcI('debug.points') + '</span><span class="epc-debug-value"><strong>' + (data.points >= 0 ? '+' : '') + data.points + '</strong></span>' +
+            '<span class="epc-debug-label">' + epcI('debug.reasonKey') + '</span><span class="epc-debug-value"><code>' + data.reason + '</code></span>' +
+            '<span class="epc-debug-label">' + epcI('debug.reason') + '</span><span class="epc-debug-value">' + data.reason_label + '</span>' +
+            '<span class="epc-debug-label">' + epcI('debug.reference') + '</span><span class="epc-debug-value"><code>' + data.reference_type + ' #' + data.reference_id + '</code></span>' +
+            '<span class="epc-debug-label">' + epcI('debug.date') + '</span><span class="epc-debug-value">' + data.created_at + '</span>' +
             '</div></div>';
 
         html += '<div class="epc-debug-explanation">' +
-            '<strong>Γιατί δόθηκαν αυτοί οι πόντοι;</strong>' +
+            '<strong>' + epcI('debug.whyGiven') + '</strong>' +
             explanation +
             '</div>';
 
@@ -327,14 +298,14 @@
             '<div class="epc-note-view">' +
             '<div class="epc-note-body">' + epcEscapeHtml(d.note) + '</div>' +
             '<div class="epc-note-actions">' +
-            '<button type="button" class="button-link epc-edit-note-btn">Επεξεργασία</button>' +
-            '<button type="button" class="button-link epc-delete-note-btn" data-note-id="' + d.id + '" data-nonce="' + nonce + '">Διαγραφή</button>' +
+            '<button type="button" class="button-link epc-edit-note-btn">' + epcI('editNote') + '</button>' +
+            '<button type="button" class="button-link epc-delete-note-btn" data-note-id="' + d.id + '" data-nonce="' + nonce + '">' + epcI('deleteNote') + '</button>' +
             '</div></div>' +
             '<div class="epc-note-edit" style="display:none;">' +
             '<textarea class="epc-note-edit-text" rows="3">' + epcEscapeHtml(d.note) + '</textarea>' +
             '<div class="epc-note-edit-actions">' +
-            '<button type="button" class="button button-primary epc-save-note-btn" data-note-id="' + d.id + '" data-user-id="' + d.user_id + '" data-nonce="' + nonce + '">Αποθήκευση</button>' +
-            '<button type="button" class="button epc-cancel-note-edit-btn">Ακύρωση</button>' +
+            '<button type="button" class="button button-primary epc-save-note-btn" data-note-id="' + d.id + '" data-user-id="' + d.user_id + '" data-nonce="' + nonce + '">' + epcI('saveNote') + '</button>' +
+            '<button type="button" class="button epc-cancel-note-edit-btn">' + epcI('cancelNote') + '</button>' +
             '</div></div></div>' +
             '<div class="epc-note-meta"><small>' + epcEscapeHtml(d.author_name || '') + '</small></div></div>';
     }
@@ -360,13 +331,13 @@
         }, function (response) {
             var $msg = $('.epc-cassette-saved-msg');
             if (response.success) {
-                $msg.text(epcAdmin.i18n.saved).css('color', '#10b981').show();
+                $msg.text(epcI('saved')).css('color', '#10b981').show();
                 setTimeout(function () { $msg.fadeOut(400); }, 2000);
                 if (response.data && response.data.audit_text) {
                     $('.epc-cassette-audit').text(response.data.audit_text).show();
                 }
             } else {
-                $msg.text(epcAdmin.i18n.error).css('color', '#ef4444').show();
+                $msg.text(epcI('error')).css('color', '#ef4444').show();
             }
         }).always(function () {
             $btn.prop('disabled', false);
@@ -439,10 +410,11 @@
             if (response.success) {
                 $item.find('.epc-note-body').text(noteText);
                 var $hint = $item.find('.epc-note-updated-hint');
+                var hintText = epcI('noteEditedPrefix') + ' ' + response.data.updated_str;
                 if ($hint.length) {
-                    $hint.text('επεξ. ' + response.data.updated_str);
+                    $hint.text(hintText);
                 } else {
-                    $item.find('.epc-note-date').append('<br /><span class="epc-note-updated-hint">επεξ. ' + response.data.updated_str + '</span>');
+                    $item.find('.epc-note-date').append('<br /><span class="epc-note-updated-hint">' + hintText + '</span>');
                 }
                 $item.find('.epc-note-edit').hide();
                 $item.find('.epc-note-view').show();
@@ -453,7 +425,7 @@
     });
 
     $(document).on('click', '.epc-delete-note-btn', function () {
-        if (!confirm('Διαγραφή σημείωσης;')) return;
+        if (!confirm(epcI('confirmDeleteNote'))) return;
         var $btn = $(this);
         var noteId = $btn.data('note-id');
         var nonce = $btn.data('nonce');
@@ -487,14 +459,14 @@
         }, function (response) {
             if (response.success) {
                 var $label = $toggle.closest('.epc-membership-toggle').find('.epc-membership-toggle-label');
-                $label.text(enable ? 'Ενεργό' : 'Ανενεργό');
+                $label.text(enable ? epcI('membershipActive') : epcI('membershipInactive'));
 
                 var $badge = $toggle.closest('td').find('.epc-profile-badge');
                 $badge.removeClass('epc-profile-badge-active epc-profile-badge-inactive');
                 if (enable) {
-                    $badge.addClass('epc-profile-badge-active').text('Ενεργό Μέλος');
+                    $badge.addClass('epc-profile-badge-active').text(epcI('membershipActiveBadge'));
                 } else {
-                    $badge.addClass('epc-profile-badge-inactive').text('Inactive');
+                    $badge.addClass('epc-profile-badge-inactive').text(epcI('membershipInactiveBadge'));
                 }
             } else {
                 $toggle.prop('checked', !enable);
@@ -511,7 +483,7 @@
         var userId = $btn.data('user-id');
         var nonce = $btn.data('nonce');
 
-        $btn.prop('disabled', true).text('Εγγραφή...');
+        $btn.prop('disabled', true).text(epcI('enrolling'));
 
         $.post(epcAdmin.ajaxUrl, {
             action: 'epc_toggle_membership',
@@ -522,11 +494,11 @@
             if (response.success && response.data.reload) {
                 location.reload();
             } else {
-                $btn.prop('disabled', false).text('Εγγραφή στο Club');
-                alert(response.data || 'Σφάλμα');
+                $btn.prop('disabled', false).text(epcI('enrollInClub'));
+                alert(response.data || epcI('genericError'));
             }
         }).fail(function () {
-            $btn.prop('disabled', false).text('Εγγραφή στο Club');
+            $btn.prop('disabled', false).text(epcI('enrollInClub'));
         });
     });
 
@@ -543,7 +515,7 @@
         var $msg = $btn.closest('td').find('.epc-points-adjust-msg');
 
         if (!amount || amount < 1) {
-            $msg.removeClass('success').addClass('error').html('<span class="dashicons dashicons-warning"></span> Συμπλήρωσε πόντους').stop(true).fadeIn(200);
+            $msg.removeClass('success').addClass('error').html('<span class="dashicons dashicons-warning"></span> ' + epcI('fillPoints')).stop(true).fadeIn(200);
             setTimeout(function () { $msg.fadeOut(400); }, 3000);
             return;
         }
@@ -565,7 +537,7 @@
 
                 var sign = d.points_delta >= 0 ? '+' : '';
                 $msg.removeClass('error').addClass('success')
-                    .html('<span class="dashicons dashicons-yes-alt"></span> ' + sign + d.points_delta + ' πόντοι — ' + d.admin_name + ' — ' + d.date)
+                    .html('<span class="dashicons dashicons-yes-alt"></span> ' + sign + d.points_delta + ' ' + epcI('pointsWord') + ' — ' + d.admin_name + ' — ' + d.date)
                     .stop(true).fadeIn(200);
                 setTimeout(function () { $msg.fadeOut(400); }, 4000);
 
@@ -573,7 +545,7 @@
                 $row.find('.epc-points-adjust-reason').val('');
             } else {
                 $msg.removeClass('success').addClass('error')
-                    .html('<span class="dashicons dashicons-warning"></span> ' + (response.data || 'Σφάλμα'))
+                    .html('<span class="dashicons dashicons-warning"></span> ' + (response.data || epcI('genericError')))
                     .stop(true).fadeIn(200);
                 setTimeout(function () { $msg.fadeOut(400); }, 3000);
             }
@@ -625,12 +597,12 @@
                             '<div class="epc-member-result" data-id="' + m.id + '" data-name="' + $('<span>').text(m.name).html() + '" data-email="' + $('<span>').text(m.email).html() + '" data-points="' + m.points + '" ' +
                             'style="padding:8px 12px;cursor:pointer;font-size:13px;border-bottom:1px solid #f3f4f6;">' +
                             '<strong>' + $('<span>').text(m.name).html() + '</strong> <small style="color:#9ca3af;">' + $('<span>').text(m.email).html() + '</small>' +
-                            ' <span style="color:#4f46e5;font-weight:600;float:right;">' + m.points + ' πόντοι</span>' +
+                            ' <span style="color:#4f46e5;font-weight:600;float:right;">' + m.points + ' ' + epcI('pointsWord') + '</span>' +
                             '</div>'
                         );
                     });
                 } else {
-                    $results.append('<div style="padding:8px 12px;font-size:13px;color:#9ca3af;">Δεν βρέθηκαν μέλη</div>');
+                    $results.append('<div style="padding:8px 12px;font-size:13px;color:#9ca3af;">' + epcI('noMembersFound') + '</div>');
                 }
                 $results.show();
             });
@@ -645,7 +617,7 @@
         $('#epc-log-member-id').val(id);
         $('#epc-log-member-search').val('');
         $('#epc-log-member-results').hide().empty();
-        $('#epc-log-member-selected').html('<strong>' + name + '</strong> — ' + email + ' — <span style="color:#4f46e5;">' + points + ' πόντοι</span> <button type="button" class="epc-log-member-clear" style="background:none;border:none;color:#ef4444;cursor:pointer;font-size:12px;margin-left:8px;">✕</button>').show();
+        $('#epc-log-member-selected').html('<strong>' + name + '</strong> — ' + email + ' — <span style="color:#4f46e5;">' + points + ' ' + epcI('pointsWord') + '</span> <button type="button" class="epc-log-member-clear" style="background:none;border:none;color:#ef4444;cursor:pointer;font-size:12px;margin-left:8px;">✕</button>').show();
     });
 
     $(document).on('mouseenter', '.epc-member-result', function () {
@@ -667,15 +639,15 @@
         var reason = $('#epc-log-adjust-reason').val().trim();
 
         if (!memberId) {
-            alert('Επίλεξε μέλος');
+            alert(epcI('pickMember'));
             return;
         }
         if (!amount || amount < 1) {
-            alert('Συμπλήρωσε πόντους');
+            alert(epcI('fillPoints'));
             return;
         }
 
-        $btn.prop('disabled', true).text('Αποθήκευση...');
+        $btn.prop('disabled', true).text(epcI('savingEllipsis'));
 
         $.post(epcAdmin.ajaxUrl, {
             action: 'epc_adjust_points',
@@ -688,11 +660,11 @@
             if (response.success) {
                 location.reload();
             } else {
-                alert(response.data || 'Σφάλμα');
-                $btn.prop('disabled', false).text('Εφαρμογή');
+                alert(response.data || epcI('genericError'));
+                $btn.prop('disabled', false).text(epcI('apply'));
             }
         }).fail(function () {
-            $btn.prop('disabled', false).text('Εφαρμογή');
+            $btn.prop('disabled', false).text(epcI('apply'));
         });
     });
 
@@ -748,7 +720,7 @@
     });
 
     $(document).on('click', '.epc-delete-rule-btn', function () {
-        if (!confirm('Διαγραφή κανόνα;')) return;
+        if (!confirm(epcI('confirmDeleteRule'))) return;
         var id = $(this).data('id');
         $.post(epcAdmin.ajaxUrl, {
             action: 'epc_delete_gift_rule',
@@ -801,7 +773,7 @@
                         );
                     });
                 } else {
-                    $results.append('<div style="padding:8px 12px;font-size:13px;color:#9ca3af;">Δεν βρέθηκαν προϊόντα</div>');
+                    $results.append('<div style="padding:8px 12px;font-size:13px;color:#9ca3af;">' + epcI('noProductsFound') + '</div>');
                 }
                 $results.show();
             });

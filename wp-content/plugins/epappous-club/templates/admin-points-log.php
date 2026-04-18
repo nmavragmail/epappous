@@ -87,18 +87,18 @@ $logs = $wpdb->get_results(
 $total_pages = (int) ceil( $total / $per_page );
 
 $reason_labels = [
-    'birthday_bonus'             => [ 'label' => 'Μπόνους Γενεθλίων',                      'icon' => 'dashicons-cake',          'color' => '#ec4899' ],
-    'referral_bonus_referrer'    => [ 'label' => 'Referral — Ανταμοιβή Referrer',           'icon' => 'dashicons-share',         'color' => '#10b981' ],
-    'referral_bonus_referred'    => [ 'label' => 'Referral — Ανταμοιβή Νέου Μέλους',       'icon' => 'dashicons-share-alt',     'color' => '#06b6d4' ],
-    'referral_purchase_referrer' => [ 'label' => 'Referral Αγοράς — Ανταμοιβή Referrer',   'icon' => 'dashicons-share',         'color' => '#10b981' ],
-    'referral_purchase_referred' => [ 'label' => 'Referral Αγοράς — Ανταμοιβή Αγοραστή',  'icon' => 'dashicons-share-alt',     'color' => '#06b6d4' ],
-    'gift_redemption'            => [ 'label' => 'Εξαργύρωση Δώρου',                       'icon' => 'dashicons-cart',           'color' => '#f59e0b' ],
-    'order_earning'              => [ 'label' => 'Πόντοι από Παραγγελία',                   'icon' => 'dashicons-store',         'color' => '#3b82f6' ],
-    'order_reversal'             => [ 'label' => 'Ακύρωση Πόντων Παραγγελίας',             'icon' => 'dashicons-undo',          'color' => '#ef4444' ],
-    'manual_adjustment'          => [ 'label' => 'Χειροκίνητη Προσαρμογή',                  'icon' => 'dashicons-admin-tools',   'color' => '#6b7280' ],
-    'points_expiry'              => [ 'label' => 'Λήξη Πόντων',                             'icon' => 'dashicons-clock',         'color' => '#ef4444' ],
-    'signup_bonus'               => [ 'label' => 'Μπόνους Εγγραφής',                        'icon' => 'dashicons-admin-users',   'color' => '#8b5cf6' ],
-    'checkout_redemption'        => [ 'label' => 'Εξαργύρωση στο Checkout',                'icon' => 'dashicons-money-alt',     'color' => '#dc2626' ],
+    'birthday_bonus'             => [ 'label' => __( 'Μπόνους Γενεθλίων', 'epappous-club' ),                     'icon' => 'dashicons-cake',        'color' => '#ec4899' ],
+    'referral_bonus_referrer'    => [ 'label' => __( 'Referral — Ανταμοιβή Referrer', 'epappous-club' ),         'icon' => 'dashicons-share',       'color' => '#10b981' ],
+    'referral_bonus_referred'    => [ 'label' => __( 'Referral — Ανταμοιβή Νέου Μέλους', 'epappous-club' ),      'icon' => 'dashicons-share-alt',   'color' => '#06b6d4' ],
+    'referral_purchase_referrer' => [ 'label' => __( 'Referral Αγοράς — Ανταμοιβή Referrer', 'epappous-club' ),  'icon' => 'dashicons-share',       'color' => '#10b981' ],
+    'referral_purchase_referred' => [ 'label' => __( 'Referral Αγοράς — Ανταμοιβή Αγοραστή', 'epappous-club' ),  'icon' => 'dashicons-share-alt',   'color' => '#06b6d4' ],
+    'gift_redemption'            => [ 'label' => __( 'Εξαργύρωση Δώρου', 'epappous-club' ),                      'icon' => 'dashicons-cart',        'color' => '#f59e0b' ],
+    'order_earning'              => [ 'label' => __( 'Πόντοι από Παραγγελία', 'epappous-club' ),                 'icon' => 'dashicons-store',       'color' => '#3b82f6' ],
+    'order_reversal'             => [ 'label' => __( 'Ακύρωση Πόντων Παραγγελίας', 'epappous-club' ),            'icon' => 'dashicons-undo',        'color' => '#ef4444' ],
+    'manual_adjustment'          => [ 'label' => __( 'Χειροκίνητη Προσαρμογή', 'epappous-club' ),                'icon' => 'dashicons-admin-tools', 'color' => '#6b7280' ],
+    'points_expiry'              => [ 'label' => __( 'Λήξη Πόντων', 'epappous-club' ),                           'icon' => 'dashicons-clock',       'color' => '#ef4444' ],
+    'signup_bonus'               => [ 'label' => __( 'Μπόνους Εγγραφής', 'epappous-club' ),                      'icon' => 'dashicons-admin-users', 'color' => '#8b5cf6' ],
+    'checkout_redemption'        => [ 'label' => __( 'Εξαργύρωση στο Checkout', 'epappous-club' ),               'icon' => 'dashicons-money-alt',   'color' => '#dc2626' ],
 ];
 
 // Build base URL for pagination (preserve search / member_id)

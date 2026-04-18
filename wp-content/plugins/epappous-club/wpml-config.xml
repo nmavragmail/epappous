@@ -1,0 +1,22 @@
+<wpml-config>
+    <!--
+        WPML configuration for ePappous Club.
+
+        Tells WPML which plugin options should be exposed in
+        WPML → String Translation so admins can provide a value per language.
+    -->
+    <admin-texts>
+        <!-- Branding / general -->
+        <key name="epc_club_name" />
+        <key name="epc_currency_label" />
+        <key name="epc_currency_symbol" />
+
+        <!-- Page IDs intentionally NOT registered (numeric). -->
+    </admin-texts>
+
+    <!--
+        All shortcode output is rendered through standard WordPress filters
+        (the_content, the_title, etc.) so WPML's standard translation flow
+        already handles in-page club content. No CPT/CT registration needed.
+    -->
+</wpml-config>

@@ -48,9 +48,15 @@ class EPC_Notifications {
         // Email to admin
         wp_mail(
             $this->admin_email(),
-            sprintf( '[%s] Νέο μέλος: %s', $this->club_name(), $name ),
             sprintf(
-                "Νέο μέλος εγγράφηκε στο %s.\n\nΌνομα: %s\nEmail: %s\nID: %d",
+                /* translators: 1: club name, 2: member full name */
+                __( '[%1$s] Νέο μέλος: %2$s', 'epappous-club' ),
+                $this->club_name(),
+                $name
+            ),
+            sprintf(
+                /* translators: 1: club name, 2: member name, 3: email, 4: member id */
+                __( "Νέο μέλος εγγράφηκε στο %1\$s.\n\nΌνομα: %2\$s\nEmail: %3\$s\nID: %4\$d", 'epappous-club' ),
                 $this->club_name(),
                 $name,
                 $data['email'] ?? '',
@@ -62,10 +68,14 @@ class EPC_Notifications {
         if ( ! empty( $data['email'] ) ) {
             wp_mail(
                 $data['email'],
-                sprintf( 'Καλώς ήρθες στο %s!', $this->club_name() ),
                 sprintf(
-                    /* Tiers disabled: was "…ανέβα βαθμίδα…" */
-                    "Γεια σου %s!\n\nΗ εγγραφή σου στο %s ολοκληρώθηκε.\nΚέρδισε πόντους και πάρε δώρα!\n\nΕυχαριστούμε!",
+                    /* translators: %s: club name */
+                    __( 'Καλώς ήρθες στο %s!', 'epappous-club' ),
+                    $this->club_name()
+                ),
+                sprintf(
+                    /* translators: 1: first name, 2: club name */
+                    __( "Γεια σου %1\$s!\n\nΗ εγγραφή σου στο %2\$s ολοκληρώθηκε.\nΚέρδισε πόντους και πάρε δώρα!\n\nΕυχαριστούμε!", 'epappous-club' ),
                     $data['first_name'] ?? '',
                     $this->club_name()
                 )
@@ -90,13 +100,20 @@ class EPC_Notifications {
             return;
         }
 
-        $type_label = $type === 'membership' ? 'εγγραφή μέλους' : 'αγορά';
+        $type_label = $type === 'membership'
+            ? __( 'εγγραφή μέλους', 'epappous-club' )
+            : __( 'αγορά', 'epappous-club' );
 
         wp_mail(
             $referrer->email,
-            sprintf( '[%s] Referral ολοκληρώθηκε!', $this->club_name() ),
             sprintf(
-                "Γεια σου %s!\n\nΤο referral σου (%s) ολοκληρώθηκε και κέρδισες πόντους!\nΔες τους πόντους σου στο προφίλ σου.\n\nΕυχαριστούμε!",
+                /* translators: %s: club name */
+                __( '[%s] Referral ολοκληρώθηκε!', 'epappous-club' ),
+                $this->club_name()
+            ),
+            sprintf(
+                /* translators: 1: referrer first name, 2: referral type label (εγγραφή μέλους / αγορά) */
+                __( "Γεια σου %1\$s!\n\nΤο referral σου (%2\$s) ολοκληρώθηκε και κέρδισες πόντους!\nΔες τους πόντους σου στο προφίλ σου.\n\nΕυχαριστούμε!", 'epappous-club' ),
                 $referrer->first_name,
                 $type_label
             )
@@ -120,9 +137,15 @@ class EPC_Notifications {
         // Admin notification
         wp_mail(
             $this->admin_email(),
-            sprintf( '[%s] Εξαργύρωση δώρου #%d', $this->club_name(), $redemption_id ),
             sprintf(
-                "Το μέλος %s (%s) εξαργύρωσε το δώρο \"%s\".\nRedemption ID: %d",
+                /* translators: 1: club name, 2: redemption id */
+                __( '[%1$s] Εξαργύρωση δώρου #%2$d', 'epappous-club' ),
+                $this->club_name(),
+                $redemption_id
+            ),
+            sprintf(
+                /* translators: 1: member name or id, 2: member email, 3: gift title or id, 4: redemption id */
+                __( "Το μέλος %1\$s (%2\$s) εξαργύρωσε το δώρο \"%3\$s\".\nRedemption ID: %4\$d", 'epappous-club' ),
                 $member ? $member->first_name : '#' . $member_id,
                 $member ? $member->email : '',
                 $gift ? $gift['title'] : '#' . $gift_id,
@@ -134,9 +157,14 @@ class EPC_Notifications {
         if ( $member && ! empty( $member->email ) ) {
             wp_mail(
                 $member->email,
-                sprintf( '[%s] Εξαργύρωση δώρου', $this->club_name() ),
                 sprintf(
-                    "Γεια σου %s!\n\nΕξαργύρωσες επιτυχώς το δώρο \"%s\".\nΘα επικοινωνήσουμε μαζί σου σύντομα.\n\nΕυχαριστούμε!",
+                    /* translators: %s: club name */
+                    __( '[%s] Εξαργύρωση δώρου', 'epappous-club' ),
+                    $this->club_name()
+                ),
+                sprintf(
+                    /* translators: 1: member first name, 2: gift title or id */
+                    __( "Γεια σου %1\$s!\n\nΕξαργύρωσες επιτυχώς το δώρο \"%2\$s\".\nΘα επικοινωνήσουμε μαζί σου σύντομα.\n\nΕυχαριστούμε!", 'epappous-club' ),
                     $member->first_name,
                     $gift ? $gift['title'] : '#' . $gift_id
                 )

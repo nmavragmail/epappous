@@ -186,14 +186,31 @@ class EPC_Registration {
         wp_enqueue_script(
             'epc-front-js',
             EPC_PLUGIN_URL . 'admin/js/front.js',
-            [ 'jquery' ],
+            [ 'jquery', 'wp-i18n' ],
             EPC_VERSION,
             true
         );
 
+        if ( function_exists( 'wp_set_script_translations' ) ) {
+            wp_set_script_translations(
+                'epc-front-js',
+                'epappous-club',
+                EPC_PLUGIN_DIR . 'languages'
+            );
+        }
+
         wp_localize_script( 'epc-front-js', 'epcFront', [
             'ajaxUrl' => admin_url( 'admin-ajax.php' ),
             'nonce'   => wp_create_nonce( 'epc_front_nonce' ),
+            'i18n'    => [
+                'submitting'      => __( 'Υποβολή...', 'epappous-club' ),
+                'register'        => __( 'Εγγραφή', 'epappous-club' ),
+                'networkError'    => __( 'Σφάλμα δικτύου. Δοκίμασε ξανά.', 'epappous-club' ),
+                'networkErrorShort' => __( 'Σφάλμα δικτύου.', 'epappous-club' ),
+                'redeemConfirm'   => __( 'Είσαι σίγουρος/η ότι θέλεις να εξαργυρώσεις αυτό το δώρο;', 'epappous-club' ),
+                'redeem'          => __( 'Εξαργύρωση', 'epappous-club' ),
+                'copied'          => __( 'Αντιγράφηκε!', 'epappous-club' ),
+            ],
         ] );
     }
 

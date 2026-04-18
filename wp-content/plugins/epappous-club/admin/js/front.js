@@ -1,6 +1,16 @@
 (function ($) {
     'use strict';
 
+    function epcFI(key, fallback) {
+        try {
+            return (epcFront.i18n && typeof epcFront.i18n[key] !== 'undefined')
+                ? epcFront.i18n[key]
+                : (typeof fallback === 'string' ? fallback : key);
+        } catch (e) {
+            return typeof fallback === 'string' ? fallback : key;
+        }
+    }
+
     function showMessage($container, type, text) {
         $container.html('<div class="epc-msg epc-msg-' + type + '">' + text + '</div>');
     }
@@ -13,7 +23,7 @@
         var $btn = $('#epc-register-submit');
         var $msg = $('#epc-register-messages');
 
-        $btn.prop('disabled', true).text('Υποβολή...');
+        $btn.prop('disabled', true).text(epcFI('submitting'));
         $msg.empty();
 
         $.post(epcFront.ajaxUrl, $form.serialize(), function (response) {
@@ -24,9 +34,9 @@
                 showMessage($msg, 'error', response.data);
             }
         }).fail(function () {
-            showMessage($msg, 'error', 'Σφάλμα δικτύου. Δοκίμασε ξανά.');
+            showMessage($msg, 'error', epcFI('networkError'));
         }).always(function () {
-            $btn.prop('disabled', false).text('Εγγραφή');
+            $btn.prop('disabled', false).text(epcFI('register'));
         });
     });
 
@@ -34,7 +44,7 @@
 
     $(document).on('click', '.epc-redeem-btn', function () {
         var $btn = $(this);
-        if (!confirm('Είσαι σίγουρος/η ότι θέλεις να εξαργυρώσεις αυτό το δώρο;')) {
+        if (!confirm(epcFI('redeemConfirm'))) {
             return;
         }
         $btn.prop('disabled', true).text('...');
@@ -51,11 +61,11 @@
                 setTimeout(function () { location.reload(); }, 1500);
             } else {
                 showMessage($msg, 'error', response.data);
-                $btn.prop('disabled', false).text('Εξαργύρωση');
+                $btn.prop('disabled', false).text(epcFI('redeem'));
             }
         }).fail(function () {
-            showMessage($('#epc-gift-catalog-messages'), 'error', 'Σφάλμα δικτύου.');
-            $btn.prop('disabled', false).text('Εξαργύρωση');
+            showMessage($('#epc-gift-catalog-messages'), 'error', epcFI('networkErrorShort'));
+            $btn.prop('disabled', false).text(epcFI('redeem'));
         });
     });
 
@@ -69,7 +79,7 @@
         function ok() {
             var $btn = $('.epc-copy-ref-link');
             var prev = $btn.text();
-            $btn.text('Αντιγράφηκε!');
+            $btn.text(epcFI('copied'));
             setTimeout(function () { $btn.text(prev); }, 2000);
         }
         if (navigator.clipboard && navigator.clipboard.writeText) {
@@ -98,7 +108,7 @@
                 showMessage($msg, 'error', response.data);
             }
         }).fail(function () {
-            showMessage($msg, 'error', 'Σφάλμα δικτύου.');
+            showMessage($msg, 'error', epcFI('networkErrorShort'));
         });
     });
 
