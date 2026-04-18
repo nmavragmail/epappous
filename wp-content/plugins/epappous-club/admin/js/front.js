@@ -59,6 +59,31 @@
         });
     });
 
+    /* ─── Referral link copy (member dashboard) ─── */
+
+    $(document).on('click', '.epc-copy-ref-link', function () {
+        var text = $(this).data('copy') || ($('#epc-ref-share-url').length ? $('#epc-ref-share-url').val() : '');
+        if (!text) {
+            return;
+        }
+        function ok() {
+            var $btn = $('.epc-copy-ref-link');
+            var prev = $btn.text();
+            $btn.text('Αντιγράφηκε!');
+            setTimeout(function () { $btn.text(prev); }, 2000);
+        }
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(text).then(ok);
+        } else {
+            var $inp = $('#epc-ref-share-url');
+            $inp.trigger('focus').trigger('select');
+            try {
+                document.execCommand('copy');
+                ok();
+            } catch (e) {}
+        }
+    });
+
     /* ─── Profile Form ─── */
 
     $('#epc-profile-form').on('submit', function (e) {

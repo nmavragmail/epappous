@@ -2,9 +2,14 @@
    ePappous Club – Front-end Styles
    ═══════════════════════════════════════════════════════ */
 
-.epc-register-wrap,
-.epc-profile-wrap {
+.epc-register-wrap {
     max-width: 520px;
+    margin: 0 auto;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+}
+
+.epc-profile-wrap {
+    max-width: 640px;
     margin: 0 auto;
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
 }
@@ -162,6 +167,144 @@
     font-size: 12px;
     color: #6b7280;
     margin-top: 4px;
+}
+
+.epc-profile-stat-sub {
+    display: block;
+    font-size: 11px;
+    color: #9ca3af;
+    margin-top: 8px;
+    line-height: 1.35;
+}
+
+.epc-profile-lead {
+    color: #6b7280;
+    font-size: 14px;
+    margin: 0 0 16px;
+    line-height: 1.45;
+}
+
+.epc-profile-guidance {
+    background: #f3f4f6;
+    border: 1px solid #e5e7eb;
+    border-radius: 10px;
+    padding: 16px 18px;
+    margin-bottom: 20px;
+    text-align: left;
+}
+
+.epc-profile-guidance-title {
+    margin: 0 0 10px;
+    font-size: 15px;
+    font-weight: 700;
+    color: #1f2937;
+}
+
+.epc-profile-guidance-list {
+    margin: 0;
+    padding-left: 1.25rem;
+    font-size: 13px;
+    color: #4b5563;
+    line-height: 1.55;
+}
+
+.epc-profile-guidance-list li {
+    margin-bottom: 8px;
+}
+
+.epc-profile-guidance-list li:last-child {
+    margin-bottom: 0;
+}
+
+.epc-profile-referral-box {
+    margin-bottom: 24px;
+    padding: 18px;
+    background: #eef2ff;
+    border: 1px solid #c7d2fe;
+    border-radius: 10px;
+    text-align: left;
+}
+
+.epc-profile-referral-title {
+    margin: 0 0 8px;
+    font-size: 16px;
+    font-weight: 700;
+    color: #312e81;
+}
+
+.epc-profile-referral-hint {
+    margin: 0 0 12px;
+    font-size: 13px;
+    color: #4b5563;
+    line-height: 1.45;
+}
+
+.epc-profile-share-row {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    align-items: stretch;
+    margin-bottom: 14px;
+}
+
+.epc-profile-share-input {
+    flex: 1;
+    min-width: 0;
+    padding: 10px 12px;
+    border: 1px solid #a5b4fc;
+    border-radius: 8px;
+    font-size: 12px;
+    background: #fff;
+    color: #1f2937;
+}
+
+.epc-btn-secondary {
+    padding: 10px 16px;
+    background: #4f46e5;
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    white-space: nowrap;
+}
+
+.epc-btn-secondary:hover {
+    background: #4338ca;
+}
+
+.epc-profile-reward-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 12px;
+}
+
+.epc-profile-reward-item {
+    background: #fff;
+    border-radius: 8px;
+    padding: 12px;
+    border: 1px solid #e0e7ff;
+    font-size: 13px;
+    color: #374151;
+    line-height: 1.4;
+}
+
+.epc-profile-reward-item--wide {
+    grid-column: 1 / -1;
+}
+
+.epc-profile-reward-item strong {
+    display: block;
+    margin-bottom: 4px;
+    color: #1f2937;
+}
+
+.epc-profile-reward-note {
+    display: block;
+    margin-top: 6px;
+    font-size: 11px;
+    color: #6b7280;
 }
 
 /* ── Gift Catalog ── */
