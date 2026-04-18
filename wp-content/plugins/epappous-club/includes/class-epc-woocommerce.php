@@ -51,6 +51,7 @@ class EPC_WooCommerce {
         add_action( 'woocommerce_admin_order_data_after_billing_address', [ $this, 'render_club_loyalty_order_summary' ], 12, 1 );
         add_action( 'woocommerce_admin_order_data_after_billing_address', [ $this, 'render_cassette_gift_order_panel' ], 15, 1 );
         add_action( 'woocommerce_admin_order_data_after_billing_address', [ $this, 'render_checkout_club_order_meta' ], 16, 1 );
+        add_action( 'add_meta_boxes', [ $this, 'register_order_side_metaboxes' ], 35 );
 
         add_action( 'wp_enqueue_scripts', [ $this, 'enqueue_checkout_js' ] );
 
@@ -130,6 +131,158 @@ class EPC_WooCommerce {
             <?php endif; ?>
         </div>
         <?php
+    }
+
+    /**
+     * Register order side metaboxes (shown in admin sidebar).
+     */
+    public function register_order_side_metaboxes(): void {
+        if ( ! function_exists( 'add_meta_box' ) ) {
+            return;
+        }
+
+        $screens = [ 'shop_order' ];
+        if ( function_exists( 'wc_get_page_screen_id' ) ) {
+            $hpos_screen = wc_get_page_screen_id( 'shop-order' );
+            if ( is_string( $hpos_screen ) && '' !== $hpos_screen ) {
+                $screens[] = $hpos_screen;
+            }
+        }
+
+        foreach ( array_unique( $screens ) as $screen ) {
+            add_meta_box(
+                'epc-order-gift-box',
+                __( 'Pappou Club — Δώρο', 'epappous-club' ),
+                [ $this, 'render_order_gift_status_metabox' ],
+                $screen,
+                'side',
+                'low'
+            );
+            add_meta_box(
+                'epc-order-points-box',
+                __( 'Pappou Club — Πόντοι Παραγγελίας', 'epappous-club' ),
+                [ $this, 'render_order_points_summary_metabox' ],
+                $screen,
+                'side',
+                'low'
+            );
+        }
+    }
+
+    /**
+     * Sidebar metabox: gift received state and date for this order's user.
+     *
+     * @param mixed $post_or_order WP_Post|WC_Order depending storage mode.
+     */
+    public function render_order_gift_status_metabox( $post_or_order ): void {
+        $order = $this->resolve_order_from_admin_context( $post_or_order );
+        if ( ! $order ) {
+            echo '<p>' . esc_html__( 'Δεν βρέθηκε παραγγελία.', 'epappous-club' ) . '</p>';
+            return;
+        }
+
+        $user_id = (int) $order->get_user_id();
+        if ( $user_id < 1 ) {
+            $email = sanitize_email( (string) $order->get_billing_email() );
+            if ( is_email( $email ) ) {
+                $u = get_user_by( 'email', $email );
+                if ( $u ) {
+                    $user_id = (int) $u->ID;
+                }
+            }
+        }
+
+        if ( $user_id < 1 ) {
+            echo '<p>' . esc_html__( 'Δεν υπάρχει συνδεδεμένος χρήστης.', 'epappous-club' ) . '</p>';
+            return;
+        }
+
+        $received = get_user_meta( $user_id, 'epc_cassette_gift_received', true ) === 'yes';
+        $raw_date = (string) get_user_meta( $user_id, 'epc_cassette_gift_date', true );
+        $date_txt = '—';
+        if ( '' !== $raw_date ) {
+            $ts = strtotime( $raw_date . ' 12:00:00' );
+            $date_txt = $ts ? date_i18n( get_option( 'date_format' ), $ts ) : $raw_date;
+        }
+
+        echo '<p><strong>' . esc_html__( 'Έχει πάρει δώρο:', 'epappous-club' ) . '</strong> ' .
+            esc_html( $received ? __( 'Ναι', 'epappous-club' ) : __( 'Όχι', 'epappous-club' ) ) . '</p>';
+        echo '<p><strong>' . esc_html__( 'Ημερομηνία δώρου:', 'epappous-club' ) . '</strong> ' . esc_html( $date_txt ) . '</p>';
+    }
+
+    /**
+     * Sidebar metabox: points earned/redeemed and gift products in this order.
+     *
+     * @param mixed $post_or_order WP_Post|WC_Order depending storage mode.
+     */
+    public function render_order_points_summary_metabox( $post_or_order ): void {
+        $order = $this->resolve_order_from_admin_context( $post_or_order );
+        if ( ! $order ) {
+            echo '<p>' . esc_html__( 'Δεν βρέθηκε παραγγελία.', 'epappous-club' ) . '</p>';
+            return;
+        }
+
+        $earned  = (int) $order->get_meta( '_epc_points_earned', true );
+        $redeem  = (int) $order->get_meta( '_epc_points_redeemed', true );
+        $gift_in = (string) $order->get_meta( '_epc_order_includes_club_gift_product', true );
+
+        $gift_catalog = EPC_Gift_Rules::resolve_products( 'basic' );
+        $gift_names   = [];
+        if ( ! empty( $gift_catalog ) ) {
+            foreach ( $order->get_items() as $item ) {
+                $product = $item->get_product();
+                if ( ! $product ) {
+                    continue;
+                }
+                $ids = [ (int) $product->get_id() ];
+                if ( $product->is_type( 'variation' ) ) {
+                    $ids[] = (int) $product->get_parent_id();
+                }
+                foreach ( array_unique( array_filter( $ids ) ) as $pid ) {
+                    if ( isset( $gift_catalog[ $pid ] ) ) {
+                        $gift_names[] = $product->get_name();
+                        break;
+                    }
+                }
+            }
+        }
+        $gift_names = array_values( array_unique( array_filter( $gift_names ) ) );
+
+        echo '<p><strong>' . esc_html__( 'Πόντοι που κέρδισε:', 'epappous-club' ) . '</strong> ' . esc_html( (string) $earned ) . '</p>';
+        echo '<p><strong>' . esc_html__( 'Πόντοι που εξαργύρωσε:', 'epappous-club' ) . '</strong> ' . esc_html( (string) $redeem ) . '</p>';
+
+        if ( ! empty( $gift_names ) ) {
+            echo '<p><strong>' . esc_html__( 'Προϊόν δώρου στην παραγγελία:', 'epappous-club' ) . '</strong><br>' .
+                esc_html( implode( ', ', $gift_names ) ) . '</p>';
+        } else {
+            $gift_txt = '—';
+            if ( 'yes' === $gift_in ) {
+                $gift_txt = __( 'Ναι (χωρίς διαθέσιμο όνομα προϊόντος).', 'epappous-club' );
+            } elseif ( 'no' === $gift_in ) {
+                $gift_txt = __( 'Όχι', 'epappous-club' );
+            } elseif ( 'n/a' === $gift_in ) {
+                $gift_txt = __( 'Δεν εφαρμόζεται', 'epappous-club' );
+            }
+            echo '<p><strong>' . esc_html__( 'Προϊόν δώρου στην παραγγελία:', 'epappous-club' ) . '</strong> ' . esc_html( $gift_txt ) . '</p>';
+        }
+    }
+
+    /**
+     * Normalize metabox callback context to WC_Order instance.
+     *
+     * @param mixed $post_or_order WP_Post|WC_Order.
+     */
+    private function resolve_order_from_admin_context( $post_or_order ): ?\WC_Order {
+        if ( $post_or_order instanceof \WC_Order ) {
+            return $post_or_order;
+        }
+        if ( $post_or_order instanceof \WP_Post ) {
+            return wc_get_order( (int) $post_or_order->ID );
+        }
+        if ( is_numeric( $post_or_order ) ) {
+            return wc_get_order( (int) $post_or_order );
+        }
+        return null;
     }
 
     /**
