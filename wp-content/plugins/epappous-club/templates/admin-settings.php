@@ -173,6 +173,14 @@ if ( ! is_array( $tiers ) ) {
                             </div>
 
                             <div class="epc-field-row">
+                                <label for="epc_signup_bonus_points"><?php esc_html_e( 'Πόντοι μπόνους εγγραφής', 'epappous-club' ); ?></label>
+                                <input type="number" id="epc_signup_bonus_points" name="epc_signup_bonus_points"
+                                       value="<?php echo esc_attr( EPC_Settings::get( 'epc_signup_bonus_points' ) ); ?>"
+                                       class="small-text" min="0" step="1" />
+                                <p class="description"><?php esc_html_e( 'Πόντοι που αποδίδονται μία φορά όταν δημιουργείται νέο μέλος (φόρμα εγγραφής, checkout, διαχείριση). Βάλτε 0 για κανένα μπόνους.', 'epappous-club' ); ?></p>
+                            </div>
+
+                            <div class="epc-field-row">
                                 <label for="epc_birthday_bonus"><?php esc_html_e( 'Μπόνους Γενεθλίων', 'epappous-club' ); ?></label>
                                 <input type="number" id="epc_birthday_bonus" name="epc_birthday_bonus"
                                        value="<?php echo esc_attr( EPC_Settings::get( 'epc_birthday_bonus' ) ); ?>"
