@@ -203,10 +203,15 @@
                 'Η εξαργύρωση γίνεται μέσω της σελίδας δώρων και ελέγχονται απόθεμα και υπόλοιπο πόντων.';
         },
         order_earning: function (d) {
-            return 'Το μέλος <strong>' + d.member_name + '</strong> ολοκλήρωσε παραγγελία #' + d.reference_id + ' ' +
+            return 'Το μέλος <strong>' + d.member_name + '</strong> πέρασε παραγγελία #' + d.reference_id + ' σε processing/completed ' +
                 'και κέρδισε <strong>' + d.points + ' πόντους</strong> βάσει του ποσού αγοράς. ' +
                 'Υπολογισμός: ποσό × πόντοι ανά €. ' +
                 'Ρυθμίζεται στο Ρυθμίσεις → Πόντοι (Πόντοι ανά €).';
+        },
+        order_reversal: function (d) {
+            return 'Η παραγγελία #' + d.reference_id + ' ακυρώθηκε ή έγινε refunded, οπότε αφαιρέθηκαν ' +
+                '<strong>' + Math.abs(d.points) + ' πόντοι</strong> από το μέλος ' +
+                '<strong>' + d.member_name + '</strong>.';
         },
         manual_adjustment: function (d) {
             return 'Χειροκίνητη προσαρμογή πόντων από διαχειριστή. ' +

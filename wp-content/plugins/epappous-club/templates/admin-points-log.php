@@ -94,6 +94,7 @@ $reason_labels = [
     'referral_purchase_referred' => [ 'label' => 'Referral Αγοράς — Ανταμοιβή Αγοραστή',  'icon' => 'dashicons-share-alt',     'color' => '#06b6d4' ],
     'gift_redemption'            => [ 'label' => 'Εξαργύρωση Δώρου',                       'icon' => 'dashicons-cart',           'color' => '#f59e0b' ],
     'order_earning'              => [ 'label' => 'Πόντοι από Παραγγελία',                   'icon' => 'dashicons-store',         'color' => '#3b82f6' ],
+    'order_reversal'             => [ 'label' => 'Ακύρωση Πόντων Παραγγελίας',             'icon' => 'dashicons-undo',          'color' => '#ef4444' ],
     'manual_adjustment'          => [ 'label' => 'Χειροκίνητη Προσαρμογή',                  'icon' => 'dashicons-admin-tools',   'color' => '#6b7280' ],
     'points_expiry'              => [ 'label' => 'Λήξη Πόντων',                             'icon' => 'dashicons-clock',         'color' => '#ef4444' ],
     'signup_bonus'               => [ 'label' => 'Μπόνους Εγγραφής',                        'icon' => 'dashicons-admin-users',   'color' => '#8b5cf6' ],

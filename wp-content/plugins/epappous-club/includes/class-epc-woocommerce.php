@@ -30,8 +30,11 @@ class EPC_WooCommerce {
             return;
         }
 
-        // Earn points
+        // Earn/revoke points on order status transitions.
+        add_action( 'woocommerce_order_status_processing', [ $this, 'earn_points_on_order' ], 20 );
         add_action( 'woocommerce_order_status_completed', [ $this, 'earn_points_on_order' ], 20 );
+        add_action( 'woocommerce_order_status_cancelled', [ $this, 'revoke_points_on_order' ], 20 );
+        add_action( 'woocommerce_order_status_refunded', [ $this, 'revoke_points_on_order' ], 20 );
 
         // Redeem points at checkout
         add_action( 'woocommerce_cart_totals_before_order_total', [ $this, 'render_redeem_ui' ] );
@@ -60,6 +63,9 @@ class EPC_WooCommerce {
         add_action( 'woocommerce_store_api_checkout_order_processed', [ $this, 'maybe_register_club_member_from_order_blocks' ], 40, 1 );
 
         add_action( 'woocommerce_blocks_validate_location_other_fields', [ $this, 'validate_block_checkout_club_fields' ], 10, 3 );
+
+        // WooCommerce emails: show earned points in new order emails.
+        add_action( 'woocommerce_email_after_order_table', [ $this, 'email_add_points_earned_line' ], 15, 4 );
     }
 
     /**
@@ -127,7 +133,118 @@ class EPC_WooCommerce {
     }
 
     /**
-     * Award points when an order is completed; persist order meta for admin / exports.
+     * WooCommerce emails: show points earned for this order.
+     *
+     * @param \WC_Order $order         Order.
+     * @param bool      $sent_to_admin Whether email is sent to admin.
+     * @param bool      $plain_text    Plain text email.
+     * @param \WC_Email $email         Email instance.
+     */
+    public function email_add_points_earned_line( $order, $sent_to_admin, $plain_text, $email ): void {
+        if ( ! $order instanceof \WC_Order ) {
+            return;
+        }
+        if ( EPC_Settings::get( 'epc_club_enabled' ) !== '1' ) {
+            return;
+        }
+        if ( ! $email instanceof \WC_Email ) {
+            return;
+        }
+
+        $allowed_ids = [ 'new_order', 'customer_processing_order' ];
+        if ( ! in_array( (string) $email->id, $allowed_ids, true ) ) {
+            return;
+        }
+
+        // If points haven't been awarded yet, show 0/skip instead of forcing DB writes from email hook.
+        $points = $this->get_points_earned_for_order_display( $order );
+        if ( null === $points ) {
+            return;
+        }
+
+        $label = __( 'Πόντοι από αυτή την παραγγελία', 'epappous-club' );
+        $value = (string) (int) $points;
+
+        if ( $plain_text ) {
+            echo "\n" . $label . ': ' . $value . "\n";
+            return;
+        }
+
+        echo '<p><strong>' . esc_html( $label ) . ':</strong> ' . esc_html( $value ) . '</p>';
+    }
+
+    /**
+     * Returns points earned for display in emails.
+     * - If order meta exists, use it.
+     * - If not settled yet (rare), compute safely without persisting.
+     *
+     * @return int|null null means "do not show".
+     */
+    private function get_points_earned_for_order_display( \WC_Order $order ): ?int {
+        $meta = $order->get_meta( '_epc_points_earned', true );
+        if ( '' !== (string) $meta ) {
+            return (int) $meta;
+        }
+
+        // Only show for statuses where points can apply.
+        $status = (string) $order->get_status();
+        if ( ! in_array( $status, [ 'processing', 'completed' ], true ) ) {
+            return null;
+        }
+
+        if ( ! EPC_B2BKing::order_customer_in_pappou_club( $order ) ) {
+            return 0;
+        }
+
+        global $wpdb;
+        $email = $order->get_billing_email();
+        if ( ! is_email( $email ) ) {
+            return 0;
+        }
+
+        $member = $wpdb->get_row(
+            $wpdb->prepare(
+                "SELECT tier FROM {$wpdb->prefix}epc_members WHERE email = %s AND status = 'active' LIMIT 1",
+                $email
+            ),
+            ARRAY_A
+        );
+        if ( ! $member ) {
+            return 0;
+        }
+
+        $points_per_euro   = (float) EPC_Settings::get( 'epc_points_per_euro' );
+        $exclude_sale      = EPC_Settings::get( 'epc_woo_exclude_sale_items' ) === '1';
+        $exclude_cats_json = EPC_Settings::get( 'epc_woo_exclude_categories' );
+        $exclude_cats      = json_decode( $exclude_cats_json, true ) ?: [];
+
+        $eligible_total = 0.0;
+        foreach ( $order->get_items() as $item ) {
+            $product = $item->get_product();
+            if ( ! $product ) {
+                continue;
+            }
+            if ( $exclude_sale && $product->is_on_sale() ) {
+                continue;
+            }
+            if ( ! empty( $exclude_cats ) ) {
+                $lookup_id    = $product->is_type( 'variation' ) ? $product->get_parent_id() : $product->get_id();
+                $product_cats = wp_get_post_terms( $lookup_id, 'product_cat', [ 'fields' => 'ids' ] );
+                if ( array_intersect( $product_cats, $exclude_cats ) ) {
+                    continue;
+                }
+            }
+            $eligible_total += (float) $item->get_total();
+        }
+
+        $raw_points = $eligible_total * $points_per_euro;
+        $points     = (int) floor( $raw_points * 1.0 );
+
+        return max( 0, $points );
+    }
+
+    /**
+     * Award points when an order is processing/completed; persist order meta for admin / exports.
      */
     public function earn_points_on_order( $order_id ) {
         if ( EPC_Settings::get( 'epc_woo_earn_on_complete' ) !== '1' ) {
@@ -260,6 +377,97 @@ class EPC_WooCommerce {
     }
 
     /**
+     * Revoke previously awarded order points when order is cancelled/refunded.
+     */
+    public function revoke_points_on_order( $order_id ) {
+        if ( EPC_Settings::get( 'epc_club_enabled' ) !== '1' ) {
+            return;
+        }
+
+        $order = wc_get_order( $order_id );
+        if ( ! $order ) {
+            return;
+        }
+
+        if ( $order->get_meta( '_epc_points_revoked', true ) === '1' ) {
+            return;
+        }
+
+        $awarded_points = (int) $order->get_meta( '_epc_points_earned', true );
+        if ( $awarded_points < 1 ) {
+            $order->update_meta_data( '_epc_points_revoked', '1' );
+            $order->save();
+            return;
+        }
+
+        global $wpdb;
+        $email = sanitize_email( (string) $order->get_billing_email() );
+        if ( ! is_email( $email ) ) {
+            return;
+        }
+
+        $member = $wpdb->get_row(
+            $wpdb->prepare(
+                "SELECT id, points FROM {$wpdb->prefix}epc_members WHERE email = %s LIMIT 1",
+                $email
+            ),
+            ARRAY_A
+        );
+        if ( ! $member ) {
+            return;
+        }
+
+        $member_id       = (int) $member['id'];
+        $current_points  = (int) $member['points'];
+        $points_to_revoke = min( $awarded_points, max( 0, $current_points ) );
+
+        $wpdb->query( 'START TRANSACTION' );
+
+        if ( $points_to_revoke > 0 ) {
+            $updated = $wpdb->query(
+                $wpdb->prepare(
+                    "UPDATE {$wpdb->prefix}epc_members SET points = points - %d WHERE id = %d AND points >= %d",
+                    $points_to_revoke,
+                    $member_id,
+                    $points_to_revoke
+                )
+            );
+            if ( 1 !== $updated ) {
+                $wpdb->query( 'ROLLBACK' );
+                return;
+            }
+
+            $inserted = $wpdb->insert(
+                "{$wpdb->prefix}epc_points_log",
+                [
+                    'member_id'      => $member_id,
+                    'points'         => -$points_to_revoke,
+                    'reason'         => 'order_reversal',
+                    'reference_type' => 'order',
+                    'reference_id'   => (int) $order_id,
+                ],
+                [ '%d', '%d', '%s', '%s', '%d' ]
+            );
+            if ( false === $inserted ) {
+                $wpdb->query( 'ROLLBACK' );
+                return;
+            }
+        }
+
+        try {
+            $order->update_meta_data( '_epc_points_revoked', '1' );
+            $order->update_meta_data( '_epc_points_revoked_amount', $points_to_revoke );
+            $order->save();
+        } catch ( Throwable $e ) {
+            $wpdb->query( 'ROLLBACK' );
+            return;
+        }
+
+        $wpdb->query( 'COMMIT' );
+        do_action( 'epc_points_changed', $member_id );
+    }
+
+    /**
      * True if any line item is a product that appears in the active gift catalog (rules).
      *
      * @param \WC_Order              $order         Order.
@@ -302,6 +510,7 @@ class EPC_WooCommerce {
         $redeem        = $order->get_meta( '_epc_points_redeemed', true );
         $disc          = $order->get_meta( '_epc_discount_amount', true );
         $gift          = (string) $order->get_meta( '_epc_order_includes_club_gift_product', true );
+        $revoked_meta  = $order->get_meta( '_epc_points_revoked_amount', true );
 
         if ( ! $settled && '' === (string) $earned_meta && '' === (string) $redeem && '' === $gift ) {
             return;
@@ -326,7 +535,7 @@ class EPC_WooCommerce {
         <div class="address" style="clear:both;margin-top:12px;padding:12px;background:#f0f6fc;border:1px solid #c3d9ed;border-radius:4px;">
             <p style="margin:0 0 8px;"><strong><?php esc_html_e( 'Pappou Club — πόντοι & δώρο (μετα-δεδομένα παραγγελίας)', 'epappous-club' ); ?></strong></p>
             <p style="margin:4px 0;font-size:13px;">
-                <?php esc_html_e( 'Πόντοι από αυτή την παραγγελία (ολοκλήρωση):', 'epappous-club' ); ?>
+                <?php esc_html_e( 'Πόντοι από αυτή την παραγγελία (processing/completed):', 'epappous-club' ); ?>
                 <strong><?php echo esc_html( $earned_display ); ?></strong>
             </p>
             <p style="margin:4px 0;font-size:13px;">
@@ -341,6 +550,10 @@ class EPC_WooCommerce {
                     );
                     ?>
                 <?php endif; ?>
+            </p>
+            <p style="margin:4px 0;font-size:13px;">
+                <?php esc_html_e( 'Πόντοι που αφαιρέθηκαν λόγω cancelled/refunded:', 'epappous-club' ); ?>
+                <strong><?php echo '' !== (string) $revoked_meta ? esc_html( (string) (int) $revoked_meta ) : '—'; ?></strong>
             </p>
             <p style="margin:4px 0;font-size:13px;">
                 <?php esc_html_e( 'Γραμμή παραγγελίας με προϊόν από κατάλογο δώρων Club:', 'epappous-club' ); ?>

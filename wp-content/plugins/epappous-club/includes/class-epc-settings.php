@@ -39,6 +39,7 @@ class EPC_Settings {
             'epc_max_redeem_percent'   => '50',
             'epc_points_expiry_days'   => '365',
             'epc_birthday_bonus'       => '50',
+            'epc_signup_bonus_points'  => '0',
 
             // ── Tiers ──
             'epc_tiers'                => wp_json_encode( [
@@ -165,6 +166,15 @@ class EPC_Settings {
                 'default'           => 1446,
             ]
         );
+
+        register_setting(
+            'epc_settings_group',
+            'epc_signup_bonus_points',
+            [
+                'sanitize_callback' => [ self::class, 'sanitize_non_negative_int' ],
+                'default'           => '0',
+            ]
+        );
     }
 
     public function sanitize_setting( $value ) {
@@ -172,5 +182,12 @@ class EPC_Settings {
             return sanitize_text_field( $value );
         }
         return $value;
+    }
+
+    /**
+     * Sanitize non-negative integer options (used by settings form callbacks).
+     */
+    public static function sanitize_non_negative_int( $value ): string {
+        return (string) max( 0, absint( $value ) );
     }
 }
