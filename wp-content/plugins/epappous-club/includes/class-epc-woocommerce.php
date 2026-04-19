@@ -484,14 +484,65 @@ class EPC_WooCommerce {
                 echo '<td style="padding:3px 4px;color:' . esc_attr( $color ) . ';">' . esc_html( $label ) . '</td>';
                 echo '</tr>';
             }
-            echo '</tbody><tfoot><tr style="border-top:1px solid #ccc;font-weight:600;">';
-            echo '<td style="padding:4px;">' . esc_html__( 'Επιλέξιμο σύνολο', 'epappous-club' ) . '</td>';
-            echo '<td style="padding:4px;text-align:right;white-space:nowrap;" colspan="2">' . wp_kses_post( wc_price( $diag['eligible_total'] ) ) . '</td>';
-            echo '</tr><tr><td style="padding:4px;">' . esc_html__( 'Πόντοι/€', 'epappous-club' ) . '</td>';
+            echo '</tbody><tfoot>';
+
+            // Brutto products subtotal
+            echo '<tr style="border-top:1px solid #ccc;font-weight:600;">';
+            echo '<td style="padding:4px;">' . esc_html__( 'Σύνολο επιλέξιμων προϊόντων', 'epappous-club' ) . '</td>';
+            echo '<td style="padding:4px;text-align:right;white-space:nowrap;" colspan="2">' . wp_kses_post( wc_price( $diag['items_gross'] ) ) . '</td>';
+            echo '</tr>';
+
+            // Shipping line — show whether it counts toward earning
+            if ( $diag['shipping_total'] > 0 ) {
+                $ship_color = $diag['shipping_counts'] ? '#1a7f37' : '#9a1a1a';
+                $ship_label = $diag['shipping_counts']
+                    ? __( '+ Μεταφορικά (μετράνε)', 'epappous-club' )
+                    : __( '+ Μεταφορικά (δεν μετράνε)', 'epappous-club' );
+                echo '<tr><td style="padding:4px;color:' . esc_attr( $ship_color ) . ';">' . esc_html( $ship_label ) . '</td>';
+                echo '<td style="padding:4px;text-align:right;white-space:nowrap;color:' . esc_attr( $ship_color ) . ';" colspan="2">' . wp_kses_post( wc_price( $diag['shipping_total'] ) ) . '</td>';
+                echo '</tr>';
+            }
+
+            // Points-redemption discount
+            if ( $diag['points_discount'] > 0 ) {
+                echo '<tr><td style="padding:4px;color:#9a1a1a;">' . esc_html__( '− Έκπτωση από εξαργύρωση πόντων', 'epappous-club' ) . '</td>';
+                echo '<td style="padding:4px;text-align:right;white-space:nowrap;color:#9a1a1a;" colspan="2">−' . wp_kses_post( wc_price( $diag['points_discount'] ) ) . '</td>';
+                echo '</tr>';
+            }
+
+            // Net eligible base used for the actual award
+            echo '<tr><td style="padding:4px;font-weight:700;">' . esc_html__( 'Καθαρή επιλέξιμη βάση', 'epappous-club' ) . '</td>';
+            echo '<td style="padding:4px;text-align:right;font-weight:700;white-space:nowrap;" colspan="2">' . wp_kses_post( wc_price( $diag['eligible_total'] ) ) . '</td>';
+            echo '</tr>';
+
+            echo '<tr><td style="padding:4px;">' . esc_html__( 'Πόντοι/€', 'epappous-club' ) . '</td>';
             echo '<td style="padding:4px;text-align:right;white-space:nowrap;" colspan="2">' . esc_html( (string) $diag['points_per_euro'] ) . '</td>';
-            echo '</tr><tr><td style="padding:4px;font-weight:700;">' . esc_html__( 'Υπολογισμένοι πόντοι', 'epappous-club' ) . '</td>';
-            echo '<td style="padding:4px;text-align:right;font-weight:700;white-space:nowrap;" colspan="2">' . esc_html( (string) $diag['potential'] ) . '</td>';
-            echo '</tr></tfoot></table>';
+            echo '</tr>';
+
+            // Show gross-vs-net breakdown when redemption was used,
+            // otherwise just show the single calculated number.
+            if ( $diag['points_discount'] > 0 && $diag['potential_gross'] !== $diag['potential'] ) {
+                echo '<tr><td style="padding:4px;color:#555;">' . esc_html__( 'Πόντοι χωρίς εξαργύρωση', 'epappous-club' ) . '</td>';
+                echo '<td style="padding:4px;text-align:right;white-space:nowrap;color:#555;text-decoration:line-through;" colspan="2">' . esc_html( (string) $diag['potential_gross'] ) . '</td>';
+                echo '</tr>';
+                echo '<tr><td style="padding:4px;font-weight:700;">' . esc_html__( 'Πόντοι που πρέπει να αποδοθούν', 'epappous-club' ) . '</td>';
+                echo '<td style="padding:4px;text-align:right;font-weight:700;white-space:nowrap;" colspan="2">' . esc_html( (string) $diag['potential'] ) . '</td>';
+                echo '</tr>';
+            } else {
+                echo '<tr><td style="padding:4px;font-weight:700;">' . esc_html__( 'Υπολογισμένοι πόντοι', 'epappous-club' ) . '</td>';
+                echo '<td style="padding:4px;text-align:right;font-weight:700;white-space:nowrap;" colspan="2">' . esc_html( (string) $diag['potential'] ) . '</td>';
+                echo '</tr>';
+            }
+
+            // Actually awarded points (from order meta)
+            if ( null !== $diag['earned'] ) {
+                $awarded_color = ( (int) $diag['earned'] === (int) $diag['potential'] ) ? '#1a7f37' : '#b07d00';
+                echo '<tr style="border-top:1px solid #ccc;"><td style="padding:6px 4px;font-weight:700;">' . esc_html__( 'Πραγματικά αποδοθέντες πόντοι', 'epappous-club' ) . '</td>';
+                echo '<td style="padding:6px 4px;text-align:right;font-weight:700;white-space:nowrap;color:' . esc_attr( $awarded_color ) . ';" colspan="2">' . esc_html( (string) (int) $diag['earned'] ) . '</td>';
+                echo '</tr>';
+            }
+
+            echo '</tfoot></table>';
             echo '</details>';
         }
     }
@@ -587,9 +638,10 @@ class EPC_WooCommerce {
         $exclude_sale      = EPC_Settings::get( 'epc_woo_exclude_sale_items' ) === '1';
         $exclude_cats_json = EPC_Settings::get( 'epc_woo_exclude_categories' );
         $exclude_cats      = json_decode( (string) $exclude_cats_json, true ) ?: [];
+        $include_shipping  = EPC_Settings::get( 'epc_woo_earn_include_shipping' ) === '1';
 
-        $items_breakdown = [];
-        $eligible_total  = 0.0;
+        $items_breakdown    = [];
+        $items_gross_total  = 0.0;
         foreach ( $order->get_items() as $item ) {
             $product = $item->get_product();
             $line    = [
@@ -609,17 +661,28 @@ class EPC_WooCommerce {
                     $cats      = wp_get_post_terms( $lookup_id, 'product_cat', [ 'fields' => 'ids' ] );
                     if ( array_intersect( (array) $cats, $exclude_cats ) ) {
                         $excluded_by_cat   = true;
-                        $line['reason'] = __( 'Εξαιρείται λόγω κατηγορίας', 'epappous-club' );
+                        $line['reason']    = __( 'Εξαιρείται λόγω κατηγορίας', 'epappous-club' );
                     }
                 }
                 if ( ! $excluded_by_cat ) {
-                    $line['eligible'] = true;
-                    $eligible_total  += (float) $item->get_total();
+                    $line['eligible']    = true;
+                    $items_gross_total  += (float) $item->get_total();
                 }
             }
             $items_breakdown[] = $line;
         }
 
+        $shipping_total  = (float) $order->get_shipping_total();
+        $points_discount = (float) $order->get_meta( '_epc_discount_amount', true );
+
+        // Net eligible total — same source of truth used by earn_points_on_order
+        // and calculate_potential_points_for_order.
+        $eligible_total = $this->compute_eligible_order_total( $order );
+
+        // Gross potential = before subtracting the points-redemption discount.
+        // This is what the customer would have earned if they hadn't redeemed.
+        $gross_base      = $items_gross_total + ( $include_shipping ? $shipping_total : 0.0 );
+        $potential_gross = (int) floor( $gross_base * $points_per_euro );
         $potential       = (int) floor( $eligible_total * $points_per_euro );
         $earned_meta_raw = $order->get_meta( '_epc_points_earned', true );
         $earned          = '' !== (string) $earned_meta_raw ? (int) $earned_meta_raw : null;
@@ -672,16 +735,21 @@ class EPC_WooCommerce {
         }
 
         return [
-            'checks'          => $checks,
-            'items_breakdown' => $items_breakdown,
-            'eligible_total'  => (float) $eligible_total,
-            'points_per_euro' => (float) $points_per_euro,
-            'potential'       => (int) $potential,
-            'earned'          => $earned,
-            'settled'         => (bool) $settled,
-            'revoked'         => (bool) $revoked,
-            'verdict'         => $verdict,
-            'verdict_pass'    => (bool) $verdict_pass,
+            'checks'           => $checks,
+            'items_breakdown'  => $items_breakdown,
+            'items_gross'      => (float) $items_gross_total,
+            'shipping_total'   => (float) $shipping_total,
+            'shipping_counts'  => (bool) $include_shipping,
+            'points_discount'  => (float) $points_discount,
+            'eligible_total'   => (float) $eligible_total,
+            'points_per_euro'  => (float) $points_per_euro,
+            'potential_gross'  => (int) $potential_gross,
+            'potential'        => (int) $potential,
+            'earned'           => $earned,
+            'settled'          => (bool) $settled,
+            'revoked'          => (bool) $revoked,
+            'verdict'          => $verdict,
+            'verdict_pass'     => (bool) $verdict_pass,
         ];
     }
 
