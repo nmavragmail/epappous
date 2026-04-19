@@ -19,10 +19,20 @@ class EPC_Settings {
     }
 
     /**
+     * Cached defaults so we don't rebuild the array (with multiple
+     * wp_json_encode calls) on every EPC_Settings::get() invocation.
+     */
+    private static $defaults_cache = null;
+
+    /**
      * All default option values in a single place.
      */
     public static function defaults() {
-        return [
+        if ( null !== self::$defaults_cache ) {
+            return self::$defaults_cache;
+        }
+
+        self::$defaults_cache = [
             // ── General ──
             'epc_club_name'            => 'Pappou Club',
             'epc_club_enabled'         => '1',
@@ -108,14 +118,19 @@ class EPC_Settings {
             // ── B2B King (Pappou Club = this group ID; changes on site migration) ──
             'epc_b2bking_club_group_id'     => '1446',
         ];
+
+        return self::$defaults_cache;
     }
 
     /**
      * Get a single setting with fallback to default.
      */
     public static function get( string $key, $fallback = null ) {
+        if ( null !== $fallback ) {
+            return get_option( $key, $fallback );
+        }
         $defaults = self::defaults();
-        $default  = $fallback ?? ( $defaults[ $key ] ?? '' );
+        $default  = $defaults[ $key ] ?? '';
         return get_option( $key, $default );
     }
 

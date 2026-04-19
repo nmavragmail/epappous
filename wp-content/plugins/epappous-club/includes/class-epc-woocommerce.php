@@ -256,7 +256,24 @@ class EPC_WooCommerce {
      * happened before this hook existed, or under a previous plugin version), run earning now.
      */
     public function maybe_catch_up_order_on_admin_view(): void {
-        if ( ! is_admin() || ! current_user_can( 'manage_woocommerce' ) ) {
+        // Cheap short-circuits BEFORE any DB / option lookups so this hook
+        // costs almost nothing on the 99% of admin requests that aren't an
+        // order-edit screen.
+        if ( ! is_admin() ) {
+            return;
+        }
+
+        $is_legacy_order_edit = isset( $_GET['post'], $_GET['action'] ) // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+            && 'edit' === $_GET['action']; // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+        $is_hpos_order_edit   = isset( $_GET['page'], $_GET['action'], $_GET['id'] ) // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+            && 'wc-orders' === $_GET['page'] // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+            && 'edit' === $_GET['action']; // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+
+        if ( ! $is_legacy_order_edit && ! $is_hpos_order_edit ) {
+            return;
+        }
+
+        if ( ! current_user_can( 'manage_woocommerce' ) ) {
             return;
         }
         if ( EPC_Settings::get( 'epc_club_enabled' ) !== '1' ) {
@@ -265,17 +282,14 @@ class EPC_WooCommerce {
 
         $order_id = 0;
 
-        // Legacy CPT: post.php?post=123&action=edit
-        if ( isset( $_GET['post'], $_GET['action'] ) && 'edit' === $_GET['action'] ) { // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+        if ( $is_legacy_order_edit ) {
             $maybe = (int) $_GET['post']; // phpcs:ignore WordPress.Security.NonceVerification.Recommended
             if ( $maybe > 0 && get_post_type( $maybe ) === 'shop_order' ) {
                 $order_id = $maybe;
             }
         }
 
-        // HPOS: admin.php?page=wc-orders&action=edit&id=123
-        if ( $order_id < 1 && isset( $_GET['page'], $_GET['action'], $_GET['id'] ) // phpcs:ignore WordPress.Security.NonceVerification.Recommended
-            && 'wc-orders' === $_GET['page'] && 'edit' === $_GET['action'] ) { // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+        if ( $order_id < 1 && $is_hpos_order_edit ) {
             $order_id = (int) $_GET['id']; // phpcs:ignore WordPress.Security.NonceVerification.Recommended
         }
 
