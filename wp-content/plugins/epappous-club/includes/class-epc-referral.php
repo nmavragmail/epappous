@@ -58,7 +58,20 @@ class EPC_Referral {
     }
 
     /**
+     * Cookie lifetime (in days) for referral tracking. Backed by setting,
+     * with a sane fallback.
+     */
+    public static function cookie_days(): int {
+        $days = (int) EPC_Settings::get( 'epc_referral_cookie_days' );
+        return $days > 0 ? $days : 30;
+    }
+
+    /**
      * Capture ?ref=CODE from URL and store in a cookie.
+     *
+     * Also records a row in {$wpdb->prefix}epc_referral_clicks so that the
+     * admin can see pending leads (visited via referral link, not yet
+     * converted) along with a "Λήγει σε" countdown.
      */
     public function capture_referral_cookie() {
         if ( ! isset( $_GET['ref'] ) ) { // phpcs:ignore WordPress.Security.NonceVerification
@@ -70,12 +83,142 @@ class EPC_Referral {
             return;
         }
 
-        $days = (int) EPC_Settings::get( 'epc_referral_cookie_days' );
-        if ( $days < 1 ) {
-            $days = 30;
+        $days    = self::cookie_days();
+        $expires = time() + ( DAY_IN_SECONDS * $days );
+
+        setcookie( 'epc_ref', $code, $expires, COOKIEPATH, COOKIE_DOMAIN, is_ssl(), true );
+        $_COOKIE['epc_ref'] = $code;
+
+        $this->record_referral_click( $code, $expires );
+    }
+
+    /**
+     * Persist (or update) a referral click row and ensure the visitor has a
+     * stable cookie token so we can mark them as converted later.
+     */
+    private function record_referral_click( string $code, int $expires_at ): void {
+        // Skip obvious non-visitors so we don't pollute the log.
+        if ( ! empty( $_SERVER['HTTP_USER_AGENT'] ) ) {
+            $ua = strtolower( (string) $_SERVER['HTTP_USER_AGENT'] );
+            if ( preg_match( '/(bot|crawler|spider|slurp|facebookexternalhit|preview|wget|curl)/', $ua ) ) {
+                return;
+            }
         }
 
-        setcookie( 'epc_ref', $code, time() + ( DAY_IN_SECONDS * $days ), COOKIEPATH, COOKIE_DOMAIN, is_ssl(), true );
+        global $wpdb;
+
+        $referrer = $wpdb->get_row(
+            $wpdb->prepare(
+                "SELECT id FROM {$wpdb->prefix}epc_members WHERE referral_code = %s AND status = 'active' LIMIT 1",
+                $code
+            )
+        );
+        if ( ! $referrer ) {
+            return;
+        }
+        $referrer_id = (int) $referrer->id;
+
+        $token = isset( $_COOKIE['epc_ref_click'] ) ? sanitize_text_field( wp_unslash( $_COOKIE['epc_ref_click'] ) ) : '';
+        $row   = null;
+        if ( $token ) {
+            $row = $wpdb->get_row(
+                $wpdb->prepare(
+                    "SELECT id, referrer_member_id FROM {$wpdb->prefix}epc_referral_clicks WHERE cookie_token = %s LIMIT 1",
+                    $token
+                )
+            );
+        }
+
+        if ( $row && (int) $row->referrer_member_id === $referrer_id ) {
+            $wpdb->query(
+                $wpdb->prepare(
+                    "UPDATE {$wpdb->prefix}epc_referral_clicks
+                       SET click_count = click_count + 1,
+                           last_clicked_at = %s
+                     WHERE id = %d",
+                    current_time( 'mysql' ),
+                    (int) $row->id
+                )
+            );
+            return;
+        }
+
+        // Either no cookie, expired/unknown token, or token belongs to a
+        // different referrer — start a fresh row.
+        $token    = wp_generate_password( 32, false, false );
+        $inserted = $wpdb->insert(
+            "{$wpdb->prefix}epc_referral_clicks",
+            [
+                'referrer_member_id' => $referrer_id,
+                'ref_code'           => $code,
+                'cookie_token'       => $token,
+                'click_count'        => 1,
+                'first_clicked_at'   => current_time( 'mysql' ),
+                'last_clicked_at'    => current_time( 'mysql' ),
+            ],
+            [ '%d', '%s', '%s', '%d', '%s', '%s' ]
+        );
+
+        if ( false === $inserted ) {
+            return;
+        }
+
+        setcookie( 'epc_ref_click', $token, $expires_at, COOKIEPATH, COOKIE_DOMAIN, is_ssl(), true );
+        $_COOKIE['epc_ref_click'] = $token;
+    }
+
+    /**
+     * Mark the matching click row as converted once the referred visitor
+     * actually becomes a Pappou Club member.
+     */
+    private function mark_click_converted( int $referrer_id, int $member_id ): void {
+        global $wpdb;
+
+        $token = isset( $_COOKIE['epc_ref_click'] ) ? sanitize_text_field( wp_unslash( $_COOKIE['epc_ref_click'] ) ) : '';
+        $row   = null;
+
+        if ( $token ) {
+            $row = $wpdb->get_row(
+                $wpdb->prepare(
+                    "SELECT id FROM {$wpdb->prefix}epc_referral_clicks
+                      WHERE cookie_token = %s
+                        AND converted_member_id IS NULL
+                      LIMIT 1",
+                    $token
+                )
+            );
+        }
+
+        if ( ! $row ) {
+            $days = self::cookie_days();
+            $row  = $wpdb->get_row(
+                $wpdb->prepare(
+                    "SELECT id FROM {$wpdb->prefix}epc_referral_clicks
+                      WHERE referrer_member_id = %d
+                        AND converted_member_id IS NULL
+                        AND first_clicked_at >= DATE_SUB(NOW(), INTERVAL %d DAY)
+                      ORDER BY first_clicked_at DESC
+                      LIMIT 1",
+                    $referrer_id,
+                    $days
+                )
+            );
+        }
+
+        if ( ! $row ) {
+            return;
+        }
+
+        $wpdb->update(
+            "{$wpdb->prefix}epc_referral_clicks",
+            [
+                'converted_member_id' => $member_id,
+                'converted_at'        => current_time( 'mysql' ),
+            ],
+            [ 'id' => (int) $row->id ],
+            [ '%d', '%s' ],
+            [ '%d' ]
+        );
     }
 
     /**
@@ -162,6 +305,8 @@ class EPC_Referral {
             [ '%d' ],
             [ '%d' ]
         );
+
+        $this->mark_click_converted( (int) $referrer->id, $member_id );
 
         do_action( 'epc_referral_completed', $referrer->id, $member_id, 'membership' );
     }

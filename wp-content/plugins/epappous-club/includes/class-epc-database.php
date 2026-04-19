@@ -6,7 +6,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 class EPC_Database {
 
     const DB_VERSION_OPTION = 'epc_db_version';
-    const DB_VERSION        = '1.3.2';
+    const DB_VERSION        = '1.4.0';
 
     public static function activate() {
         self::create_tables();
@@ -92,6 +92,27 @@ class EPC_Database {
         // gift category + per-product points meta. Existing rows are left in
         // place untouched; drop manually if undesired.
 
+        // Referral clicks (one row per referral cookie token / visitor that
+        // landed on the site via ?ref=CODE). Used to surface pending leads in
+        // the admin Referrals page and to mark them "converted" once the
+        // visitor actually registers as a member.
+        $sql[] = "CREATE TABLE IF NOT EXISTS {$wpdb->prefix}epc_referral_clicks (
+            id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+            referrer_member_id BIGINT UNSIGNED NOT NULL,
+            ref_code VARCHAR(40) NOT NULL,
+            cookie_token VARCHAR(64) NOT NULL,
+            click_count INT UNSIGNED DEFAULT 1,
+            first_clicked_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            last_clicked_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            converted_member_id BIGINT UNSIGNED DEFAULT NULL,
+            converted_at DATETIME DEFAULT NULL,
+            PRIMARY KEY (id),
+            UNIQUE KEY cookie_token (cookie_token),
+            KEY referrer_member_id (referrer_member_id),
+            KEY converted_member_id (converted_member_id),
+            KEY first_clicked_at (first_clicked_at)
+        ) {$charset};";
+
         // Points log
         $sql[] = "CREATE TABLE IF NOT EXISTS {$wpdb->prefix}epc_points_log (
             id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
@@ -148,6 +169,12 @@ class EPC_Database {
             EPC_Member_Sync::backfill_b2bking_club_group_for_all_members();
             EPC_Member_Sync::backfill_members_from_b2bking_group();
             update_option( self::DB_VERSION_OPTION, '1.3.2' );
+            $current = '1.3.2';
+        }
+        if ( version_compare( $current, '1.4.0', '<' ) ) {
+            // Make sure the referral clicks table exists for existing installs.
+            self::create_tables();
+            update_option( self::DB_VERSION_OPTION, '1.4.0' );
         }
     }
 

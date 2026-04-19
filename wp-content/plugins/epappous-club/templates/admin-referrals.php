@@ -27,6 +27,35 @@ $referrals = $wpdb->get_results(
 );
 
 $total_pages = ceil( $total / $per_page );
+
+// --- Pending / converted referral clicks --------------------------------
+$click_per_page = 50;
+$click_page     = max( 1, (int) ( $_GET['cpaged'] ?? 1 ) ); // phpcs:ignore
+$click_offset   = ( $click_page - 1 ) * $click_per_page;
+$click_total    = (int) $wpdb->get_var( "SELECT COUNT(*) FROM {$wpdb->prefix}epc_referral_clicks" );
+$click_pages    = $click_total > 0 ? (int) ceil( $click_total / $click_per_page ) : 0;
+
+$clicks = [];
+if ( $click_total > 0 ) {
+    $clicks = $wpdb->get_results(
+        $wpdb->prepare(
+            "SELECT c.*,
+                    m1.first_name AS referrer_first, m1.last_name AS referrer_last, m1.email AS referrer_email, m1.referral_code,
+                    m2.first_name AS converted_first, m2.last_name AS converted_last, m2.email AS converted_email
+               FROM {$wpdb->prefix}epc_referral_clicks c
+          LEFT JOIN {$wpdb->prefix}epc_members m1 ON c.referrer_member_id = m1.id
+          LEFT JOIN {$wpdb->prefix}epc_members m2 ON c.converted_member_id = m2.id
+           ORDER BY c.first_clicked_at DESC
+              LIMIT %d OFFSET %d",
+            $click_per_page,
+            $click_offset
+        ),
+        ARRAY_A
+    );
+}
+
+$cookie_days = (int) EPC_Referral::cookie_days();
+$now_ts      = (int) current_time( 'U' );
 ?>
 <div class="wrap epc-wrap">
     <div class="epc-header">
@@ -137,6 +166,127 @@ $total_pages = ceil( $total / $per_page );
                         'format'  => '',
                         'current' => $page,
                         'total'   => $total_pages,
+                    ] );
+                    ?>
+                </div>
+            </div>
+        <?php endif; ?>
+    <?php endif; ?>
+
+    <h2 style="margin-top:2em;">
+        <span class="dashicons dashicons-visibility"></span>
+        <?php esc_html_e( 'Clicks σε referral links', 'epappous-club' ); ?>
+    </h2>
+    <p class="description">
+        <?php
+        printf(
+            /* translators: %d: cookie lifetime in days */
+            esc_html__( 'Καταγράφονται οι επισκέψεις μέσω ?ref= και διατηρούνται για %d ημέρες.', 'epappous-club' ),
+            (int) $cookie_days
+        );
+        ?>
+    </p>
+
+    <?php if ( empty( $clicks ) ) : ?>
+        <div class="epc-empty-state" style="padding:1.5em;">
+            <span class="dashicons dashicons-visibility"></span>
+            <p style="margin:0;"><?php esc_html_e( 'Δεν έχει καταγραφεί ακόμα κανένα click σε referral link.', 'epappous-club' ); ?></p>
+        </div>
+    <?php else : ?>
+        <table class="wp-list-table widefat fixed striped epc-table">
+            <thead>
+                <tr>
+                    <th style="width:60px;"><?php esc_html_e( 'ID', 'epappous-club' ); ?></th>
+                    <th><?php esc_html_e( 'Referrer', 'epappous-club' ); ?></th>
+                    <th><?php esc_html_e( 'Πρώτο click', 'epappous-club' ); ?></th>
+                    <th><?php esc_html_e( 'Τελευταίο click', 'epappous-club' ); ?></th>
+                    <th style="width:80px;"><?php esc_html_e( 'Clicks', 'epappous-club' ); ?></th>
+                    <th><?php esc_html_e( 'Λήγει σε', 'epappous-club' ); ?></th>
+                </tr>
+            </thead>
+            <tbody>
+                <?php foreach ( $clicks as $click ) :
+                    $first_ts   = strtotime( $click['first_clicked_at'] );
+                    $last_ts    = strtotime( $click['last_clicked_at'] );
+                    $expires_ts = $first_ts + ( DAY_IN_SECONDS * $cookie_days );
+                    $is_done    = ! empty( $click['converted_member_id'] );
+                    ?>
+                    <tr>
+                        <td>#<?php echo (int) $click['id']; ?></td>
+                        <td>
+                            <?php if ( $click['referrer_first'] || $click['referrer_last'] ) : ?>
+                                <strong><?php echo esc_html( trim( $click['referrer_first'] . ' ' . $click['referrer_last'] ) ); ?></strong>
+                                <br /><small><?php echo esc_html( $click['referrer_email'] ); ?></small>
+                            <?php endif; ?>
+                            <br /><code><?php echo esc_html( $click['ref_code'] ); ?></code>
+                        </td>
+                        <td>
+                            <?php echo esc_html( date_i18n( 'd/m/Y H:i', $first_ts ) ); ?>
+                            <br />
+                            <small style="color:#646970;">
+                                <?php
+                                printf(
+                                    /* translators: %s: human-readable time difference */
+                                    esc_html__( 'πριν %s', 'epappous-club' ),
+                                    esc_html( human_time_diff( $first_ts, $now_ts ) )
+                                );
+                                ?>
+                            </small>
+                        </td>
+                        <td>
+                            <?php echo esc_html( date_i18n( 'd/m/Y H:i', $last_ts ) ); ?>
+                        </td>
+                        <td><?php echo (int) $click['click_count']; ?></td>
+                        <td>
+                            <?php if ( $is_done ) :
+                                $converted_ts   = strtotime( $click['converted_at'] );
+                                $converted_name = trim( $click['converted_first'] . ' ' . $click['converted_last'] );
+                                ?>
+                                <span class="epc-status epc-status-completed">
+                                    <?php esc_html_e( 'Έγινε μέλος', 'epappous-club' ); ?>
+                                </span>
+                                <br />
+                                <small>
+                                    <?php echo esc_html( date_i18n( 'd/m/Y H:i', $converted_ts ) ); ?>
+                                </small>
+                                <?php if ( $converted_name ) : ?>
+                                    <br /><small><?php echo esc_html( $converted_name ); ?></small>
+                                <?php endif; ?>
+                            <?php else :
+                                $days_left = (int) ceil( ( $expires_ts - $now_ts ) / DAY_IN_SECONDS );
+                                if ( $days_left > 0 ) : ?>
+                                    <span class="epc-status epc-status-pending">
+                                        <?php
+                                        printf(
+                                            esc_html(
+                                                /* translators: %d: days remaining */
+                                                _n( '%d ημέρα', '%d ημέρες', $days_left, 'epappous-club' )
+                                            ),
+                                            (int) $days_left
+                                        );
+                                        ?>
+                                    </span>
+                                <?php else : ?>
+                                    <span class="epc-status epc-status-cancelled">
+                                        <?php esc_html_e( 'Έληξε', 'epappous-club' ); ?>
+                                    </span>
+                                <?php endif;
+                            endif; ?>
+                        </td>
+                    </tr>
+                <?php endforeach; ?>
+            </tbody>
+        </table>
+
+        <?php if ( $click_pages > 1 ) : ?>
+            <div class="tablenav bottom">
+                <div class="tablenav-pages">
+                    <?php
+                    echo paginate_links( [
+                        'base'    => add_query_arg( 'cpaged', '%#%' ),
+                        'format'  => '',
+                        'current' => $click_page,
+                        'total'   => $click_pages,
                     ] );
                     ?>
                 </div>
