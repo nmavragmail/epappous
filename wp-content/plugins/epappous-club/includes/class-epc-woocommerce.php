@@ -1452,11 +1452,18 @@ class EPC_WooCommerce {
         $club_name    = EPC_Settings::get( 'epc_club_name' );
         $step_points  = 10;
 
+        // Reserve points already committed to gift products in the cart so the
+        // slider can never offer more than what the member can actually spend.
+        $gift_pts_in_cart = class_exists( 'EPC_Gift_Products' )
+            ? (int) EPC_Gift_Products::cart_gift_points_total()
+            : 0;
+        $available_pts    = max( 0, $member_pts - $gift_pts_in_cart );
+
         if ( $point_value <= 0 ) {
             return;
         }
 
-        if ( $member_pts < max( $min_points, $step_points ) ) {
+        if ( $available_pts < max( $min_points, $step_points ) ) {
             return;
         }
 
@@ -1466,7 +1473,7 @@ class EPC_WooCommerce {
         }
 
         $max_discount  = $cart_total * ( $max_percent / 100 );
-        $max_from_pts  = $member_pts * $point_value;
+        $max_from_pts  = $available_pts * $point_value;
         $max_usable    = min( $max_discount, $max_from_pts );
         $points_max    = (int) floor( $max_usable / $point_value );
         // Snap max down to the nearest step so the slider lands on a clean value.
@@ -1497,12 +1504,23 @@ class EPC_WooCommerce {
                     <div class="epc-redeem-meta">
                         <span class="epc-redeem-available">
                             <?php
-                            printf(
-                                /* translators: 1: points balance, 2: points label (e.g. "πόντοι") */
-                                esc_html__( '%1$s διαθέσιμοι %2$s', 'epappous-club' ),
-                                number_format_i18n( $member_pts ),
-                                esc_html( $currency )
-                            );
+                            if ( $gift_pts_in_cart > 0 ) {
+                                printf(
+                                    /* translators: 1: available points (after gift reservation), 2: points label, 3: reserved points, 4: total balance */
+                                    esc_html__( '%1$s διαθέσιμοι %2$s (δεσμευμένοι %3$s για δώρα — σύνολο %4$s)', 'epappous-club' ),
+                                    number_format_i18n( $available_pts ),
+                                    esc_html( $currency ),
+                                    number_format_i18n( $gift_pts_in_cart ),
+                                    number_format_i18n( $member_pts )
+                                );
+                            } else {
+                                printf(
+                                    /* translators: 1: points balance, 2: points label (e.g. "πόντοι") */
+                                    esc_html__( '%1$s διαθέσιμοι %2$s', 'epappous-club' ),
+                                    number_format_i18n( $available_pts ),
+                                    esc_html( $currency )
+                                );
+                            }
                             ?>
                         </span>
                         <span class="epc-redeem-current">
@@ -1663,8 +1681,15 @@ class EPC_WooCommerce {
             wp_send_json_error();
         }
 
+        // Reserve points already committed to gift products in the cart so the
+        // monetary redemption can never spend more than what the member actually has.
+        $gift_pts_in_cart = class_exists( 'EPC_Gift_Products' )
+            ? (int) EPC_Gift_Products::cart_gift_points_total()
+            : 0;
+        $available_pts = max( 0, (int) $member->points - $gift_pts_in_cart );
+
         $max_discount = $cart_total * ( $max_percent / 100 );
-        $max_from_pts = (int) $member->points * $point_value;
+        $max_from_pts = $available_pts * $point_value;
         $cap_discount = min( $max_discount, $max_from_pts );
         $cap_points   = (int) floor( $cap_discount / $point_value );
         $cap_points   = (int) ( floor( $cap_points / $step_points ) * $step_points );
