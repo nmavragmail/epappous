@@ -150,7 +150,8 @@ if ( ! is_array( $tiers ) ) {
                                 <label for="epc_min_redeem_points"><?php esc_html_e( 'Ελάχιστοι Πόντοι Εξαργύρωσης', 'epappous-club' ); ?></label>
                                 <input type="number" id="epc_min_redeem_points" name="epc_min_redeem_points"
                                        value="<?php echo esc_attr( EPC_Settings::get( 'epc_min_redeem_points' ) ); ?>"
-                                       class="small-text" min="0" />
+                                       class="small-text" min="0" step="10" />
+                                <p class="description"><?php esc_html_e( 'Ελάχιστοι πόντοι που μπορεί να εξαργυρώσει ο πελάτης σε μία παραγγελία (ξεκίνημα του slider στο καλάθι).', 'epappous-club' ); ?></p>
                             </div>
 
                             <div class="epc-field-row">

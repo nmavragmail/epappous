@@ -1398,13 +1398,11 @@ class EPC_WooCommerce {
         // Snap max down to the nearest step so the slider lands on a clean value.
         $points_max    = (int) ( floor( $points_max / $step_points ) * $step_points );
 
-        if ( $points_max < $step_points ) {
+        $points_min = max( $step_points, $min_points );
+        // If the cart can't afford even the minimum redemption (e.g. small order),
+        // hide the slider entirely instead of forcing it down to the step.
+        if ( $points_max < $points_min ) {
             return;
-        }
-
-        $points_min      = max( $step_points, $min_points );
-        if ( $points_min > $points_max ) {
-            $points_min = $step_points;
         }
 
         $already_applied = (float) WC()->session->get( 'epc_points_discount', 0 );
