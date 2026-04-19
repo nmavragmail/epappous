@@ -813,9 +813,6 @@ class EPC_WooCommerce {
         }
 
         $points = $this->get_points_earned_for_order_display( $order );
-        if ( null === $points ) {
-            return;
-        }
 
         $settled = $order->get_meta( '_epc_club_loyalty_settled', true ) === '1';
         $revoked = $order->get_meta( '_epc_points_revoked', true ) === '1';
@@ -824,24 +821,64 @@ class EPC_WooCommerce {
             return;
         }
 
-        if ( $is_admin_recipient ) {
-            $label = $settled
-                ? __( 'Πόντοι που κέρδισε ο πελάτης από αυτή την παραγγελία', 'epappous-club' )
-                : __( 'Πόντοι που θα κερδίσει ο πελάτης όταν επιβεβαιωθεί η παραγγελία', 'epappous-club' );
-        } else {
-            $label = $settled
-                ? __( 'Πόντοι από αυτή την παραγγελία', 'epappous-club' )
-                : __( 'Πόντοι που θα κερδίσετε όταν επιβεβαιωθεί η παραγγελία', 'epappous-club' );
+        $redeem_pts  = (int) $order->get_meta( '_epc_points_redeemed', true );
+        $redeem_disc = (float) $order->get_meta( '_epc_discount_amount', true );
+        $gift_pts    = 0;
+        if ( class_exists( 'EPC_Gift_Products' ) ) {
+            $gift_pts = (int) EPC_Gift_Products::order_gift_points_total( $order );
         }
 
-        $value = (string) (int) $points;
-
-        if ( $plain_text ) {
-            echo "\n" . $label . ': ' . $value . "\n";
+        // Nothing to show? Bail.
+        if ( null === $points && $redeem_pts < 1 && $gift_pts < 1 ) {
             return;
         }
 
-        echo '<p><strong>' . esc_html( $label ) . ':</strong> ' . esc_html( $value ) . '</p>';
+        if ( $is_admin_recipient ) {
+            $earn_label = $settled
+                ? __( 'Πόντοι που κέρδισε ο πελάτης από αυτή την παραγγελία', 'epappous-club' )
+                : __( 'Πόντοι που θα κερδίσει ο πελάτης όταν επιβεβαιωθεί η παραγγελία', 'epappous-club' );
+            $redeem_label = __( 'Πόντοι που εξαργύρωσε ο πελάτης σε έκπτωση', 'epappous-club' );
+            $gift_label   = __( 'Πόντοι που εξαργύρωσε ο πελάτης για δώρα', 'epappous-club' );
+        } else {
+            $earn_label = $settled
+                ? __( 'Πόντοι από αυτή την παραγγελία', 'epappous-club' )
+                : __( 'Πόντοι που θα κερδίσετε όταν επιβεβαιωθεί η παραγγελία', 'epappous-club' );
+            $redeem_label = __( 'Πόντοι που εξαργυρώσατε σε έκπτωση', 'epappous-club' );
+            $gift_label   = __( 'Πόντοι που εξαργυρώσατε για δώρα', 'epappous-club' );
+        }
+
+        $lines = [];
+
+        if ( null !== $points ) {
+            $lines[] = [ $earn_label, (string) (int) $points ];
+        }
+
+        if ( $redeem_pts > 0 ) {
+            $value = (string) $redeem_pts;
+            if ( $redeem_disc > 0 ) {
+                $value .= ' (−' . wc_format_decimal( $redeem_disc, 2 ) . ' €)';
+            }
+            $lines[] = [ $redeem_label, $value ];
+        }
+
+        if ( $gift_pts > 0 ) {
+            $lines[] = [ $gift_label, (string) $gift_pts ];
+        }
+
+        if ( empty( $lines ) ) {
+            return;
+        }
+
+        if ( $plain_text ) {
+            foreach ( $lines as $line ) {
+                echo "\n" . $line[0] . ': ' . $line[1] . "\n";
+            }
+            return;
+        }
+
+        foreach ( $lines as $line ) {
+            echo '<p><strong>' . esc_html( $line[0] ) . ':</strong> ' . esc_html( $line[1] ) . '</p>';
+        }
     }
 
     /**
