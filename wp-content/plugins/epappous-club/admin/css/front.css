@@ -635,6 +635,35 @@
     line-height: 1.4;
 }
 
+/* ── WooCommerce gift products on shop / archive / single ── */
+
+.epc-gift-product .price .epc-gift-price {
+    display: inline-block;
+    font-weight: 700;
+    color: #6b8a3a;
+}
+
+.epc-gift-product .button,
+.epc-gift-product.single-product .single_add_to_cart_button {
+    border-radius: 999px;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+}
+
+.epc-gift-product--locked {
+    opacity: 0.45;
+    filter: grayscale(0.15);
+}
+
+.epc-gift-product--locked:hover {
+    transform: none;
+}
+
+.epc-gift-product--locked .button,
+.epc-gift-product--locked .single_add_to_cart_button {
+    display: none !important;
+}
+
 /* ── Cart Referral Box ── */
 
 .epc-cart-referral-box {

@@ -64,6 +64,10 @@ class EPC_Gift_Products {
 
         // ── Storefront price display ──
         add_filter( 'woocommerce_get_price_html', [ $this, 'filter_price_html' ], 20, 2 );
+        add_filter( 'woocommerce_product_add_to_cart_text', [ $this, 'gift_add_to_cart_text' ], 20, 2 );
+        add_filter( 'woocommerce_product_single_add_to_cart_text', [ $this, 'gift_add_to_cart_text' ], 20, 2 );
+        add_filter( 'woocommerce_post_class', [ $this, 'gift_product_post_classes' ], 20, 3 );
+        add_action( 'wp_enqueue_scripts', [ $this, 'enqueue_storefront_assets' ] );
 
         // ── Cart: zero out the monetary price of gift products ──
         add_action( 'woocommerce_before_calculate_totals', [ $this, 'zero_gift_prices_in_cart' ], 999 );
@@ -182,6 +186,40 @@ class EPC_Gift_Products {
             ARRAY_A
         );
         return $row ? (int) $row['points'] : 0;
+    }
+
+    /**
+     * Balance that remains available after accounting for gift points already
+     * committed in the cart.
+     */
+    public static function available_member_balance(): int {
+        return max( 0, self::current_member_balance() - self::cart_gift_points_total() );
+    }
+
+    /**
+     * True when the current visitor can redeem the given gift product right now.
+     */
+    public static function current_user_can_redeem_gift( $product, int $quantity = 1 ): bool {
+        if ( ! $product instanceof \WC_Product || ! self::is_gift_product( $product ) ) {
+            return false;
+        }
+
+        $cost = self::points_cost( $product );
+        if ( $cost < 1 ) {
+            return false;
+        }
+
+        if ( ! is_user_logged_in() ) {
+            return false;
+        }
+
+        $user_id = (int) get_current_user_id();
+        if ( $user_id < 1 || ! EPC_B2BKing::user_in_pappou_club( $user_id ) ) {
+            return false;
+        }
+
+        $needed = $cost * max( 1, $quantity );
+        return self::available_member_balance() >= $needed;
     }
 
     // ────────────────────────────────────────────────────────────────────────
@@ -320,6 +358,52 @@ class EPC_Gift_Products {
             '</span>';
     }
 
+    public function gift_add_to_cart_text( $text, $product ) {
+        if ( ! $product instanceof \WC_Product || ! self::is_gift_product( $product ) ) {
+            return $text;
+        }
+
+        return __( 'ΕΞΑΡΓΥΡΩΣΕ ΤΟ!', 'epappous-club' );
+    }
+
+    public function gift_product_post_classes( array $classes, $product = null, $post_id = 0 ): array {
+        if ( ! $product instanceof \WC_Product && $post_id > 0 ) {
+            $product = wc_get_product( $post_id );
+        }
+
+        if ( ! $product instanceof \WC_Product || ! self::is_gift_product( $product ) ) {
+            return $classes;
+        }
+
+        $classes[] = 'epc-gift-product';
+
+        if ( ! self::current_user_can_redeem_gift( $product ) ) {
+            $classes[] = 'epc-gift-product--locked';
+        }
+
+        return array_unique( $classes );
+    }
+
+    public function enqueue_storefront_assets(): void {
+        if ( is_admin() ) {
+            return;
+        }
+        if ( EPC_Settings::get( 'epc_club_enabled' ) !== '1' ) {
+            return;
+        }
+        if ( ! function_exists( 'is_woocommerce' ) || ! is_woocommerce() ) {
+            return;
+        }
+
+        wp_enqueue_style( 'dashicons' );
+        wp_enqueue_style(
+            'epc-front-css',
+            EPC_PLUGIN_URL . 'admin/css/front.css',
+            [ 'dashicons' ],
+            EPC_VERSION
+        );
+    }
+
     public function zero_gift_prices_in_cart( $cart ): void {
         if ( is_admin() && ! defined( 'DOING_AJAX' ) ) {
             return;
@@ -452,16 +536,13 @@ class EPC_Gift_Products {
     // ────────────────────────────────────────────────────────────────────────
 
     public function gate_purchasable_for_visitor( $purchasable, $product ) {
-        // Only gate guests / non-members at the storefront button level so the
-        // catalog still renders the price as "X πόντοι" via filter_price_html().
-        // Cart-level validation runs later via validate_add_to_cart().
         if ( ! $product instanceof \WC_Product || ! self::is_gift_product( $product ) ) {
             return $purchasable;
         }
-        if ( self::points_cost( $product ) < 1 ) {
-            return false;
-        }
-        return $purchasable;
+
+        // Storefront CTA is visible only when this gift can actually be
+        // redeemed. Validation still runs later for defense in depth.
+        return self::current_user_can_redeem_gift( $product );
     }
 
     public function validate_add_to_cart( $passed, $product_id, $quantity, $variation_id = 0, $variations = [] ) {
