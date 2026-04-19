@@ -711,39 +711,54 @@ class EPC_Gift_Products {
         }
 
         global $wpdb;
-        $email = sanitize_email( (string) $order->get_billing_email() );
-        if ( ! is_email( $email ) ) {
-            $order->add_order_note( __( 'Pappou Club: αδυναμία αφαίρεσης πόντων δώρου — λείπει email πελάτη.', 'epappous-club' ) );
-            return;
+        $member = null;
+        $uid    = (int) $order->get_user_id();
+        if ( $uid > 0 ) {
+            $member = $wpdb->get_row(
+                $wpdb->prepare(
+                    "SELECT id, points FROM {$wpdb->prefix}epc_members WHERE user_id = %d AND status = 'active' LIMIT 1",
+                    $uid
+                ),
+                ARRAY_A
+            );
+        }
+        if ( ! $member ) {
+            $email = sanitize_email( (string) $order->get_billing_email() );
+            if ( is_email( $email ) ) {
+                $member = $wpdb->get_row(
+                    $wpdb->prepare(
+                        "SELECT id, points FROM {$wpdb->prefix}epc_members WHERE email = %s AND status = 'active' LIMIT 1",
+                        $email
+                    ),
+                    ARRAY_A
+                );
+            }
         }
 
-        $member = $wpdb->get_row(
-            $wpdb->prepare(
-                "SELECT id, points FROM {$wpdb->prefix}epc_members WHERE email = %s AND status = 'active' LIMIT 1",
-                $email
-            ),
-            ARRAY_A
-        );
-        if ( ! $member ) {
-            $order->add_order_note( __( 'Pappou Club: αδυναμία αφαίρεσης πόντων δώρου — δεν βρέθηκε ενεργό μέλος.', 'epappous-club' ) );
+        if ( ! $member || ! EPC_B2BKing::member_row_in_pappou_club( $member ) ) {
+            $order->add_order_note( __( 'Pappou Club: αδυναμία αφαίρεσης πόντων δώρου — δεν βρέθηκε ενεργό μέλος Pappou Club (B2B King) για αυτόν τον πελάτη.', 'epappous-club' ) );
+            $order->update_status( 'on-hold', __( 'Pappou Club: δώρα χωρίς έγκυρο μέλος — ελέγξτε τον λογαριασμό πελάτη.', 'epappous-club' ) );
             return;
         }
 
         $member_id = (int) $member['id'];
         $balance   = (int) $member['points'];
-        $debit     = min( $needed, max( 0, $balance ) );
 
-        if ( $debit < 1 ) {
+        // All-or-nothing: never partially debit gift points.
+        if ( $balance < $needed ) {
             $order->add_order_note(
                 sprintf(
-                    /* translators: 1: needed, 2: balance */
-                    __( 'Pappou Club: η παραγγελία περιέχει δώρα αξίας %1$d πόντων αλλά ο πελάτης έχει μόνο %2$d. Δεν αφαιρέθηκαν πόντοι.', 'epappous-club' ),
+                    /* translators: 1: needed points, 2: current balance */
+                    __( 'Pappou Club: η παραγγελία απαιτεί %1$d πόντους για δώρα αλλά το διαθέσιμο υπόλοιπο είναι %2$d. Δεν αφαιρέθηκαν πόντοι — απαιτείται διόρθωση πριν την ολοκλήρωση.', 'epappous-club' ),
                     $needed,
                     $balance
                 )
             );
+            $order->update_status( 'on-hold', __( 'Pappou Club: ανεπαρκές υπόλοιπο για δώρα με πόντους.', 'epappous-club' ) );
             return;
         }
+
+        $debit = $needed;
 
         $wpdb->query( 'START TRANSACTION' );
 
@@ -757,6 +772,7 @@ class EPC_Gift_Products {
         );
         if ( 1 !== $updated ) {
             $wpdb->query( 'ROLLBACK' );
+            $order->add_order_note( __( 'Pappou Club: η αφαίρεση πόντων δώρου απέτυχε (σύγκρουση υπολοίπου).', 'epappous-club' ) );
             return;
         }
 
@@ -787,24 +803,13 @@ class EPC_Gift_Products {
 
         $wpdb->query( 'COMMIT' );
 
-        if ( $debit < $needed ) {
-            $order->add_order_note(
-                sprintf(
-                    /* translators: 1: debited, 2: needed */
-                    __( 'Pappou Club: αφαιρέθηκαν %1$d πόντοι για δώρα (απαιτούνταν %2$d — μερική αφαίρεση λόγω χαμηλού υπολοίπου).', 'epappous-club' ),
-                    $debit,
-                    $needed
-                )
-            );
-        } else {
-            $order->add_order_note(
-                sprintf(
-                    /* translators: %d: points debited */
-                    __( 'Pappou Club: αφαιρέθηκαν %d πόντοι για τα δώρα της παραγγελίας.', 'epappous-club' ),
-                    $debit
-                )
-            );
-        }
+        $order->add_order_note(
+            sprintf(
+                /* translators: %d: points debited */
+                __( 'Pappou Club: αφαιρέθηκαν %d πόντοι για τα δώρα της παραγγελίας.', 'epappous-club' ),
+                $debit
+            )
+        );
 
         do_action( 'epc_points_changed', $member_id );
     }
@@ -833,18 +838,29 @@ class EPC_Gift_Products {
         }
 
         global $wpdb;
-        $email = sanitize_email( (string) $order->get_billing_email() );
-        if ( ! is_email( $email ) ) {
-            return;
+        $member = null;
+        $uid    = (int) $order->get_user_id();
+        if ( $uid > 0 ) {
+            $member = $wpdb->get_row(
+                $wpdb->prepare(
+                    "SELECT id FROM {$wpdb->prefix}epc_members WHERE user_id = %d LIMIT 1",
+                    $uid
+                ),
+                ARRAY_A
+            );
         }
-
-        $member = $wpdb->get_row(
-            $wpdb->prepare(
-                "SELECT id FROM {$wpdb->prefix}epc_members WHERE email = %s LIMIT 1",
-                $email
-            ),
-            ARRAY_A
-        );
+        if ( ! $member ) {
+            $email = sanitize_email( (string) $order->get_billing_email() );
+            if ( is_email( $email ) ) {
+                $member = $wpdb->get_row(
+                    $wpdb->prepare(
+                        "SELECT id FROM {$wpdb->prefix}epc_members WHERE email = %s LIMIT 1",
+                        $email
+                    ),
+                    ARRAY_A
+                );
+            }
+        }
         if ( ! $member ) {
             return;
         }

@@ -6,7 +6,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 class EPC_Database {
 
     const DB_VERSION_OPTION = 'epc_db_version';
-    const DB_VERSION        = '1.4.1';
+    const DB_VERSION        = '1.4.2';
 
     public static function activate() {
         self::create_tables();
@@ -116,7 +116,8 @@ class EPC_Database {
             KEY referrer_member_id (referrer_member_id),
             KEY converted_member_id (converted_member_id),
             KEY purchased_order_id (purchased_order_id),
-            KEY first_clicked_at (first_clicked_at)
+            KEY first_clicked_at (first_clicked_at),
+            KEY rewarded_at (rewarded_at)
         ) {$charset};";
 
         // Points log
@@ -130,7 +131,9 @@ class EPC_Database {
             admin_user_id BIGINT UNSIGNED DEFAULT NULL,
             created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
             PRIMARY KEY (id),
-            KEY member_id (member_id)
+            KEY member_id (member_id),
+            KEY idx_pl_created (created_at),
+            KEY idx_pl_ref (reference_type(32), reference_id)
         ) {$charset};";
 
         require_once ABSPATH . 'wp-admin/includes/upgrade.php';
@@ -205,6 +208,28 @@ class EPC_Database {
                 $wpdb->query( "ALTER TABLE {$table} ADD KEY purchased_order_id (purchased_order_id)" );
             }
             update_option( self::DB_VERSION_OPTION, '1.4.1' );
+            $current = '1.4.1';
+        }
+        if ( version_compare( $current, '1.4.2', '<' ) ) {
+            global $wpdb;
+            $plog = $wpdb->prefix . 'epc_points_log';
+            $rclk = $wpdb->prefix . 'epc_referral_clicks';
+
+            $idx = $wpdb->get_results( "SHOW INDEX FROM {$plog} WHERE Key_name = 'idx_pl_created'" );
+            if ( empty( $idx ) ) {
+                $wpdb->query( "ALTER TABLE {$plog} ADD KEY idx_pl_created (created_at)" );
+            }
+            $idx2 = $wpdb->get_results( "SHOW INDEX FROM {$plog} WHERE Key_name = 'idx_pl_ref'" );
+            if ( empty( $idx2 ) ) {
+                $wpdb->query( "ALTER TABLE {$plog} ADD KEY idx_pl_ref (reference_type(32), reference_id)" );
+            }
+
+            $idx3 = $wpdb->get_results( "SHOW INDEX FROM {$rclk} WHERE Key_name = 'rewarded_at'" );
+            if ( empty( $idx3 ) ) {
+                $wpdb->query( "ALTER TABLE {$rclk} ADD KEY rewarded_at (rewarded_at)" );
+            }
+
+            update_option( self::DB_VERSION_OPTION, '1.4.2' );
         }
     }
 

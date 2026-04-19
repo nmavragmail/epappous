@@ -524,51 +524,136 @@ class EPC_Referral {
             return;
         }
 
+        // Business rule: ανταμοιβή μόνο όταν και τα δύο "tracks" είναι ενεργά στη ρύθμιση.
+        if ( EPC_Settings::get( 'epc_referral_track_membership' ) !== '1' || EPC_Settings::get( 'epc_referral_track_purchase' ) !== '1' ) {
+            return;
+        }
+
         $reward_referrer = (int) EPC_Settings::get( 'epc_referral_reward_referrer' );
         $reward_referred = (int) EPC_Settings::get( 'epc_referral_reward_referred' );
         $reward_type     = EPC_Settings::get( 'epc_referral_reward_type' );
+        $order_ref       = (int) $click->purchased_order_id;
+        $ref_id          = (int) $click->referrer_member_id;
+        $conv_id         = (int) $click->converted_member_id;
 
-        $this->give_points(
-            (int) $click->referrer_member_id,
-            $reward_referrer,
-            'referral_purchase_referrer',
-            (int) $click->purchased_order_id
-        );
-        $this->give_points(
-            (int) $click->converted_member_id,
-            $reward_referred,
-            'referral_purchase_referred',
-            (int) $click->purchased_order_id
-        );
+        // Both members must be in the Pappou Club B2B group before any mutation.
+        if ( ! EPC_B2BKing::member_id_in_pappou_club( $ref_id ) || ! EPC_B2BKing::member_id_in_pappou_club( $conv_id ) ) {
+            return;
+        }
 
-        $wpdb->update(
-            "{$wpdb->prefix}epc_referral_clicks",
-            [ 'rewarded_at' => current_time( 'mysql' ) ],
-            [ 'id' => (int) $click->id ],
-            [ '%s' ],
-            [ '%d' ]
-        );
+        if ( $reward_referrer < 1 && $reward_referred < 1 ) {
+            return;
+        }
 
-        $wpdb->insert(
-            "{$wpdb->prefix}epc_referrals",
-            [
-                'referrer_member_id' => (int) $click->referrer_member_id,
-                'referred_member_id' => (int) $click->converted_member_id,
-                'referred_email'     => (string) $click->referred_email,
-                'type'               => 'purchase',
-                'order_id'           => (int) $click->purchased_order_id,
-                'reward_points'      => $reward_referrer,
-                'reward_type'        => $reward_type,
-                'reward_given'       => 1,
-                'status'             => 'completed',
-                'completed_at'       => current_time( 'mysql' ),
-            ],
-            [ '%d', '%d', '%s', '%s', '%d', '%d', '%s', '%d', '%s', '%s' ]
-        );
+        $wpdb->query( 'START TRANSACTION' );
 
-        do_action( 'epc_referral_completed', (int) $click->referrer_member_id, (int) $click->converted_member_id, 'full' );
-        do_action( 'epc_points_changed', (int) $click->referrer_member_id );
-        do_action( 'epc_points_changed', (int) $click->converted_member_id );
+        $ok = true;
+        if ( $reward_referrer > 0 ) {
+            $u1 = $wpdb->query(
+                $wpdb->prepare(
+                    "UPDATE {$wpdb->prefix}epc_members SET points = points + %d WHERE id = %d",
+                    $reward_referrer,
+                    $ref_id
+                )
+            );
+            if ( 1 !== (int) $u1 ) {
+                $ok = false;
+            }
+            if ( $ok ) {
+                $ins = $wpdb->insert(
+                    "{$wpdb->prefix}epc_points_log",
+                    [
+                        'member_id'      => $ref_id,
+                        'points'         => $reward_referrer,
+                        'reason'         => 'referral_purchase_referrer',
+                        'reference_type' => 'referral',
+                        'reference_id'   => $order_ref,
+                    ],
+                    [ '%d', '%d', '%s', '%s', '%d' ]
+                );
+                if ( false === $ins ) {
+                    $ok = false;
+                }
+            }
+        }
+
+        if ( $ok && $reward_referred > 0 ) {
+            $u2 = $wpdb->query(
+                $wpdb->prepare(
+                    "UPDATE {$wpdb->prefix}epc_members SET points = points + %d WHERE id = %d",
+                    $reward_referred,
+                    $conv_id
+                )
+            );
+            if ( 1 !== (int) $u2 ) {
+                $ok = false;
+            }
+            if ( $ok ) {
+                $ins2 = $wpdb->insert(
+                    "{$wpdb->prefix}epc_points_log",
+                    [
+                        'member_id'      => $conv_id,
+                        'points'         => $reward_referred,
+                        'reason'         => 'referral_purchase_referred',
+                        'reference_type' => 'referral',
+                        'reference_id'   => $order_ref,
+                    ],
+                    [ '%d', '%d', '%s', '%s', '%d' ]
+                );
+                if ( false === $ins2 ) {
+                    $ok = false;
+                }
+            }
+        }
+
+        if ( $ok ) {
+            $upd = $wpdb->update(
+                "{$wpdb->prefix}epc_referral_clicks",
+                [ 'rewarded_at' => current_time( 'mysql' ) ],
+                [ 'id' => (int) $click->id ],
+                [ '%s' ],
+                [ '%d' ]
+            );
+            if ( false === $upd || (int) $upd < 1 ) {
+                $ok = false;
+            }
+        }
+
+        if ( $ok ) {
+            $ins_ref = $wpdb->insert(
+                "{$wpdb->prefix}epc_referrals",
+                [
+                    'referrer_member_id' => $ref_id,
+                    'referred_member_id' => $conv_id,
+                    'referred_email'     => (string) $click->referred_email,
+                    'type'               => 'purchase',
+                    'order_id'           => $order_ref,
+                    'reward_points'      => $reward_referrer,
+                    'reward_type'        => $reward_type,
+                    'reward_given'       => 1,
+                    'status'             => 'completed',
+                    'completed_at'       => current_time( 'mysql' ),
+                ],
+                [ '%d', '%d', '%s', '%s', '%d', '%d', '%s', '%d', '%s', '%s' ]
+            );
+            if ( false === $ins_ref ) {
+                $ok = false;
+            }
+        }
+
+        if ( ! $ok ) {
+            $wpdb->query( 'ROLLBACK' );
+            if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
+                error_log( 'ePappous Club: referral reward transaction failed for click #' . (int) $click->id );
+            }
+            return;
+        }
+
+        $wpdb->query( 'COMMIT' );
+
+        do_action( 'epc_referral_completed', $ref_id, $conv_id, 'full' );
+        do_action( 'epc_points_changed', $ref_id );
+        do_action( 'epc_points_changed', $conv_id );
     }
 
     /**

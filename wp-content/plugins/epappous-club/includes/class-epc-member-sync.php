@@ -119,23 +119,35 @@ class EPC_Member_Sync {
             return;
         }
 
-        $users = get_users( [
-            'fields'     => [ 'ID', 'user_email', 'first_name', 'last_name', 'display_name' ],
-            'number'     => 0,
-            'meta_key'   => 'b2bking_customergroup',
-            'meta_value' => (string) $gid,
-        ] );
+        $batch = 200;
+        $offset = 0;
+        // Batched — never unbounded `number => 0` in a single request.
+        while ( true ) {
+            $users = get_users( [
+                'fields'     => 'ID',
+                'number'     => $batch,
+                'offset'     => $offset,
+                'meta_key'   => 'b2bking_customergroup',
+                'meta_value' => (string) $gid,
+                'orderby'    => 'ID',
+                'order'      => 'ASC',
+            ] );
 
-        if ( empty( $users ) ) {
-            return;
-        }
-
-        foreach ( $users as $u ) {
-            $uid = (int) ( is_object( $u ) ? $u->ID : 0 );
-            if ( $uid < 1 ) {
-                continue;
+            if ( empty( $users ) ) {
+                break;
             }
-            self::ensure_member_row_for_user( $uid, true );
+
+            foreach ( $users as $u ) {
+                $uid = (int) ( is_object( $u ) ? $u->ID : $u );
+                if ( $uid > 0 ) {
+                    self::ensure_member_row_for_user( $uid, true );
+                }
+            }
+
+            if ( count( $users ) < $batch ) {
+                break;
+            }
+            $offset += $batch;
         }
     }
 

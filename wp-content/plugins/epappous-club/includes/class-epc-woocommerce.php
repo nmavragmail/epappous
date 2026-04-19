@@ -66,6 +66,8 @@ class EPC_WooCommerce {
         if ( defined( 'WC_VERSION' ) && version_compare( WC_VERSION, '7.2.0', '<' ) ) {
             add_action( '__experimental_woocommerce_blocks_checkout_update_order_from_request', [ $this, 'record_points_redemption_from_blocks' ], 20, 2 );
         }
+        // Blocks: also settle redemption after the order exists (session/cart may differ).
+        add_action( 'woocommerce_store_api_checkout_order_processed', [ $this, 'record_points_redemption_blocks_after_order' ], 25, 1 );
 
         // Old inline admin order panels removed; using sidebar metaboxes instead.
         add_action( 'add_meta_boxes', [ $this, 'register_order_side_metaboxes' ], 35 );
@@ -1195,16 +1197,29 @@ class EPC_WooCommerce {
         $in_club = EPC_B2BKing::order_customer_in_pappou_club( $order );
 
         global $wpdb;
-        $email  = $order->get_billing_email();
         $member = null;
-        if ( is_email( $email ) ) {
+        $uid    = (int) $order->get_user_id();
+
+        if ( $uid > 0 ) {
             $member = $wpdb->get_row(
                 $wpdb->prepare(
-                    "SELECT * FROM {$wpdb->prefix}epc_members WHERE email = %s AND status = 'active'",
-                    $email
+                    "SELECT * FROM {$wpdb->prefix}epc_members WHERE user_id = %d AND status = 'active' LIMIT 1",
+                    $uid
                 ),
                 ARRAY_A
             );
+        }
+        if ( ! $member && $uid < 1 ) {
+            $email = sanitize_email( (string) $order->get_billing_email() );
+            if ( is_email( $email ) ) {
+                $member = $wpdb->get_row(
+                    $wpdb->prepare(
+                        "SELECT * FROM {$wpdb->prefix}epc_members WHERE email = %s AND status = 'active' LIMIT 1",
+                        $email
+                    ),
+                    ARRAY_A
+                );
+            }
         }
 
         if ( ! $in_club || ! $member ) {
@@ -1223,6 +1238,24 @@ class EPC_WooCommerce {
         if ( $eligible_total <= 0 || $points < 1 ) {
             try {
                 $order->update_meta_data( '_epc_points_earned', 0 );
+                $order->update_meta_data( '_epc_club_loyalty_settled', '1' );
+                $order->save();
+            } catch ( Throwable $e ) {
+                return;
+            }
+            return;
+        }
+
+        $already_logged = (int) $wpdb->get_var(
+            $wpdb->prepare(
+                "SELECT id FROM {$wpdb->prefix}epc_points_log WHERE reference_type = %s AND reference_id = %d AND reason = %s LIMIT 1",
+                'order',
+                (int) $order_id,
+                'order_earning'
+            )
+        );
+        if ( $already_logged > 0 ) {
+            try {
                 $order->update_meta_data( '_epc_club_loyalty_settled', '1' );
                 $order->save();
             } catch ( Throwable $e ) {
@@ -1320,18 +1353,29 @@ class EPC_WooCommerce {
         }
 
         global $wpdb;
-        $email = sanitize_email( (string) $order->get_billing_email() );
-        if ( ! is_email( $email ) ) {
-            return;
+        $member = null;
+        $uid    = (int) $order->get_user_id();
+        if ( $uid > 0 ) {
+            $member = $wpdb->get_row(
+                $wpdb->prepare(
+                    "SELECT id, points FROM {$wpdb->prefix}epc_members WHERE user_id = %d LIMIT 1",
+                    $uid
+                ),
+                ARRAY_A
+            );
         }
-
-        $member = $wpdb->get_row(
-            $wpdb->prepare(
-                "SELECT id, points FROM {$wpdb->prefix}epc_members WHERE email = %s LIMIT 1",
-                $email
-            ),
-            ARRAY_A
-        );
+        if ( ! $member ) {
+            $email = sanitize_email( (string) $order->get_billing_email() );
+            if ( is_email( $email ) ) {
+                $member = $wpdb->get_row(
+                    $wpdb->prepare(
+                        "SELECT id, points FROM {$wpdb->prefix}epc_members WHERE email = %s LIMIT 1",
+                        $email
+                    ),
+                    ARRAY_A
+                );
+            }
+        }
         if ( ! $member ) {
             return;
         }
@@ -1466,9 +1510,8 @@ class EPC_WooCommerce {
         $user   = wp_get_current_user();
         $member = $wpdb->get_row(
             $wpdb->prepare(
-                "SELECT id, points FROM {$wpdb->prefix}epc_members WHERE (user_id = %d OR email = %s) AND status = 'active' LIMIT 1",
-                $user->ID,
-                $user->user_email
+                "SELECT id, points FROM {$wpdb->prefix}epc_members WHERE user_id = %d AND status = 'active' LIMIT 1",
+                $user->ID
             )
         );
 
@@ -1700,9 +1743,8 @@ class EPC_WooCommerce {
         $user   = wp_get_current_user();
         $member = $wpdb->get_row(
             $wpdb->prepare(
-                "SELECT id, points FROM {$wpdb->prefix}epc_members WHERE (user_id = %d OR email = %s) AND status = 'active' LIMIT 1",
-                $user->ID,
-                $user->user_email
+                "SELECT id, points FROM {$wpdb->prefix}epc_members WHERE user_id = %d AND status = 'active' LIMIT 1",
+                $user->ID
             )
         );
 
@@ -1812,73 +1854,284 @@ class EPC_WooCommerce {
     }
 
     /**
-     * Deduct points from member when order is placed with points discount.
+     * Deduct points from member when order is placed with points discount (classic checkout).
      */
     public function record_points_redemption( $order_id ) {
         $order = wc_get_order( $order_id );
-        if ( ! $order || $order->get_meta( '_epc_points_redeemed', true ) ) {
+        if ( ! $order instanceof \WC_Order ) {
             $this->clear_points_discount_session();
             return;
         }
-
-        $discount  = (float) WC()->session->get( 'epc_points_discount', 0 );
-        $pts_used  = (int) WC()->session->get( 'epc_points_used', 0 );
-        $member_id = (int) WC()->session->get( 'epc_points_member_id', 0 );
-
-        if ( $discount <= 0 || $pts_used < 1 || $member_id < 1 ) {
-            return;
-        }
-
-        $this->commit_points_redemption( $order, $member_id, $pts_used, $discount );
-        $this->clear_points_discount_session();
+        $this->finalize_points_redemption_for_order( $order );
     }
 
     /**
-     * Persist block-checkout points redemption data on order creation.
+     * Block checkout: settle redemption after the order is created (do not trust
+     * the Store API extensions payload for identity or math — only session +
+     * server recomputation against this order).
      */
-    public function record_points_redemption_from_blocks( $order, $request = null ) {
-        if ( ! $order ) {
-            $this->clear_points_discount_session();
+    public function record_points_redemption_blocks_after_order( $order ): void {
+        if ( ! $order instanceof \WC_Order ) {
             return;
         }
+        $this->finalize_points_redemption_for_order( $order );
+    }
 
+    /**
+     * Legacy hook during block checkout request — debit happens in
+     * record_points_redemption_blocks_after_order once the order exists.
+     */
+    public function record_points_redemption_from_blocks( $order, $request = null ) { // phpcs:ignore Generic.CodeAnalysis.UnusedFunctionParameter.FoundAfterLastUsed
+        if ( ! $order ) {
+            $this->clear_points_discount_session();
+        }
+    }
+
+    /**
+     * Canonical member row for this order: linked WordPress user first,
+     * billing email only as legacy fallback when no user is linked.
+     *
+     * @return array<string,mixed>|null
+     */
+    private function resolve_active_member_row_for_order( \WC_Order $order ): ?array {
+        global $wpdb;
+
+        $uid = (int) $order->get_user_id();
+        if ( $uid > 0 ) {
+            $row = $wpdb->get_row(
+                $wpdb->prepare(
+                    "SELECT * FROM {$wpdb->prefix}epc_members WHERE user_id = %d AND status = 'active' LIMIT 1",
+                    $uid
+                ),
+                ARRAY_A
+            );
+            if ( $row ) {
+                return $row;
+            }
+        }
+
+        $email = sanitize_email( (string) $order->get_billing_email() );
+        if ( is_email( $email ) ) {
+            $row = $wpdb->get_row(
+                $wpdb->prepare(
+                    "SELECT * FROM {$wpdb->prefix}epc_members WHERE email = %s AND status = 'active' LIMIT 1",
+                    $email
+                ),
+                ARRAY_A
+            );
+            return $row ? $row : null;
+        }
+
+        return null;
+    }
+
+    /**
+     * Sum absolute EUR value of our negative checkout fee lines on the order.
+     */
+    private function get_club_points_fee_discount_total_from_order( \WC_Order $order ): float {
+        $club = (string) EPC_Settings::get( 'epc_club_name' );
+        $needle = sprintf(
+            /* translators: %s: club name */
+            __( 'Έκπτωση %s', 'epappous-club' ),
+            $club
+        );
+        $total = 0.0;
+        foreach ( $order->get_items( 'fee' ) as $fee ) {
+            if ( ! $fee instanceof \WC_Order_Item_Fee ) {
+                continue;
+            }
+            $name = (string) $fee->get_name();
+            if ( $name !== $needle && strpos( $name, $needle ) === false ) {
+                continue;
+            }
+            $t = (float) $fee->get_total();
+            if ( $t < 0 ) {
+                $total += abs( $t );
+            }
+        }
+        return $total;
+    }
+
+    /**
+     * Add a positive fee so the net effect of failed/mismatched points redemption
+     * does not leave a discount without a matching points debit.
+     */
+    private function neutralize_club_points_discount_on_order( \WC_Order $order, float $discount_magnitude ): void {
+        if ( $discount_magnitude <= 0.009 ) {
+            return;
+        }
+        $item = new \WC_Order_Item_Fee();
+        $item->set_name( __( 'Pappou Club: διόρθωση (η έκπτωση πόντων δεν οριστικοποιήθηκε)', 'epappous-club' ) );
+        $item->set_amount( $discount_magnitude );
+        $item->set_total( $discount_magnitude );
+        $order->add_item( $item );
+        $order->calculate_totals( false );
+    }
+
+    /**
+     * If the fee applied on the order differs slightly from what we debited, align totals.
+     */
+    private function maybe_align_order_fee_to_debited_discount( \WC_Order $order, float $debited_discount_eur ): void {
+        $applied = $this->get_club_points_fee_discount_total_from_order( $order );
+        $delta   = round( $applied - $debited_discount_eur, 2 );
+        if ( abs( $delta ) < 0.02 ) {
+            return;
+        }
+        $item = new \WC_Order_Item_Fee();
+        $item->set_name( __( 'Pappou Club: ευθυγράμμιση έκπτωσης πόντων', 'epappous-club' ) );
+        $item->set_amount( $delta );
+        $item->set_total( $delta );
+        $order->add_item( $item );
+        $order->calculate_totals( false );
+    }
+
+    /**
+     * Server-side cap for points redemption for this order + member balance.
+     *
+     * @param array<string,mixed> $member_row Current member row from DB.
+     * @return array{pts:int,discount:float}
+     */
+    private function recompute_allowed_points_redemption( \WC_Order $order, array $member_row ): array {
+        $point_value = (float) EPC_Settings::get( 'epc_points_value_euro' );
+        $max_percent = (int) EPC_Settings::get( 'epc_max_redeem_percent' );
+        $min_points  = (int) EPC_Settings::get( 'epc_min_redeem_points' );
+        $step_points = 10;
+
+        if ( $point_value <= 0 ) {
+            return [ 'pts' => 0, 'discount' => 0.0 ];
+        }
+
+        $gift_pts = 0;
+        if ( class_exists( 'EPC_Gift_Products' ) ) {
+            $gift_pts = (int) EPC_Gift_Products::order_gift_points_total( $order );
+        }
+
+        $member_pts     = (int) $member_row['points'];
+        $available_pts  = max( 0, $member_pts - $gift_pts );
+        $cart_subtotal  = (float) $order->get_subtotal();
+        if ( $cart_subtotal <= 0 ) {
+            return [ 'pts' => 0, 'discount' => 0.0 ];
+        }
+
+        $max_discount = $cart_subtotal * ( $max_percent / 100 );
+        $max_from_pts = $available_pts * $point_value;
+        $cap_discount = min( $max_discount, $max_from_pts );
+        $cap_points   = (int) floor( $cap_discount / $point_value );
+        $cap_points   = (int) ( floor( $cap_points / $step_points ) * $step_points );
+
+        $floor_min = max( $step_points, $min_points );
+        if ( $cap_points < $floor_min ) {
+            return [ 'pts' => 0, 'discount' => 0.0 ];
+        }
+
+        return [
+            'pts'      => $cap_points,
+            'discount' => round( $cap_points * $point_value, wc_get_price_decimals() ),
+        ];
+    }
+
+    /**
+     * Single entry: validate session vs order customer, recompute redemption,
+     * debit points, or neutralize the cart discount on the order if we cannot debit.
+     */
+    private function finalize_points_redemption_for_order( \WC_Order $order ): void {
         if ( $order->get_meta( '_epc_points_redeemed', true ) ) {
             $this->clear_points_discount_session();
             return;
         }
 
-        $extensions = [];
-        if ( $request instanceof \WP_REST_Request ) {
-            $ext = $request->get_param( 'extensions' );
-            $extensions = is_array( $ext ) ? $ext : [];
-        } elseif ( is_array( $request ) && isset( $request['extensions'] ) && is_array( $request['extensions'] ) ) {
-            $extensions = $request['extensions'];
-        }
-        $payload = is_array( $extensions['epappous-club'] ?? null ) ? $extensions['epappous-club'] : [];
+        $fee_discount = $this->get_club_points_fee_discount_total_from_order( $order );
+        $session_disc = WC()->session ? (float) WC()->session->get( 'epc_points_discount', 0 ) : 0.0;
+        $session_pts  = WC()->session ? (int) WC()->session->get( 'epc_points_used', 0 ) : 0;
+        $session_mid  = WC()->session ? (int) WC()->session->get( 'epc_points_member_id', 0 ) : 0;
 
-        $member_id = isset( $payload['member_id'] ) ? (int) $payload['member_id'] : (int) WC()->session->get( 'epc_points_member_id', 0 );
-        $pts_used  = isset( $payload['points_used'] ) ? (int) $payload['points_used'] : (int) WC()->session->get( 'epc_points_used', 0 );
-        $discount  = isset( $payload['discount'] ) ? (float) $payload['discount'] : (float) WC()->session->get( 'epc_points_discount', 0 );
-
-        if ( $discount <= 0 || $pts_used < 1 || $member_id < 1 ) {
+        $has_intent = ( $fee_discount > 0.009 ) || ( $session_disc > 0 && $session_pts > 0 );
+        if ( ! $has_intent ) {
             return;
         }
 
-        $this->commit_points_redemption( $order, $member_id, $pts_used, $discount );
+        $member_row = $this->resolve_active_member_row_for_order( $order );
+        if ( ! $member_row || ! EPC_B2BKing::member_row_in_pappou_club( $member_row ) ) {
+            $mag = max( $fee_discount, $session_disc );
+            $this->neutralize_club_points_discount_on_order( $order, $mag );
+            $order->add_order_note(
+                __( 'ePappous Club: Η έκπτωση πόντων ακυρώθηκε — ο πελάτης δεν είναι μέλος Pappou Club (B2B King) ή δεν βρέθηκε ενεργό μέλος για αυτόν τον λογαριασμό.', 'epappous-club' )
+            );
+            $order->save();
+            $this->clear_points_discount_session();
+            return;
+        }
+
+        $canonical_id = (int) $member_row['id'];
+        if ( $session_mid > 0 && $session_mid !== $canonical_id ) {
+            $this->neutralize_club_points_discount_on_order( $order, max( $fee_discount, $session_disc ) );
+            $order->add_order_note(
+                __( 'ePappous Club: Η έκπτωση πόντων ακυρώθηκε — αναντιστοιχία session/λογαριασμού (απορρίφθηκε το αίτημα εξαργύρωσης).', 'epappous-club' )
+            );
+            $order->save();
+            $this->clear_points_discount_session();
+            return;
+        }
+
+        $cap = $this->recompute_allowed_points_redemption( $order, $member_row );
+        if ( $cap['pts'] < 1 ) {
+            $this->neutralize_club_points_discount_on_order( $order, max( $fee_discount, $session_disc ) );
+            $order->add_order_note(
+                __( 'ePappous Club: Η έκπτωση πόντων ακυρώθηκε — δεν πληρούνται πλέον οι κανόνες εξαργύρωσης (όριο παραγγελίας/πόντων).', 'epappous-club' )
+            );
+            $order->save();
+            $this->clear_points_discount_session();
+            return;
+        }
+
+        $point_value = (float) EPC_Settings::get( 'epc_points_value_euro' );
+        $step_points = 10;
+        $floor_min   = max( $step_points, (int) EPC_Settings::get( 'epc_min_redeem_points' ) );
+
+        $requested_pts = $session_pts > 0 ? (int) ( floor( $session_pts / $step_points ) * $step_points ) : (int) round( max( $fee_discount, $session_disc ) / $point_value );
+        if ( $requested_pts < $floor_min ) {
+            $requested_pts = $floor_min;
+        }
+
+        $final_pts = min( $requested_pts, $cap['pts'] );
+        $final_pts = (int) ( floor( $final_pts / $step_points ) * $step_points );
+        if ( $final_pts < $floor_min ) {
+            $this->neutralize_club_points_discount_on_order( $order, max( $fee_discount, $session_disc ) );
+            $order->add_order_note(
+                __( 'ePappous Club: Η έκπτωση πόντων ακυρώθηκε — μη έγκυρο ποσό πόντων μετά τον επανέλεγχο.', 'epappous-club' )
+            );
+            $order->save();
+            $this->clear_points_discount_session();
+            return;
+        }
+
+        $final_discount = round( $final_pts * $point_value, wc_get_price_decimals() );
+        $committed      = $this->commit_points_redemption( $order, $canonical_id, $final_pts, $final_discount );
+        if ( $committed ) {
+            $this->maybe_align_order_fee_to_debited_discount( $order, $final_discount );
+            $order->save();
+        }
         $this->clear_points_discount_session();
     }
 
     /**
      * Apply idempotent points deduction and log entry.
+     * Caller must ensure member belongs to the order customer (resolved server-side).
+     *
+     * @return bool Whether points and meta were persisted successfully.
      */
-    private function commit_points_redemption( $order, $member_id, $pts_used, $discount ) {
+    private function commit_points_redemption( $order, $member_id, $pts_used, $discount ): bool {
+        if ( ! $order instanceof \WC_Order ) {
+            return false;
+        }
+
         if ( ! EPC_B2BKing::order_customer_in_pappou_club( $order ) ) {
-            $this->clear_points_discount_session();
+            $this->neutralize_club_points_discount_on_order( $order, $this->get_club_points_fee_discount_total_from_order( $order ) );
             $order->add_order_note(
-                __( 'ePappous Club: Εξαργύρωση πόντων δεν εφαρμόστηκε — ο λογαριασμός δεν ανήκει στην ομάδα Pappou Club (B2B King).', 'epappous-club' )
+                __( 'ePappous Club: Εξαργύρωση πόντων δεν εφαρμόστηκε — ο λογαριασμός παραγγελίας δεν ανήκει στην ομάδα Pappou Club (B2B King).', 'epappous-club' )
             );
             $order->save();
-            return;
+            return false;
         }
 
         global $wpdb;
@@ -1895,11 +2148,12 @@ class EPC_WooCommerce {
         );
         if ( $updated !== 1 ) {
             $wpdb->query( 'ROLLBACK' );
+            $this->neutralize_club_points_discount_on_order( $order, $this->get_club_points_fee_discount_total_from_order( $order ) );
             $order->add_order_note(
-                __( 'ePappous Club: Η αφαίρεση πόντων απέτυχε, πιθανώς λόγω ανεπαρκούς υπολοίπου κατά την ολοκλήρωση.', 'epappous-club' )
+                __( 'ePappous Club: Η αφαίρεση πόντων απέτυχε — η έκπτωση πόντων στην παραγγελία ακυρώθηκε για συνέπεια με το υπόλοιπο.', 'epappous-club' )
             );
             $order->save();
-            return;
+            return false;
         }
 
         $inserted = $wpdb->insert(
@@ -1915,11 +2169,12 @@ class EPC_WooCommerce {
         );
         if ( false === $inserted ) {
             $wpdb->query( 'ROLLBACK' );
+            $this->neutralize_club_points_discount_on_order( $order, $this->get_club_points_fee_discount_total_from_order( $order ) );
             $order->add_order_note(
-                __( 'ePappous Club: Αποτυχία καταγραφής εξαργύρωσης πόντων.', 'epappous-club' )
+                __( 'ePappous Club: Αποτυχία καταγραφής εξαργύρωσης — η έκπτωση πόντων στην παραγγελία ακυρώθηκε.', 'epappous-club' )
             );
             $order->save();
-            return;
+            return false;
         }
 
         try {
@@ -1928,16 +2183,18 @@ class EPC_WooCommerce {
             $order->save();
         } catch ( Throwable $e ) {
             $wpdb->query( 'ROLLBACK' );
+            $this->neutralize_club_points_discount_on_order( $order, $this->get_club_points_fee_discount_total_from_order( $order ) );
             $order->add_order_note(
-                __( 'ePappous Club: Αποτυχία αποθήκευσης μετα-δεδομένων παραγγελίας.', 'epappous-club' )
+                __( 'ePappous Club: Αποτυχία αποθήκευσης μετα-δεδομένων — η έκπτωση πόντων στην παραγγελία ακυρώθηκε και καταγράφηκε διόρθωση συνόλου.', 'epappous-club' )
             );
             $order->save();
-            return;
+            return false;
         }
 
         $wpdb->query( 'COMMIT' );
 
         do_action( 'epc_points_changed', (int) $member_id );
+        return true;
     }
 
     /**
