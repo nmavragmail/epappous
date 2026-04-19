@@ -169,7 +169,6 @@ class EPC_Registration {
         $has_shortcode = $post && (
             has_shortcode( $post->post_content, 'epappous_register' )
             || has_shortcode( $post->post_content, 'epappous_profile' )
-            || has_shortcode( $post->post_content, 'epappous_gifts' )
         );
 
         if ( ! $has_shortcode && ! $wc_club_tab ) {

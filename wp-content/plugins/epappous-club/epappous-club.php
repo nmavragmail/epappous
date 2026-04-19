@@ -3,7 +3,7 @@
  * Plugin Name: ePappous Club
  * Plugin URI: https://epappous.gr
  * Description: Loyalty & membership club with referral tracking, gift products, and full settings management.
- * Version: 1.14.0
+ * Version: 1.15.0
  * Author: ePappous
  * Author URI: https://epappous.gr
  * Text Domain: epappous-club
@@ -17,7 +17,7 @@ if ( ! defined( 'ABSPATH' ) ) {
     exit;
 }
 
-define( 'EPC_VERSION', '1.14.0' );
+define( 'EPC_VERSION', '1.15.0' );
 define( 'EPC_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'EPC_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
 define( 'EPC_PLUGIN_BASENAME', plugin_basename( __FILE__ ) );
@@ -27,7 +27,6 @@ require_once EPC_PLUGIN_DIR . 'includes/class-epc-settings.php';
 require_once EPC_PLUGIN_DIR . 'includes/class-epc-b2bking.php';
 require_once EPC_PLUGIN_DIR . 'includes/class-epc-member-sync.php';
 require_once EPC_PLUGIN_DIR . 'includes/class-epc-referral.php';
-require_once EPC_PLUGIN_DIR . 'includes/class-epc-gifts.php';
 require_once EPC_PLUGIN_DIR . 'includes/class-epc-birthday.php';
 require_once EPC_PLUGIN_DIR . 'includes/class-epc-expiry.php';
 // Tiers module disabled site-wide (no UI / no tier emails). Re-enable by uncommenting:
@@ -35,8 +34,6 @@ require_once EPC_PLUGIN_DIR . 'includes/class-epc-expiry.php';
 require_once EPC_PLUGIN_DIR . 'includes/class-epc-notifications.php';
 require_once EPC_PLUGIN_DIR . 'includes/class-epc-woocommerce.php';
 require_once EPC_PLUGIN_DIR . 'includes/class-epc-registration.php';
-require_once EPC_PLUGIN_DIR . 'includes/class-epc-gift-catalog.php';
-require_once EPC_PLUGIN_DIR . 'includes/class-epc-gift-rules.php';
 require_once EPC_PLUGIN_DIR . 'includes/class-epc-gift-products.php';
 require_once EPC_PLUGIN_DIR . 'includes/class-epc-user-profile.php';
 require_once EPC_PLUGIN_DIR . 'includes/class-epc-admin.php';
@@ -76,15 +73,12 @@ function epc_init() {
     EPC_Settings::instance();
     EPC_Member_Sync::instance();
     EPC_Referral::instance();
-    EPC_Gifts::instance();
     EPC_Birthday::instance();
     EPC_Expiry::instance();
     // EPC_Tiers::instance();
     EPC_Notifications::instance();
     EPC_WooCommerce::instance();
     EPC_Registration::instance();
-    EPC_Gift_Catalog::instance();
-    EPC_Gift_Rules::instance();
     EPC_Gift_Products::instance();
     EPC_User_Profile::instance();
     EPC_Admin::instance();

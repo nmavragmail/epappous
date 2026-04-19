@@ -50,15 +50,6 @@ class EPC_Admin {
 
         add_submenu_page(
             'epc-dashboard',
-            __( 'Δώρα', 'epappous-club' ),
-            __( 'Δώρα', 'epappous-club' ),
-            'manage_options',
-            'epc-gifts',
-            [ $this, 'render_gifts' ]
-        );
-
-        add_submenu_page(
-            'epc-dashboard',
             __( 'Referrals', 'epappous-club' ),
             __( 'Referrals', 'epappous-club' ),
             'manage_options',
@@ -90,7 +81,6 @@ class EPC_Admin {
             || ( 'pappou-club_page_epc-settings' === $hook )
             || ( 'toplevel_page_epc-settings' === $hook )
             || ( false !== strpos( (string) $hook, 'epc-settings' ) );
-        $needs_media_picker = ( false !== strpos( (string) $hook, 'epc-gifts' ) );
         $needs_debug_i18n   = ( false !== strpos( (string) $hook, 'epc-points-log' ) );
 
         $script_deps = [ 'jquery', 'wp-i18n' ];
@@ -127,19 +117,10 @@ class EPC_Admin {
             wp_enqueue_style( 'wp-color-picker' );
         }
 
-        if ( $needs_media_picker && function_exists( 'wp_enqueue_media' ) ) {
-            wp_enqueue_media();
-        }
-
         $i18n = [
-            'confirmDelete'    => __( 'Είστε σίγουροι ότι θέλετε να διαγράψετε αυτό το δώρο;', 'epappous-club' ),
             'confirmDeleteNote' => __( 'Διαγραφή σημείωσης;', 'epappous-club' ),
             'saved'            => __( 'Αποθηκεύτηκε!', 'epappous-club' ),
             'error'            => __( 'Σφάλμα!', 'epappous-club' ),
-            'newGift'          => __( 'Νέο Δώρο', 'epappous-club' ),
-            'editGift'         => __( 'Επεξεργασία Δώρου', 'epappous-club' ),
-            'mediaSelectTitle' => __( 'Επιλογή εικόνας', 'epappous-club' ),
-            'mediaUseImage'    => __( 'Χρήση εικόνας', 'epappous-club' ),
             'editNote'         => __( 'Επεξεργασία', 'epappous-club' ),
             'deleteNote'       => __( 'Διαγραφή', 'epappous-club' ),
             'saveNote'         => __( 'Αποθήκευση', 'epappous-club' ),
@@ -194,7 +175,8 @@ class EPC_Admin {
                     'referral_bonus_referred'    => __( 'Το μέλος <strong>{member_name}</strong> εγγράφηκε μέσω referral link από μέλος #{reference_id} και κέρδισε <strong>{points} πόντους</strong> ως μπόνους εγγραφής. Ρυθμίζεται στο Ρυθμίσεις → Referral → Ανταμοιβή Νέου Μέλους.', 'epappous-club' ),
                     'referral_purchase_referrer' => __( 'Ο referred φίλος ολοκλήρωσε αγορά (παραγγελία #{reference_id}). Ο referrer <strong>{member_name}</strong> κέρδισε <strong>{points} πόντους</strong>. Ρυθμίζεται στο Ρυθμίσεις → Referral (Track Purchase + Reward Referrer).', 'epappous-club' ),
                     'referral_purchase_referred' => __( 'Το μέλος <strong>{member_name}</strong> ολοκλήρωσε την πρώτη αγορά (παραγγελία #{reference_id}) αφού εγγράφηκε μέσω referral. Κέρδισε <strong>{points} πόντους</strong>. Ρυθμίζεται στο Ρυθμίσεις → Referral (Track Purchase + Reward Referred).', 'epappous-club' ),
-                    'gift_redemption'            => __( 'Το μέλος <strong>{member_name}</strong> εξαργύρωσε ένα δώρο (gift #{reference_id}). Αφαιρέθηκαν <strong>{abs_points} πόντοι</strong> από το υπόλοιπό του. Η εξαργύρωση γίνεται μέσω της σελίδας δώρων και ελέγχονται απόθεμα και υπόλοιπο πόντων.', 'epappous-club' ),
+                    'gift_redemption'            => __( 'Το μέλος <strong>{member_name}</strong> πέρασε στο WooCommerce καλάθι ένα προϊόν δώρου που αγοράζεται μόνο με πόντους (παραγγελία #{reference_id}). Όταν η παραγγελία πήγε σε processing/completed αφαιρέθηκαν <strong>{abs_points} πόντοι</strong>. Αν η παραγγελία ακυρωθεί ή γίνει refunded, οι πόντοι επιστρέφονται με reason gift_refund.', 'epappous-club' ),
+                    'gift_refund'                => __( 'Επιστροφή πόντων από ακύρωση/refund παραγγελίας #{reference_id} που περιείχε προϊόντα δώρου. Δόθηκαν πίσω <strong>{points} πόντοι</strong> στο μέλος <strong>{member_name}</strong>.', 'epappous-club' ),
                     'order_earning'              => __( 'Το μέλος <strong>{member_name}</strong> πέρασε παραγγελία #{reference_id} σε processing/completed και κέρδισε <strong>{points} πόντους</strong> βάσει του ποσού αγοράς. Υπολογισμός: ποσό × πόντοι ανά €. Ρυθμίζεται στο Ρυθμίσεις → Πόντοι (Πόντοι ανά €).', 'epappous-club' ),
                     'order_reversal'             => __( 'Η παραγγελία #{reference_id} ακυρώθηκε ή έγινε refunded, οπότε αφαιρέθηκαν <strong>{abs_points} πόντοι</strong> από το μέλος <strong>{member_name}</strong>.', 'epappous-club' ),
                     'manual_adjustment'          => __( 'Χειροκίνητη προσαρμογή πόντων από διαχειριστή. <strong>{signed_points} πόντοι</strong> στο μέλος <strong>{member_name}</strong>.', 'epappous-club' ),
@@ -222,10 +204,6 @@ class EPC_Admin {
 
     public function render_settings() {
         include EPC_PLUGIN_DIR . 'templates/admin-settings.php';
-    }
-
-    public function render_gifts() {
-        include EPC_PLUGIN_DIR . 'templates/admin-gifts.php';
     }
 
     public function render_referrals() {

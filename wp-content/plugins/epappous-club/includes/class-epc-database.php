@@ -68,38 +68,12 @@ class EPC_Database {
             KEY type (type)
         ) {$charset};";
 
-        // Gift products
-        $sql[] = "CREATE TABLE IF NOT EXISTS {$wpdb->prefix}epc_gift_products (
-            id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
-            product_id BIGINT UNSIGNED DEFAULT NULL,
-            title VARCHAR(255) NOT NULL,
-            description TEXT DEFAULT '',
-            points_required INT UNSIGNED DEFAULT 0,
-            stock INT DEFAULT -1,
-            image_url VARCHAR(500) DEFAULT '',
-            is_active TINYINT(1) DEFAULT 1,
-            tier_required VARCHAR(30) DEFAULT 'basic',
-            created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-            PRIMARY KEY (id),
-            KEY product_id (product_id),
-            KEY is_active (is_active),
-            KEY tier_required (tier_required)
-        ) {$charset};";
-
-        // Gift redemptions
-        $sql[] = "CREATE TABLE IF NOT EXISTS {$wpdb->prefix}epc_gift_redemptions (
-            id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
-            member_id BIGINT UNSIGNED NOT NULL,
-            gift_product_id BIGINT UNSIGNED NOT NULL,
-            points_spent INT UNSIGNED DEFAULT 0,
-            status VARCHAR(20) DEFAULT 'pending',
-            redeemed_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-            fulfilled_at DATETIME DEFAULT NULL,
-            PRIMARY KEY (id),
-            KEY member_id (member_id),
-            KEY gift_product_id (gift_product_id),
-            KEY status (status)
-        ) {$charset};";
+        // (Removed in 1.15.0) The legacy stand-alone gift catalog tables
+        // wp_epc_gift_products and wp_epc_gift_redemptions are no longer
+        // created. Existing rows are left untouched on upgrades; drop them
+        // manually if you want a fully clean DB. Gift products now live as
+        // regular WooCommerce products in the configured gift category, with
+        // their points cost stored in WooCommerce product meta.
 
         // Admin notes on users (not tied to club membership)
         $sql[] = "CREATE TABLE IF NOT EXISTS {$wpdb->prefix}epc_member_notes (
@@ -114,19 +88,9 @@ class EPC_Database {
             KEY author_id (author_id)
         ) {$charset};";
 
-        // Gift rules (WC product/category/tag based)
-        $sql[] = "CREATE TABLE IF NOT EXISTS {$wpdb->prefix}epc_gift_rules (
-            id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
-            rule_type ENUM('product','category','tag') NOT NULL,
-            rule_value BIGINT UNSIGNED NOT NULL,
-            points_required INT UNSIGNED DEFAULT 0,
-            tier_required VARCHAR(30) DEFAULT 'basic',
-            is_active TINYINT(1) DEFAULT 1,
-            created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-            PRIMARY KEY (id),
-            KEY rule_type (rule_type),
-            KEY is_active (is_active)
-        ) {$charset};";
+        // (Removed in 1.15.0) wp_epc_gift_rules — replaced by the WooCommerce
+        // gift category + per-product points meta. Existing rows are left in
+        // place untouched; drop manually if undesired.
 
         // Points log
         $sql[] = "CREATE TABLE IF NOT EXISTS {$wpdb->prefix}epc_points_log (

@@ -96,16 +96,9 @@ class EPC_Settings {
             'epc_referral_track_membership'     => '1',
             'epc_referral_track_purchase'       => '1',
 
-            // ── Gift Products ──
-            'epc_gifts_enabled'        => '1',
-            'epc_gifts_min_tier'       => 'basic',
-            'epc_gifts_per_page'       => '12',
-            'epc_gifts_show_stock'     => '1',
-
             // ── Notifications ──
             'epc_notify_new_member'         => '1',
             'epc_notify_referral_complete'  => '1',
-            'epc_notify_gift_redeemed'      => '1',
             'epc_notify_tier_upgrade'       => '1',
             'epc_admin_email'               => '',
 
@@ -160,12 +153,9 @@ class EPC_Settings {
             'epc_referral_max_referrals', 'epc_referral_cookie_days',
             'epc_referral_code_prefix', 'epc_referral_track_membership',
             'epc_referral_track_purchase',
-            // Gifts
-            'epc_gifts_enabled', 'epc_gifts_min_tier', 'epc_gifts_per_page',
-            'epc_gifts_show_stock',
             // Notifications
             'epc_notify_new_member', 'epc_notify_referral_complete',
-            'epc_notify_gift_redeemed', 'epc_notify_tier_upgrade', 'epc_admin_email',
+            'epc_notify_tier_upgrade', 'epc_admin_email',
             // WooCommerce
             'epc_woo_earn_on_complete', 'epc_woo_earn_statuses',
             'epc_woo_exclude_sale_items', 'epc_woo_exclude_categories',

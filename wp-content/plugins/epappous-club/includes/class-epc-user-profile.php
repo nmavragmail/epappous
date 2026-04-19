@@ -141,10 +141,8 @@ class EPC_User_Profile {
 
                     $redemption_logs = $wpdb->get_results(
                         $wpdb->prepare(
-                            "SELECT pl.*, gp.title AS gift_title
+                            "SELECT pl.*
                              FROM {$wpdb->prefix}epc_points_log pl
-                             LEFT JOIN {$wpdb->prefix}epc_gift_products gp
-                                 ON pl.reason = 'gift_redemption' AND pl.reference_id = gp.id
                              WHERE pl.member_id = %d
                                AND pl.reason IN ('checkout_redemption','gift_redemption')
                              ORDER BY pl.created_at DESC
@@ -243,7 +241,12 @@ class EPC_User_Profile {
                                         <?php else : ?>
                                             <span class="epc-redeem-history-type gift">
                                                 <span class="dashicons dashicons-cart"></span>
-                                                <?php printf( esc_html__( 'Δώρο: %s (%s %s)', 'epappous-club' ), esc_html( $rlog['gift_title'] ?: __( 'Άγνωστο', 'epappous-club' ) ), esc_html( number_format( $rpts ) ), esc_html( $currency ) ); ?>
+                                                <?php printf( esc_html__( 'Δώρο %s %s', 'epappous-club' ), esc_html( number_format( $rpts ) ), esc_html( $currency ) ); ?>
+                                                <?php if ( ! empty( $rlog['reference_id'] ) ) : ?>
+                                                    — <a href="<?php echo esc_url( get_edit_post_link( (int) $rlog['reference_id'] ) ); ?>" target="_blank">
+                                                        <?php printf( esc_html__( 'Παραγγελία #%d', 'epappous-club' ), (int) $rlog['reference_id'] ); ?>
+                                                    </a>
+                                                <?php endif; ?>
                                             </span>
                                         <?php endif; ?>
                                     </div>

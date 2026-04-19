@@ -1847,9 +1847,6 @@ label[for="epc-rule-tier"] { display: none !important; }
 .epc-field-row:has(#epc-rule-tier) { display: none !important; }
 
 /* Settings gifts tab: hide "Ελάχιστη Βαθμίδα" field */
-#epc_gifts_min_tier,
-label[for="epc_gifts_min_tier"] { display: none !important; }
-.epc-field-row:has(#epc_gifts_min_tier) { display: none !important; }
 
 /* Gift card tier badge */
 .epc-gift-tier { display: none !important; }

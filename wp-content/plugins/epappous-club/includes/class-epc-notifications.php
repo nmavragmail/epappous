@@ -22,7 +22,6 @@ class EPC_Notifications {
     private function __construct() {
         add_action( 'epc_member_registered', [ $this, 'on_new_member' ], 99, 2 );
         add_action( 'epc_referral_completed', [ $this, 'on_referral_completed' ], 10, 3 );
-        add_action( 'epc_gift_redeemed', [ $this, 'on_gift_redeemed' ], 10, 3 );
         // add_action( 'epc_tier_upgraded', [ $this, 'on_tier_upgraded' ], 10, 3 );
     }
 
@@ -118,58 +117,6 @@ class EPC_Notifications {
                 $type_label
             )
         );
-    }
-
-    /**
-     * Gift redeemed.
-     */
-    public function on_gift_redeemed( int $member_id, int $gift_id, int $redemption_id ) {
-        if ( EPC_Settings::get( 'epc_notify_gift_redeemed' ) !== '1' ) {
-            return;
-        }
-
-        global $wpdb;
-        $member = $wpdb->get_row(
-            $wpdb->prepare( "SELECT first_name, email FROM {$wpdb->prefix}epc_members WHERE id = %d", $member_id )
-        );
-        $gift = EPC_Gifts::get( $gift_id );
-
-        // Admin notification
-        wp_mail(
-            $this->admin_email(),
-            sprintf(
-                /* translators: 1: club name, 2: redemption id */
-                __( '[%1$s] Εξαργύρωση δώρου #%2$d', 'epappous-club' ),
-                $this->club_name(),
-                $redemption_id
-            ),
-            sprintf(
-                /* translators: 1: member name or id, 2: member email, 3: gift title or id, 4: redemption id */
-                __( "Το μέλος %1\$s (%2\$s) εξαργύρωσε το δώρο \"%3\$s\".\nRedemption ID: %4\$d", 'epappous-club' ),
-                $member ? $member->first_name : '#' . $member_id,
-                $member ? $member->email : '',
-                $gift ? $gift['title'] : '#' . $gift_id,
-                $redemption_id
-            )
-        );
-
-        // Member confirmation
-        if ( $member && ! empty( $member->email ) ) {
-            wp_mail(
-                $member->email,
-                sprintf(
-                    /* translators: %s: club name */
-                    __( '[%s] Εξαργύρωση δώρου', 'epappous-club' ),
-                    $this->club_name()
-                ),
-                sprintf(
-                    /* translators: 1: member first name, 2: gift title or id */
-                    __( "Γεια σου %1\$s!\n\nΕξαργύρωσες επιτυχώς το δώρο \"%2\$s\".\nΘα επικοινωνήσουμε μαζί σου σύντομα.\n\nΕυχαριστούμε!", 'epappous-club' ),
-                    $member->first_name,
-                    $gift ? $gift['title'] : '#' . $gift_id
-                )
-            );
-        }
     }
 
     /**

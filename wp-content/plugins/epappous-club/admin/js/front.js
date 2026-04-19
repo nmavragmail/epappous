@@ -40,35 +40,6 @@
         });
     });
 
-    /* ─── Gift Redemption ─── */
-
-    $(document).on('click', '.epc-redeem-btn', function () {
-        var $btn = $(this);
-        if (!confirm(epcFI('redeemConfirm'))) {
-            return;
-        }
-        $btn.prop('disabled', true).text('...');
-
-        $.post(epcFront.ajaxUrl, {
-            action: 'epc_redeem_gift',
-            gift_id: $btn.data('gift-id'),
-            rule_id: $btn.data('rule-id') || 0,
-            nonce: $btn.data('nonce')
-        }, function (response) {
-            var $msg = $('#epc-gift-catalog-messages');
-            if (response.success) {
-                showMessage($msg, 'success', response.data);
-                setTimeout(function () { location.reload(); }, 1500);
-            } else {
-                showMessage($msg, 'error', response.data);
-                $btn.prop('disabled', false).text(epcFI('redeem'));
-            }
-        }).fail(function () {
-            showMessage($('#epc-gift-catalog-messages'), 'error', epcFI('networkErrorShort'));
-            $btn.prop('disabled', false).text(epcFI('redeem'));
-        });
-    });
-
     /* ─── Referral link copy (member dashboard) ─── */
 
     $(document).on('click', '.epc-copy-ref-link', function () {

@@ -9,7 +9,6 @@ $tabs = [
     'points'        => [ 'label' => __( 'Πόντοι', 'epappous-club' ),        'icon' => 'dashicons-star-filled' ],
     // 'tiers'         => [ 'label' => __( 'Βαθμίδες', 'epappous-club' ),      'icon' => 'dashicons-awards' ],
     'referral'      => [ 'label' => __( 'Referral', 'epappous-club' ),      'icon' => 'dashicons-share' ],
-    'gifts'         => [ 'label' => __( 'Δώρα', 'epappous-club' ),          'icon' => 'dashicons-cart' ],
     'notifications' => [ 'label' => __( 'Ειδοποιήσεις', 'epappous-club' ),  'icon' => 'dashicons-email-alt' ],
     'woocommerce'   => [ 'label' => __( 'WooCommerce', 'epappous-club' ),   'icon' => 'dashicons-store' ],
 ];
@@ -365,61 +364,6 @@ if ( ! is_array( $tiers ) ) {
                     </div>
                 </div>
 
-                <!-- ════════ GIFTS ════════ -->
-                <div class="epc-tab-panel <?php echo $active_tab === 'gifts' ? 'active' : ''; ?>" data-tab="gifts">
-                    <div class="epc-card">
-                        <div class="epc-card-header">
-                            <h2><?php esc_html_e( 'Ρυθμίσεις Δώρων', 'epappous-club' ); ?></h2>
-                            <p class="epc-card-desc"><?php esc_html_e( 'Γενικές ρυθμίσεις για τα προϊόντα-δώρα. Για διαχείριση δώρων, πηγαίνετε στο μενού Δώρα.', 'epappous-club' ); ?></p>
-                        </div>
-                        <div class="epc-card-body">
-                            <div class="epc-field-row">
-                                <label for="epc_gifts_enabled"><?php esc_html_e( 'Ενεργοποίηση Δώρων', 'epappous-club' ); ?></label>
-                                <label class="epc-toggle">
-                                    <input type="hidden" name="epc_gifts_enabled" value="0" />
-                                    <input type="checkbox" id="epc_gifts_enabled" name="epc_gifts_enabled" value="1"
-                                           <?php checked( EPC_Settings::get( 'epc_gifts_enabled' ), '1' ); ?> />
-                                    <span class="epc-toggle-slider"></span>
-                                </label>
-                            </div>
-
-                            <?php if ( false ) : ?>
-                            <div class="epc-field-row">
-                                <label for="epc_gifts_min_tier"><?php esc_html_e( 'Ελάχιστη Βαθμίδα', 'epappous-club' ); ?></label>
-                                <select id="epc_gifts_min_tier" name="epc_gifts_min_tier">
-                                    <?php foreach ( $tiers as $tier ) : ?>
-                                        <option value="<?php echo esc_attr( $tier['slug'] ); ?>"
-                                                <?php selected( EPC_Settings::get( 'epc_gifts_min_tier' ), $tier['slug'] ); ?>>
-                                            <?php echo esc_html( $tier['label'] ); ?>
-                                        </option>
-                                    <?php endforeach; ?>
-                                </select>
-                                <p class="description"><?php esc_html_e( 'Ελάχιστη βαθμίδα μέλους για πρόσβαση στα δώρα.', 'epappous-club' ); ?></p>
-                            </div>
-                            <?php endif; ?>
-                            <input type="hidden" name="epc_gifts_min_tier" value="<?php echo esc_attr( EPC_Settings::get( 'epc_gifts_min_tier' ) ); ?>" />
-
-                            <div class="epc-field-row">
-                                <label for="epc_gifts_per_page"><?php esc_html_e( 'Δώρα ανά Σελίδα', 'epappous-club' ); ?></label>
-                                <input type="number" id="epc_gifts_per_page" name="epc_gifts_per_page"
-                                       value="<?php echo esc_attr( EPC_Settings::get( 'epc_gifts_per_page' ) ); ?>"
-                                       class="small-text" min="1" max="100" />
-                            </div>
-
-                            <div class="epc-field-row">
-                                <label for="epc_gifts_show_stock"><?php esc_html_e( 'Εμφάνιση Αποθέματος', 'epappous-club' ); ?></label>
-                                <label class="epc-toggle">
-                                    <input type="hidden" name="epc_gifts_show_stock" value="0" />
-                                    <input type="checkbox" id="epc_gifts_show_stock" name="epc_gifts_show_stock" value="1"
-                                           <?php checked( EPC_Settings::get( 'epc_gifts_show_stock' ), '1' ); ?> />
-                                    <span class="epc-toggle-slider"></span>
-                                </label>
-                                <p class="description"><?php esc_html_e( 'Εμφάνιση διαθέσιμου αποθέματος στα δώρα.', 'epappous-club' ); ?></p>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
                 <!-- ════════ NOTIFICATIONS ════════ -->
                 <div class="epc-tab-panel <?php echo $active_tab === 'notifications' ? 'active' : ''; ?>" data-tab="notifications">
                     <div class="epc-card">
@@ -440,7 +384,6 @@ if ( ! is_array( $tiers ) ) {
                             $notifications = [
                                 'epc_notify_new_member'        => __( 'Νέο Μέλος', 'epappous-club' ),
                                 'epc_notify_referral_complete' => __( 'Ολοκλήρωση Referral', 'epappous-club' ),
-                                'epc_notify_gift_redeemed'     => __( 'Εξαργύρωση Δώρου', 'epappous-club' ),
                                 // 'epc_notify_tier_upgrade'      => __( 'Αναβάθμιση Βαθμίδας', 'epappous-club' ),
                             ];
                             foreach ( $notifications as $key => $label ) : ?>

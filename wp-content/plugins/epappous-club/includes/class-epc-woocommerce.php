@@ -370,29 +370,21 @@ class EPC_WooCommerce {
         $revoked     = $order->get_meta( '_epc_points_revoked', true ) === '1';
         $potential   = $this->ensure_potential_points_meta( $order );
         $redeem      = (int) $order->get_meta( '_epc_points_redeemed', true );
-        $gift_in     = (string) $order->get_meta( '_epc_order_includes_club_gift_product', true );
 
-        $gift_catalog = EPC_Gift_Rules::resolve_products( 'basic' );
-        $gift_names   = [];
-        if ( ! empty( $gift_catalog ) ) {
+        $gift_lines = [];
+        if ( class_exists( 'EPC_Gift_Products' ) ) {
             foreach ( $order->get_items() as $item ) {
-                $product = $item->get_product();
-                if ( ! $product ) {
-                    continue;
-                }
-                $ids = [ (int) $product->get_id() ];
-                if ( $product->is_type( 'variation' ) ) {
-                    $ids[] = (int) $product->get_parent_id();
-                }
-                foreach ( array_unique( array_filter( $ids ) ) as $pid ) {
-                    if ( isset( $gift_catalog[ $pid ] ) ) {
-                        $gift_names[] = $product->get_name();
-                        break;
-                    }
+                $product = $item instanceof \WC_Order_Item_Product ? $item->get_product() : null;
+                if ( $product && EPC_Gift_Products::is_gift_product( $product ) ) {
+                    $pts          = (int) $item->get_meta( '_epc_gift_points', true );
+                    $gift_lines[] = [
+                        'name'   => $product->get_name(),
+                        'qty'    => (int) $item->get_quantity(),
+                        'points' => $pts > 0 ? $pts : (int) ( EPC_Gift_Products::points_cost( $product ) * (int) $item->get_quantity() ),
+                    ];
                 }
             }
         }
-        $gift_names = array_values( array_unique( array_filter( $gift_names ) ) );
 
         if ( $revoked ) {
             $revoked_amount = (int) $order->get_meta( '_epc_points_revoked_amount', true );
@@ -409,21 +401,20 @@ class EPC_WooCommerce {
             echo '<p style="color:#666;font-size:11px;margin-top:-6px;">' .
                 esc_html__( 'Θα προστεθούν στον χρήστη όταν η παραγγελία περάσει σε επιλέξιμο status (processing/completed).', 'epappous-club' ) . '</p>';
         }
-        echo '<p><strong>' . esc_html__( 'Πόντοι που εξαργύρωσε:', 'epappous-club' ) . '</strong> ' . esc_html( (string) $redeem ) . '</p>';
+        echo '<p><strong>' . esc_html__( 'Πόντοι που εξαργύρωσε (slider checkout):', 'epappous-club' ) . '</strong> ' . esc_html( (string) $redeem ) . '</p>';
 
-        if ( ! empty( $gift_names ) ) {
-            echo '<p><strong>' . esc_html__( 'Προϊόν δώρου στην παραγγελία:', 'epappous-club' ) . '</strong><br>' .
-                esc_html( implode( ', ', $gift_names ) ) . '</p>';
-        } else {
-            $gift_txt = '—';
-            if ( 'yes' === $gift_in ) {
-                $gift_txt = __( 'Ναι (χωρίς διαθέσιμο όνομα προϊόντος).', 'epappous-club' );
-            } elseif ( 'no' === $gift_in ) {
-                $gift_txt = __( 'Όχι', 'epappous-club' );
-            } elseif ( 'n/a' === $gift_in ) {
-                $gift_txt = __( 'Δεν εφαρμόζεται', 'epappous-club' );
+        if ( ! empty( $gift_lines ) ) {
+            $gift_total = 0;
+            $rows       = [];
+            foreach ( $gift_lines as $g ) {
+                $gift_total += (int) $g['points'];
+                $rows[]      = sprintf( '%s × %d (%d %s)', $g['name'], $g['qty'], (int) $g['points'], __( 'πόντοι', 'epappous-club' ) );
             }
-            echo '<p><strong>' . esc_html__( 'Προϊόν δώρου στην παραγγελία:', 'epappous-club' ) . '</strong> ' . esc_html( $gift_txt ) . '</p>';
+            echo '<p><strong>' . esc_html__( 'Δώρα με πόντους σε αυτή την παραγγελία:', 'epappous-club' ) . '</strong><br>' .
+                esc_html( implode( ', ', $rows ) ) . '<br>' .
+                '<em>' . sprintf( esc_html__( 'Σύνολο πόντων που αφαιρέθηκαν για δώρα: %d', 'epappous-club' ), $gift_total ) . '</em></p>';
+        } else {
+            echo '<p><strong>' . esc_html__( 'Δώρα με πόντους σε αυτή την παραγγελία:', 'epappous-club' ) . '</strong> ' . esc_html__( 'Όχι', 'epappous-club' ) . '</p>';
         }
     }
 
@@ -650,8 +641,12 @@ class EPC_WooCommerce {
                 'on_sale'  => $product ? (bool) $product->is_on_sale() : false,
                 'eligible' => false,
             ];
+            $is_gift = $product && class_exists( 'EPC_Gift_Products' )
+                && EPC_Gift_Products::is_gift_product( $product );
             if ( ! $product ) {
                 $line['reason'] = __( 'Δεν βρέθηκε προϊόν', 'epappous-club' );
+            } elseif ( $is_gift ) {
+                $line['reason'] = __( 'Δώρο με πόντους → δεν κερδίζει πόντους', 'epappous-club' );
             } elseif ( $exclude_sale && $product->is_on_sale() ) {
                 $line['reason'] = __( 'Σε προσφορά → εξαιρείται', 'epappous-club' );
             } else {
@@ -921,6 +916,12 @@ class EPC_WooCommerce {
             if ( ! $product ) {
                 continue;
             }
+            // Gift products are bought with points only — they contribute €0 in the
+            // line item too, but skip them explicitly so they never get accidentally
+            // counted (e.g. if a future change starts pricing them as %0.00 strings).
+            if ( class_exists( 'EPC_Gift_Products' ) && EPC_Gift_Products::is_gift_product( $product ) ) {
+                continue;
+            }
             if ( $exclude_sale && $product->is_on_sale() ) {
                 continue;
             }
@@ -1069,7 +1070,6 @@ class EPC_WooCommerce {
         foreach ( [
             '_epc_points_earned',
             '_epc_club_loyalty_settled',
-            '_epc_order_includes_club_gift_product',
             '_epc_points_revoked',
             '_epc_points_revoked_amount',
             '_epc_points_potential',
@@ -1142,13 +1142,9 @@ class EPC_WooCommerce {
 
         if ( ! $in_club || ! $member ) {
             $order->update_meta_data( '_epc_club_loyalty_settled', '1' );
-            $order->update_meta_data( '_epc_order_includes_club_gift_product', 'n/a' );
             $order->save();
             return;
         }
-
-        $gift_catalog = EPC_Gift_Rules::resolve_products( (string) ( $member['tier'] ?? 'basic' ) );
-        $gift_line    = $this->order_contains_catalog_gift_product( $order, $gift_catalog );
 
         $points_per_euro = (float) EPC_Settings::get( 'epc_points_per_euro' );
         $tier_multiplier = 1.0;
@@ -1161,7 +1157,6 @@ class EPC_WooCommerce {
             try {
                 $order->update_meta_data( '_epc_points_earned', 0 );
                 $order->update_meta_data( '_epc_club_loyalty_settled', '1' );
-                $order->update_meta_data( '_epc_order_includes_club_gift_product', $gift_line ? 'yes' : 'no' );
                 $order->save();
             } catch ( Throwable $e ) {
                 return;
@@ -1202,7 +1197,6 @@ class EPC_WooCommerce {
         try {
             $order->update_meta_data( '_epc_points_earned', $points );
             $order->update_meta_data( '_epc_club_loyalty_settled', '1' );
-            $order->update_meta_data( '_epc_order_includes_club_gift_product', $gift_line ? 'yes' : 'no' );
             $order->save();
         } catch ( Throwable $e ) {
             $wpdb->query( 'ROLLBACK' );
@@ -1326,34 +1320,6 @@ class EPC_WooCommerce {
     }
 
     /**
-     * True if any line item is a product that appears in the active gift catalog (rules).
-     *
-     * @param \WC_Order              $order         Order.
-     * @param array<int,array>       $gift_catalog Keys = WC product IDs from EPC_Gift_Rules::resolve_products().
-     */
-    private function order_contains_catalog_gift_product( \WC_Order $order, array $gift_catalog ): bool {
-        if ( empty( $gift_catalog ) ) {
-            return false;
-        }
-        foreach ( $order->get_items() as $item ) {
-            $product = $item->get_product();
-            if ( ! $product ) {
-                continue;
-            }
-            $ids = [ (int) $product->get_id() ];
-            if ( $product->is_type( 'variation' ) ) {
-                $ids[] = (int) $product->get_parent_id();
-            }
-            foreach ( array_unique( array_filter( $ids ) ) as $pid ) {
-                if ( isset( $gift_catalog[ $pid ] ) ) {
-                    return true;
-                }
-            }
-        }
-        return false;
-    }
-
-    /**
      * WooCommerce admin: summary of Club loyalty data stored on this order.
      *
      * @param \WC_Order|false $order Order.
@@ -1367,10 +1333,14 @@ class EPC_WooCommerce {
         $earned_meta   = $order->get_meta( '_epc_points_earned', true );
         $redeem        = $order->get_meta( '_epc_points_redeemed', true );
         $disc          = $order->get_meta( '_epc_discount_amount', true );
-        $gift          = (string) $order->get_meta( '_epc_order_includes_club_gift_product', true );
         $revoked_meta  = $order->get_meta( '_epc_points_revoked_amount', true );
 
-        if ( ! $settled && '' === (string) $earned_meta && '' === (string) $redeem && '' === $gift ) {
+        $gift_total = 0;
+        if ( class_exists( 'EPC_Gift_Products' ) ) {
+            $gift_total = EPC_Gift_Products::order_gift_points_total( $order );
+        }
+
+        if ( ! $settled && '' === (string) $earned_meta && '' === (string) $redeem && 0 === $gift_total ) {
             return;
         }
 
@@ -1381,13 +1351,6 @@ class EPC_WooCommerce {
         } else {
             $earned_display = '—';
         }
-
-        $gift_labels = [
-            'yes' => __( 'Ναι — περιλαμβάνει προϊόν από τον κατάλογο δώρων του Club (WC γραμμή παραγγελίας).', 'epappous-club' ),
-            'no'  => __( 'Όχι — δεν εντοπίστηκε προϊόν καταλόγου δώρων στις γραμμές της παραγγελίας.', 'epappous-club' ),
-            'n/a' => __( 'Δεν εφαρμόζεται (όχι μέλος ή όχι σε ομάδα Club / χωρίς εκτίμηση).', 'epappous-club' ),
-        ];
-        $gift_text = $gift_labels[ $gift ] ?? '—';
 
         ?>
         <div class="address" style="clear:both;margin-top:12px;padding:12px;background:#f0f6fc;border:1px solid #c3d9ed;border-radius:4px;">
@@ -1414,11 +1377,8 @@ class EPC_WooCommerce {
                 <strong><?php echo '' !== (string) $revoked_meta ? esc_html( (string) (int) $revoked_meta ) : '—'; ?></strong>
             </p>
             <p style="margin:4px 0;font-size:13px;">
-                <?php esc_html_e( 'Γραμμή παραγγελίας με προϊόν από κατάλογο δώρων Club:', 'epappous-club' ); ?>
-                <strong><?php echo esc_html( $gift_text ); ?></strong>
-            </p>
-            <p style="margin:8px 0 0;font-size:11px;color:#50575e;">
-                <?php esc_html_e( 'Η εξαργύρωση δώρου από τη σελίδα δώρων (χωρίς παραγγελία WooCommerce) καταγράφεται στις εγγραφές εξαργύρωσης του plugin, όχι σε μετα-δεδομένα παραγγελίας.', 'epappous-club' ); ?>
+                <?php esc_html_e( 'Πόντοι που αφαιρέθηκαν για δώρα στην παραγγελία:', 'epappous-club' ); ?>
+                <strong><?php echo $gift_total > 0 ? esc_html( (string) $gift_total ) : '—'; ?></strong>
             </p>
         </div>
         <?php
