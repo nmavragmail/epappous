@@ -1453,6 +1453,14 @@ class EPC_WooCommerce {
             return;
         }
 
+        // If the cart contains gift products and stacking is disabled, hide the
+        // monetary redemption slider entirely (gifts already consume points).
+        if ( class_exists( 'EPC_Gift_Products' )
+            && EPC_Gift_Products::cart_gift_points_total() > 0
+            && EPC_Settings::get( 'epc_woo_gift_allow_redeem_stack' ) !== '1' ) {
+            return;
+        }
+
         $min_points   = (int) EPC_Settings::get( 'epc_min_redeem_points' );
         $point_value  = (float) EPC_Settings::get( 'epc_points_value_euro' );
         $max_percent  = (int) EPC_Settings::get( 'epc_max_redeem_percent' );

@@ -551,6 +551,53 @@ if ( ! is_array( $tiers ) ) {
                             </div>
                         </div>
                     </div>
+
+                    <div class="epc-card">
+                        <div class="epc-card-header">
+                            <h2><?php esc_html_e( 'Δώρα με Πόντους (αγορά μέσω WooCommerce)', 'epappous-club' ); ?></h2>
+                            <p class="epc-card-desc"><?php esc_html_e( 'Προϊόντα που ανήκουν στην κατηγορία Δώρου δεν αγοράζονται με χρήματα — μόνο με εξαργύρωση πόντων μέσα από το κανονικό checkout.', 'epappous-club' ); ?></p>
+                        </div>
+                        <div class="epc-card-body">
+                            <div class="epc-field-row">
+                                <label for="epc_woo_gift_category"><?php esc_html_e( 'Κατηγορία προϊόντων δώρου', 'epappous-club' ); ?></label>
+                                <?php
+                                $current_gift_cat_id = (int) EPC_Settings::get( 'epc_woo_gift_category' );
+                                $product_cats        = function_exists( 'get_terms' )
+                                    ? get_terms( [
+                                        'taxonomy'   => 'product_cat',
+                                        'hide_empty' => false,
+                                        'orderby'    => 'name',
+                                    ] )
+                                    : [];
+                                if ( is_wp_error( $product_cats ) ) {
+                                    $product_cats = [];
+                                }
+                                ?>
+                                <select id="epc_woo_gift_category" name="epc_woo_gift_category" class="regular-text">
+                                    <option value="0"><?php esc_html_e( '— Χωρίς κατηγορία δώρου —', 'epappous-club' ); ?></option>
+                                    <?php foreach ( $product_cats as $cat ) : ?>
+                                        <option value="<?php echo esc_attr( (string) $cat->term_id ); ?>" <?php selected( $current_gift_cat_id, (int) $cat->term_id ); ?>>
+                                            <?php echo esc_html( $cat->name ); ?> (#<?php echo (int) $cat->term_id; ?>)
+                                        </option>
+                                    <?php endforeach; ?>
+                                </select>
+                                <p class="description">
+                                    <?php esc_html_e( 'Όποιο WooCommerce προϊόν ανήκει σε αυτή την κατηγορία θα διαθέτει στο edit screen πεδίο «Πόντοι για εξαργύρωση», δεν θα αγοράζεται με χρήματα και δεν θα κερδίζει πόντους. Οι πόντοι αφαιρούνται από το ledger όταν η παραγγελία γίνει processing/completed.', 'epappous-club' ); ?>
+                                </p>
+                            </div>
+
+                            <div class="epc-field-row">
+                                <label for="epc_woo_gift_allow_redeem_stack"><?php esc_html_e( 'Επιπλέον εξαργύρωση πόντων μαζί με δώρο', 'epappous-club' ); ?></label>
+                                <label class="epc-toggle">
+                                    <input type="hidden" name="epc_woo_gift_allow_redeem_stack" value="0" />
+                                    <input type="checkbox" id="epc_woo_gift_allow_redeem_stack" name="epc_woo_gift_allow_redeem_stack" value="1"
+                                           <?php checked( EPC_Settings::get( 'epc_woo_gift_allow_redeem_stack' ), '1' ); ?> />
+                                    <span class="epc-toggle-slider"></span>
+                                </label>
+                                <p class="description"><?php esc_html_e( 'Όταν είναι ενεργό (default), ο πελάτης μπορεί να χρησιμοποιήσει και τον slider εξαργύρωσης πόντων για έκπτωση στα κανονικά προϊόντα, παράλληλα με δώρα στο καλάθι. Αν απενεργοποιηθεί, ο slider κρύβεται όταν υπάρχει δώρο στο καλάθι.', 'epappous-club' ); ?></p>
+                            </div>
+                        </div>
+                    </div>
                 </div>
 
                 <input type="hidden" name="epc_tiers" value="<?php echo esc_attr( $tiers_json ); ?>" />
