@@ -6,14 +6,23 @@ if ( ! defined( 'ABSPATH' ) ) {
 global $wpdb;
 
 // Search / filter parameters
-$search    = isset( $_GET['s'] )         ? sanitize_text_field( wp_unslash( $_GET['s'] ) )   : ''; // phpcs:ignore
-$filter_mid = isset( $_GET['member_id'] ) ? (int) $_GET['member_id']                          : 0;  // phpcs:ignore
-$page      = max( 1, (int) ( $_GET['paged'] ?? 1 ) ); // phpcs:ignore
-$per_page  = 5;
-$offset    = ( $page - 1 ) * $per_page;
+$search       = isset( $_GET['s'] )         ? sanitize_text_field( wp_unslash( $_GET['s'] ) )   : ''; // phpcs:ignore
+$filter_mid   = isset( $_GET['member_id'] ) ? (int) $_GET['member_id']                          : 0;  // phpcs:ignore
+$filter_month = isset( $_GET['month'] )     ? max( 0, min( 12, (int) $_GET['month'] ) )         : 0;  // phpcs:ignore
+$filter_year  = isset( $_GET['year'] )      ? max( 0, (int) $_GET['year'] )                     : 0;  // phpcs:ignore
+$page         = max( 1, (int) ( $_GET['paged'] ?? 1 ) ); // phpcs:ignore
+$per_page     = 100;
+$offset       = ( $page - 1 ) * $per_page;
 
 $where  = '1=1';
 $params = [];
+
+if ( $filter_year > 0 ) {
+    $where .= $wpdb->prepare( ' AND YEAR(pl.created_at) = %d', $filter_year );
+}
+if ( $filter_month > 0 ) {
+    $where .= $wpdb->prepare( ' AND MONTH(pl.created_at) = %d', $filter_month );
+}
 
 if ( $filter_mid > 0 ) {
     $where .= $wpdb->prepare( ' AND pl.member_id = %d', $filter_mid );
@@ -101,18 +110,49 @@ $reason_labels = [
     'checkout_redemption'        => [ 'label' => __( 'Εξαργύρωση στο Checkout', 'epappous-club' ),               'icon' => 'dashicons-money-alt',   'color' => '#dc2626' ],
 ];
 
-// Build base URL for pagination (preserve search / member_id)
+// Build base URL for pagination (preserve search / member_id / month / year)
 function epc_log_page_url( $p ) {
-    $args = [ 'page' => 'epc-points-log', 'paged' => $p ];
-    $mid  = isset( $_GET['member_id'] ) ? (int) $_GET['member_id'] : 0; // phpcs:ignore
-    $s    = isset( $_GET['s'] )         ? sanitize_text_field( wp_unslash( $_GET['s'] ) ) : ''; // phpcs:ignore
+    $args  = [ 'page' => 'epc-points-log', 'paged' => $p ];
+    $mid   = isset( $_GET['member_id'] ) ? (int) $_GET['member_id'] : 0; // phpcs:ignore
+    $s     = isset( $_GET['s'] )         ? sanitize_text_field( wp_unslash( $_GET['s'] ) ) : ''; // phpcs:ignore
+    $month = isset( $_GET['month'] )     ? max( 0, min( 12, (int) $_GET['month'] ) ) : 0; // phpcs:ignore
+    $year  = isset( $_GET['year'] )      ? max( 0, (int) $_GET['year'] ) : 0; // phpcs:ignore
     if ( $mid > 0 ) {
         $args['member_id'] = $mid;
     } elseif ( $s !== '' ) {
         $args['s'] = $s;
     }
+    if ( $month > 0 ) {
+        $args['month'] = $month;
+    }
+    if ( $year > 0 ) {
+        $args['year'] = $year;
+    }
     return admin_url( 'admin.php?' . http_build_query( $args ) );
 }
+
+// Distinct years available in the log, newest first; always include current year.
+$log_years = $wpdb->get_col( "SELECT DISTINCT YEAR(created_at) FROM {$wpdb->prefix}epc_points_log ORDER BY 1 DESC" );
+$log_years = array_map( 'intval', (array) $log_years );
+$current_year = (int) date_i18n( 'Y' );
+if ( ! in_array( $current_year, $log_years, true ) ) {
+    array_unshift( $log_years, $current_year );
+}
+
+$month_labels = [
+    1  => __( 'Ιανουάριος',  'epappous-club' ),
+    2  => __( 'Φεβρουάριος', 'epappous-club' ),
+    3  => __( 'Μάρτιος',     'epappous-club' ),
+    4  => __( 'Απρίλιος',    'epappous-club' ),
+    5  => __( 'Μάιος',       'epappous-club' ),
+    6  => __( 'Ιούνιος',     'epappous-club' ),
+    7  => __( 'Ιούλιος',     'epappous-club' ),
+    8  => __( 'Αύγουστος',   'epappous-club' ),
+    9  => __( 'Σεπτέμβριος', 'epappous-club' ),
+    10 => __( 'Οκτώβριος',   'epappous-club' ),
+    11 => __( 'Νοέμβριος',   'epappous-club' ),
+    12 => __( 'Δεκέμβριος',  'epappous-club' ),
+];
 ?>
 <div class="wrap epc-wrap">
     <div class="epc-header">
@@ -155,20 +195,47 @@ function epc_log_page_url( $p ) {
         </div>
     <?php endif; ?>
 
-    <!-- Search Bar (hidden when filtering by member) -->
-    <?php if ( ! $filter_mid ) : ?>
+    <!-- Search Bar -->
     <div class="epc-search-bar">
         <form method="get" action="">
             <input type="hidden" name="page" value="epc-points-log" />
-            <div class="epc-search-group">
-                <span class="dashicons dashicons-search"></span>
-                <input type="text" name="s" id="epc-log-search"
-                       value="<?php echo esc_attr( $search ); ?>"
-                       placeholder="<?php esc_attr_e( 'Αναζήτηση με ID, username, όνομα ή email...', 'epappous-club' ); ?>"
-                       class="epc-search-input" />
+            <?php if ( $filter_mid > 0 ) : ?>
+                <input type="hidden" name="member_id" value="<?php echo (int) $filter_mid; ?>" />
+            <?php endif; ?>
+            <div class="epc-search-group" style="flex-wrap:wrap;gap:8px;">
+                <?php if ( ! $filter_mid ) : ?>
+                    <span class="dashicons dashicons-search"></span>
+                    <input type="text" name="s" id="epc-log-search"
+                           value="<?php echo esc_attr( $search ); ?>"
+                           placeholder="<?php esc_attr_e( 'Αναζήτηση με ID, username, όνομα ή email...', 'epappous-club' ); ?>"
+                           class="epc-search-input" />
+                <?php endif; ?>
+
+                <select name="month" aria-label="<?php esc_attr_e( 'Μήνας', 'epappous-club' ); ?>">
+                    <option value="0"><?php esc_html_e( 'Όλοι οι μήνες', 'epappous-club' ); ?></option>
+                    <?php foreach ( $month_labels as $m_num => $m_label ) : ?>
+                        <option value="<?php echo (int) $m_num; ?>" <?php selected( $filter_month, (int) $m_num ); ?>>
+                            <?php echo esc_html( $m_label ); ?>
+                        </option>
+                    <?php endforeach; ?>
+                </select>
+
+                <select name="year" aria-label="<?php esc_attr_e( 'Έτος', 'epappous-club' ); ?>">
+                    <option value="0"><?php esc_html_e( 'Όλα τα έτη', 'epappous-club' ); ?></option>
+                    <?php foreach ( $log_years as $y ) : if ( $y < 1 ) continue; ?>
+                        <option value="<?php echo (int) $y; ?>" <?php selected( $filter_year, (int) $y ); ?>>
+                            <?php echo (int) $y; ?>
+                        </option>
+                    <?php endforeach; ?>
+                </select>
+
                 <button type="submit" class="button button-primary"><?php esc_html_e( 'Αναζήτηση', 'epappous-club' ); ?></button>
-                <?php if ( ! empty( $search ) ) : ?>
-                    <a href="<?php echo esc_url( admin_url( 'admin.php?page=epc-points-log' ) ); ?>" class="button">
+
+                <?php if ( ! empty( $search ) || $filter_month > 0 || $filter_year > 0 ) : ?>
+                    <a href="<?php echo esc_url( $filter_mid > 0
+                        ? admin_url( 'admin.php?page=epc-points-log&member_id=' . (int) $filter_mid )
+                        : admin_url( 'admin.php?page=epc-points-log' )
+                    ); ?>" class="button">
                         <?php esc_html_e( 'Καθαρισμός', 'epappous-club' ); ?>
                     </a>
                 <?php endif; ?>
@@ -176,7 +243,7 @@ function epc_log_page_url( $p ) {
         </form>
     </div>
 
-    <?php if ( ! empty( $search ) ) : ?>
+    <?php if ( ! $filter_mid && ! empty( $search ) ) : ?>
         <p class="epc-search-result-text">
             <?php printf(
                 esc_html__( 'Βρέθηκαν %d αποτελέσματα για "%s"', 'epappous-club' ),
@@ -185,6 +252,21 @@ function epc_log_page_url( $p ) {
             ); ?>
         </p>
     <?php endif; ?>
+
+    <?php if ( $filter_month > 0 || $filter_year > 0 ) : ?>
+        <p class="epc-search-result-text">
+            <?php
+            $label_month = $filter_month > 0 ? $month_labels[ $filter_month ] : '';
+            $label_year  = $filter_year  > 0 ? (string) $filter_year         : '';
+            $period      = trim( $label_month . ' ' . $label_year );
+            printf(
+                /* translators: 1: number of results, 2: period (month/year) */
+                esc_html__( 'Φιλτράρισμα: %1$d εγγραφές για %2$s', 'epappous-club' ),
+                (int) $total,
+                esc_html( $period )
+            );
+            ?>
+        </p>
     <?php endif; ?>
 
     <?php if ( empty( $logs ) ) : ?>
@@ -226,7 +308,7 @@ function epc_log_page_url( $p ) {
                     <th class="column-points"><?php esc_html_e( 'Πόντοι', 'epappous-club' ); ?></th>
                     <th class="column-reason"><?php esc_html_e( 'Λόγος', 'epappous-club' ); ?></th>
                     <th class="column-ref"><?php esc_html_e( 'Αναφορά', 'epappous-club' ); ?></th>
-                    <th class="column-admin"><?php esc_html_e( 'Από', 'epappous-club' ); ?></th>
+                    <th class="column-admin"><?php esc_html_e( 'Δώθηκαν από', 'epappous-club' ); ?></th>
                     <th class="column-date"><?php esc_html_e( 'Ημερομηνία', 'epappous-club' ); ?></th>
                     <th class="column-debug"><?php esc_html_e( 'Debug', 'epappous-club' ); ?></th>
                 </tr>
@@ -267,9 +349,19 @@ function epc_log_page_url( $p ) {
                             </span>
                         </td>
                         <td class="column-reason">
+                            <?php
+                            $reason_display = $reason_info['label'];
+                            if (
+                                $reason_key === 'order_earning'
+                                && ( $log['reference_type'] ?? '' ) === 'order'
+                                && (int) ( $log['reference_id'] ?? 0 ) > 0
+                            ) {
+                                $reason_display .= ' (#' . (int) $log['reference_id'] . ')';
+                            }
+                            ?>
                             <span class="epc-reason-badge" style="--reason-color: <?php echo esc_attr( $reason_info['color'] ); ?>">
                                 <span class="dashicons <?php echo esc_attr( $reason_info['icon'] ); ?>"></span>
-                                <?php echo esc_html( $reason_info['label'] ); ?>
+                                <?php echo esc_html( $reason_display ); ?>
                             </span>
                         </td>
                         <td class="column-ref">
