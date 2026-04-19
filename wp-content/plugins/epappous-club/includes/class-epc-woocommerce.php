@@ -1537,8 +1537,7 @@ class EPC_WooCommerce {
                     </div>
 
                     <div class="epc-redeem-actions">
-                        <button type="button" class="epc-apply-points-btn button"><?php esc_html_e( 'Εφαρμογή πόντων', 'epappous-club' ); ?></button>
-                        <button type="button" class="epc-remove-points-btn"<?php echo $already_applied > 0 ? '' : ' style="display:none;"'; ?>><?php esc_html_e( 'Αφαίρεση', 'epappous-club' ); ?></button>
+                        <button type="button" class="epc-remove-points-btn"<?php echo $already_applied > 0 ? '' : ' style="display:none;"'; ?>><?php esc_html_e( 'Αφαίρεση πόντων', 'epappous-club' ); ?></button>
                     </div>
 
                     <p class="epc-redeem-foot-note">
