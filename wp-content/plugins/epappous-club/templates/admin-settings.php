@@ -538,6 +538,17 @@ if ( ! is_array( $tiers ) ) {
                                 </label>
                                 <p class="description"><?php esc_html_e( 'Δεν κερδίζονται πόντοι σε προϊόντα που είναι ήδη σε έκπτωση.', 'epappous-club' ); ?></p>
                             </div>
+
+                            <div class="epc-field-row">
+                                <label for="epc_woo_earn_include_shipping"><?php esc_html_e( 'Πόντοι στα μεταφορικά', 'epappous-club' ); ?></label>
+                                <label class="epc-toggle">
+                                    <input type="hidden" name="epc_woo_earn_include_shipping" value="0" />
+                                    <input type="checkbox" id="epc_woo_earn_include_shipping" name="epc_woo_earn_include_shipping" value="1"
+                                           <?php checked( EPC_Settings::get( 'epc_woo_earn_include_shipping' ), '1' ); ?> />
+                                    <span class="epc-toggle-slider"></span>
+                                </label>
+                                <p class="description"><?php esc_html_e( 'Όταν είναι ενεργό, οι πόντοι υπολογίζονται και πάνω στο κόστος μεταφορικών. Διαφορετικά μόνο πάνω στην αξία προϊόντων (μετά την έκπτωση από εξαργύρωση πόντων).', 'epappous-club' ); ?></p>
+                            </div>
                         </div>
                     </div>
                 </div>

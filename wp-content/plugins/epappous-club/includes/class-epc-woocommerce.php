@@ -822,10 +822,30 @@ class EPC_WooCommerce {
             return 0;
         }
 
-        $points_per_euro   = (float) EPC_Settings::get( 'epc_points_per_euro' );
+        $points_per_euro = (float) EPC_Settings::get( 'epc_points_per_euro' );
+        $eligible_total  = $this->compute_eligible_order_total( $order );
+
+        $raw_points = $eligible_total * $points_per_euro;
+        $points     = (int) floor( $raw_points );
+
+        return max( 0, $points );
+    }
+
+    /**
+     * Calculate the € amount that should earn loyalty points for a given order.
+     *
+     * Rules (in order):
+     *  - Sum line totals of items that are NOT excluded (sale/category exclusions).
+     *  - If "Πόντοι στα μεταφορικά" is enabled, add the order shipping total.
+     *  - Subtract the points-redemption discount stored on the order, so members
+     *    don't earn points on the value they already paid for with points.
+     *  - Clamped to >= 0 to avoid negative earnings when the discount exceeds the base.
+     */
+    private function compute_eligible_order_total( \WC_Order $order ): float {
         $exclude_sale      = EPC_Settings::get( 'epc_woo_exclude_sale_items' ) === '1';
         $exclude_cats_json = EPC_Settings::get( 'epc_woo_exclude_categories' );
         $exclude_cats      = json_decode( $exclude_cats_json, true ) ?: [];
+        $include_shipping  = EPC_Settings::get( 'epc_woo_earn_include_shipping' ) === '1';
 
         $eligible_total = 0.0;
         foreach ( $order->get_items() as $item ) {
@@ -846,10 +866,16 @@ class EPC_WooCommerce {
             $eligible_total += (float) $item->get_total();
         }
 
-        $raw_points = $eligible_total * $points_per_euro;
-        $points     = (int) floor( $raw_points );
+        if ( $include_shipping ) {
+            $eligible_total += (float) $order->get_shipping_total();
+        }
 
-        return max( 0, $points );
+        $points_discount = (float) $order->get_meta( '_epc_discount_amount', true );
+        if ( $points_discount > 0 ) {
+            $eligible_total -= $points_discount;
+        }
+
+        return max( 0.0, $eligible_total );
     }
 
     /**
@@ -1056,34 +1082,9 @@ class EPC_WooCommerce {
         $gift_catalog = EPC_Gift_Rules::resolve_products( (string) ( $member['tier'] ?? 'basic' ) );
         $gift_line    = $this->order_contains_catalog_gift_product( $order, $gift_catalog );
 
-        $points_per_euro   = (float) EPC_Settings::get( 'epc_points_per_euro' );
-        $exclude_sale      = EPC_Settings::get( 'epc_woo_exclude_sale_items' ) === '1';
-        $exclude_cats_json = EPC_Settings::get( 'epc_woo_exclude_categories' );
-        $exclude_cats      = json_decode( $exclude_cats_json, true ) ?: [];
-
+        $points_per_euro = (float) EPC_Settings::get( 'epc_points_per_euro' );
         $tier_multiplier = 1.0;
-        $eligible_total  = 0;
-
-        foreach ( $order->get_items() as $item ) {
-            $product = $item->get_product();
-            if ( ! $product ) {
-                continue;
-            }
-
-            if ( $exclude_sale && $product->is_on_sale() ) {
-                continue;
-            }
-
-            if ( ! empty( $exclude_cats ) ) {
-                $lookup_id    = $product->is_type( 'variation' ) ? $product->get_parent_id() : $product->get_id();
-                $product_cats = wp_get_post_terms( $lookup_id, 'product_cat', [ 'fields' => 'ids' ] );
-                if ( array_intersect( $product_cats, $exclude_cats ) ) {
-                    continue;
-                }
-            }
-
-            $eligible_total += (float) $item->get_total();
-        }
+        $eligible_total  = $this->compute_eligible_order_total( $order );
 
         $raw_points = $eligible_total * $points_per_euro;
         $points     = (int) floor( $raw_points * $tier_multiplier );

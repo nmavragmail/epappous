@@ -114,6 +114,7 @@ class EPC_Settings {
             'epc_woo_earn_statuses'         => wp_json_encode( [ 'completed' ] ),
             'epc_woo_exclude_sale_items'    => '0',
             'epc_woo_exclude_categories'    => wp_json_encode( [] ),
+            'epc_woo_earn_include_shipping' => '0',
 
             // ── B2B King (Pappou Club = this group ID; changes on site migration) ──
             'epc_b2bking_club_group_id'     => '1446',
@@ -164,6 +165,7 @@ class EPC_Settings {
             // WooCommerce
             'epc_woo_earn_on_complete', 'epc_woo_earn_statuses',
             'epc_woo_exclude_sale_items', 'epc_woo_exclude_categories',
+            'epc_woo_earn_include_shipping',
         ];
 
         foreach ( $settings as $key ) {
