@@ -6,7 +6,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 class EPC_Database {
 
     const DB_VERSION_OPTION = 'epc_db_version';
-    const DB_VERSION        = '1.4.0';
+    const DB_VERSION        = '1.4.1';
 
     public static function activate() {
         self::create_tables();
@@ -101,15 +101,21 @@ class EPC_Database {
             referrer_member_id BIGINT UNSIGNED NOT NULL,
             ref_code VARCHAR(40) NOT NULL,
             cookie_token VARCHAR(64) NOT NULL,
+            referred_email VARCHAR(200) DEFAULT '',
             click_count INT UNSIGNED DEFAULT 1,
             first_clicked_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
             last_clicked_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
             converted_member_id BIGINT UNSIGNED DEFAULT NULL,
             converted_at DATETIME DEFAULT NULL,
+            purchased_order_id BIGINT UNSIGNED DEFAULT NULL,
+            purchased_at DATETIME DEFAULT NULL,
+            purchase_total DECIMAL(12,2) DEFAULT NULL,
+            rewarded_at DATETIME DEFAULT NULL,
             PRIMARY KEY (id),
             UNIQUE KEY cookie_token (cookie_token),
             KEY referrer_member_id (referrer_member_id),
             KEY converted_member_id (converted_member_id),
+            KEY purchased_order_id (purchased_order_id),
             KEY first_clicked_at (first_clicked_at)
         ) {$charset};";
 
@@ -175,6 +181,30 @@ class EPC_Database {
             // Make sure the referral clicks table exists for existing installs.
             self::create_tables();
             update_option( self::DB_VERSION_OPTION, '1.4.0' );
+            $current = '1.4.0';
+        }
+        if ( version_compare( $current, '1.4.1', '<' ) ) {
+            global $wpdb;
+            $table   = $wpdb->prefix . 'epc_referral_clicks';
+            $columns = [
+                'referred_email'     => "ALTER TABLE {$table} ADD COLUMN referred_email VARCHAR(200) DEFAULT '' AFTER cookie_token",
+                'purchased_order_id' => "ALTER TABLE {$table} ADD COLUMN purchased_order_id BIGINT UNSIGNED DEFAULT NULL AFTER converted_at",
+                'purchased_at'       => "ALTER TABLE {$table} ADD COLUMN purchased_at DATETIME DEFAULT NULL AFTER purchased_order_id",
+                'purchase_total'     => "ALTER TABLE {$table} ADD COLUMN purchase_total DECIMAL(12,2) DEFAULT NULL AFTER purchased_at",
+                'rewarded_at'        => "ALTER TABLE {$table} ADD COLUMN rewarded_at DATETIME DEFAULT NULL AFTER purchase_total",
+            ];
+            foreach ( $columns as $col => $alter_sql ) {
+                $exists = $wpdb->get_results( $wpdb->prepare( "SHOW COLUMNS FROM {$table} LIKE %s", $col ) );
+                if ( empty( $exists ) ) {
+                    $wpdb->query( $alter_sql ); // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
+                }
+            }
+            // Idempotent index for new column.
+            $idx = $wpdb->get_results( "SHOW INDEX FROM {$table} WHERE Key_name = 'purchased_order_id'" );
+            if ( empty( $idx ) ) {
+                $wpdb->query( "ALTER TABLE {$table} ADD KEY purchased_order_id (purchased_order_id)" );
+            }
+            update_option( self::DB_VERSION_OPTION, '1.4.1' );
         }
     }
 

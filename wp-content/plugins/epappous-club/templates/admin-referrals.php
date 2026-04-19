@@ -73,13 +73,14 @@ $now_ts      = (int) current_time( 'U' );
             <li><?php esc_html_e( 'Μοιράζεται τον κωδικό ή ένα σύνδεσμο (π.χ. example.com/?ref=PAPPOU-A3X9) σε φίλους.', 'epappous-club' ); ?></li>
             <li><?php esc_html_e( 'Ο σύνδεσμος αποθηκεύει ένα cookie στον browser του φίλου.', 'epappous-club' ); ?></li>
             <li>
-                <?php esc_html_e( 'Η καταγραφή γίνεται σε δύο περιπτώσεις:', 'epappous-club' ); ?>
+                <?php esc_html_e( 'Για να δοθεί η ανταμοιβή πρέπει να ισχύουν ΚΑΙ οι δύο προϋποθέσεις (σε όποια σειρά):', 'epappous-club' ); ?>
                 <ul>
-                    <li><strong><?php esc_html_e( 'Εγγραφή μέλους:', 'epappous-club' ); ?></strong> <?php esc_html_e( 'Όταν ο φίλος γίνει μέλος του club μέσω του referral link.', 'epappous-club' ); ?></li>
-                    <li><strong><?php esc_html_e( 'Αγορά:', 'epappous-club' ); ?></strong> <?php esc_html_e( 'Όταν ο φίλος ολοκληρώσει μια παραγγελία στο κατάστημα.', 'epappous-club' ); ?></li>
+                    <li><strong><?php esc_html_e( 'Εγγραφή μέλους:', 'epappous-club' ); ?></strong> <?php esc_html_e( 'Ο φίλος γίνεται μέλος του Pappou Club.', 'epappous-club' ); ?></li>
+                    <li><strong><?php esc_html_e( 'Αγορά:', 'epappous-club' ); ?></strong> <?php esc_html_e( 'Ο φίλος ολοκληρώνει μια παραγγελία στο κατάστημα.', 'epappous-club' ); ?></li>
                 </ul>
             </li>
-            <li><?php esc_html_e( 'Και οι δύο (referrer & referred) κερδίζουν ανταμοιβή (πόντοι ή έκπτωση, αναλόγως ρυθμίσεων).', 'epappous-club' ); ?></li>
+            <li><?php esc_html_e( 'Αν ισχύει μόνο η μία προϋπόθεση, η περίπτωση καταγράφεται ως εκκρεμής στο log και η ανταμοιβή δίνεται αυτόματα μόλις ικανοποιηθεί και η δεύτερη.', 'epappous-club' ); ?></li>
+            <li><?php esc_html_e( 'Όταν ολοκληρωθεί, και οι δύο (referrer & φίλος) κερδίζουν ανταμοιβή σύμφωνα με τις ρυθμίσεις.', 'epappous-club' ); ?></li>
         </ol>
         <p>
             <a href="<?php echo esc_url( admin_url( 'admin.php?page=epc-settings&tab=referral' ) ); ?>" class="button button-secondary">
@@ -193,15 +194,18 @@ $now_ts      = (int) current_time( 'U' );
             <p style="margin:0;"><?php esc_html_e( 'Δεν έχει καταγραφεί ακόμα κανένα click σε referral link.', 'epappous-club' ); ?></p>
         </div>
     <?php else : ?>
-        <table class="wp-list-table widefat fixed striped epc-table">
+        <p class="description" style="margin-bottom:.5em;">
+            <?php esc_html_e( 'Η ανταμοιβή δίνεται μόνο όταν ο φίλος γίνει μέλος ΚΑΙ κάνει αγορά (σε όποια σειρά).', 'epappous-club' ); ?>
+        </p>
+        <table class="wp-list-table widefat fixed striped epc-table epc-clicks-table">
             <thead>
                 <tr>
                     <th style="width:60px;"><?php esc_html_e( 'ID', 'epappous-club' ); ?></th>
                     <th><?php esc_html_e( 'Referrer', 'epappous-club' ); ?></th>
                     <th><?php esc_html_e( 'Πρώτο click', 'epappous-club' ); ?></th>
-                    <th><?php esc_html_e( 'Τελευταίο click', 'epappous-club' ); ?></th>
-                    <th style="width:80px;"><?php esc_html_e( 'Clicks', 'epappous-club' ); ?></th>
-                    <th><?php esc_html_e( 'Λήγει σε', 'epappous-club' ); ?></th>
+                    <th style="width:70px;"><?php esc_html_e( 'Clicks', 'epappous-club' ); ?></th>
+                    <th><?php esc_html_e( 'Κατάσταση', 'epappous-club' ); ?></th>
+                    <th style="width:90px;"><?php esc_html_e( 'Debug', 'epappous-club' ); ?></th>
                 </tr>
             </thead>
             <tbody>
@@ -209,7 +213,13 @@ $now_ts      = (int) current_time( 'U' );
                     $first_ts   = strtotime( $click['first_clicked_at'] );
                     $last_ts    = strtotime( $click['last_clicked_at'] );
                     $expires_ts = $first_ts + ( DAY_IN_SECONDS * $cookie_days );
-                    $is_done    = ! empty( $click['converted_member_id'] );
+
+                    $has_member   = ! empty( $click['converted_member_id'] );
+                    $has_purchase = ! empty( $click['purchased_order_id'] );
+                    $is_rewarded  = ! empty( $click['rewarded_at'] );
+
+                    $converted_name = trim( ( $click['converted_first'] ?? '' ) . ' ' . ( $click['converted_last'] ?? '' ) );
+                    $order          = $has_purchase ? wc_get_order( (int) $click['purchased_order_id'] ) : null;
                     ?>
                     <tr>
                         <td>#<?php echo (int) $click['id']; ?></td>
@@ -233,24 +243,47 @@ $now_ts      = (int) current_time( 'U' );
                                 ?>
                             </small>
                         </td>
-                        <td>
-                            <?php echo esc_html( date_i18n( 'd/m/Y H:i', $last_ts ) ); ?>
-                        </td>
                         <td><?php echo (int) $click['click_count']; ?></td>
                         <td>
-                            <?php if ( $is_done ) :
-                                $converted_ts   = strtotime( $click['converted_at'] );
-                                $converted_name = trim( $click['converted_first'] . ' ' . $click['converted_last'] );
-                                ?>
+                            <?php if ( $is_rewarded ) : ?>
                                 <span class="epc-status epc-status-completed">
-                                    <?php esc_html_e( 'Έγινε μέλος', 'epappous-club' ); ?>
+                                    <?php esc_html_e( 'Ολοκληρώθηκε — δόθηκε ανταμοιβή', 'epappous-club' ); ?>
                                 </span>
-                                <br />
-                                <small>
-                                    <?php echo esc_html( date_i18n( 'd/m/Y H:i', $converted_ts ) ); ?>
+                                <br /><small>
+                                    <?php
+                                    printf(
+                                        /* translators: %s: date */
+                                        esc_html__( 'Ανταμοιβή: %s', 'epappous-club' ),
+                                        esc_html( date_i18n( 'd/m/Y H:i', strtotime( $click['rewarded_at'] ) ) )
+                                    );
+                                    ?>
                                 </small>
+                            <?php elseif ( $has_member && $has_purchase ) : ?>
+                                <span class="epc-status epc-status-pending">
+                                    <?php esc_html_e( 'Αναμονή ανταμοιβής', 'epappous-club' ); ?>
+                                </span>
+                            <?php elseif ( $has_member && ! $has_purchase ) : ?>
+                                <span class="epc-status epc-status-pending">
+                                    <?php esc_html_e( 'Έγινε μέλος — δεν έχει αγοράσει ακόμα', 'epappous-club' ); ?>
+                                </span>
                                 <?php if ( $converted_name ) : ?>
                                     <br /><small><?php echo esc_html( $converted_name ); ?></small>
+                                <?php endif; ?>
+                            <?php elseif ( $has_purchase && ! $has_member ) : ?>
+                                <span class="epc-status epc-status-pending">
+                                    <?php esc_html_e( 'Έκανε αγορά — δεν είναι μέλος ακόμα', 'epappous-club' ); ?>
+                                </span>
+                                <?php if ( $order ) : ?>
+                                    <br /><small>
+                                        <?php
+                                        printf(
+                                            /* translators: 1: order id, 2: total */
+                                            esc_html__( 'Παραγγελία #%1$d · %2$s', 'epappous-club' ),
+                                            (int) $order->get_id(),
+                                            wp_kses_post( wc_price( (float) $click['purchase_total'] ) )
+                                        );
+                                        ?>
+                                    </small>
                                 <?php endif; ?>
                             <?php else :
                                 $days_left = (int) ceil( ( $expires_ts - $now_ts ) / DAY_IN_SECONDS );
@@ -258,11 +291,8 @@ $now_ts      = (int) current_time( 'U' );
                                     <span class="epc-status epc-status-pending">
                                         <?php
                                         printf(
-                                            esc_html(
-                                                /* translators: %d: days remaining */
-                                                _n( '%d ημέρα', '%d ημέρες', $days_left, 'epappous-club' )
-                                            ),
-                                            (int) $days_left
+                                            esc_html__( 'Λήγει σε %s', 'epappous-club' ),
+                                            esc_html( sprintf( _n( '%d ημέρα', '%d ημέρες', $days_left, 'epappous-club' ), $days_left ) )
                                         );
                                         ?>
                                     </span>
@@ -273,10 +303,165 @@ $now_ts      = (int) current_time( 'U' );
                                 <?php endif;
                             endif; ?>
                         </td>
+                        <td>
+                            <button type="button" class="button button-small epc-debug-toggle" data-target="epc-debug-<?php echo (int) $click['id']; ?>">
+                                <?php esc_html_e( 'Debug', 'epappous-club' ); ?>
+                            </button>
+                        </td>
+                    </tr>
+                    <tr id="epc-debug-<?php echo (int) $click['id']; ?>" class="epc-debug-row" style="display:none; background:#f6f7f7;">
+                        <td colspan="6">
+                            <?php
+                            $member_user_id = 0;
+                            $member_user    = null;
+                            $member_row     = null;
+                            if ( $has_member ) {
+                                $member_row = $wpdb->get_row(
+                                    $wpdb->prepare(
+                                        "SELECT * FROM {$wpdb->prefix}epc_members WHERE id = %d LIMIT 1",
+                                        (int) $click['converted_member_id']
+                                    ),
+                                    ARRAY_A
+                                );
+                                if ( $member_row && ! empty( $member_row['user_id'] ) ) {
+                                    $member_user_id = (int) $member_row['user_id'];
+                                    $member_user    = get_userdata( $member_user_id );
+                                }
+                            }
+                            $referrer_row = $wpdb->get_row(
+                                $wpdb->prepare(
+                                    "SELECT * FROM {$wpdb->prefix}epc_members WHERE id = %d LIMIT 1",
+                                    (int) $click['referrer_member_id']
+                                ),
+                                ARRAY_A
+                            );
+                            ?>
+                            <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap:1em; padding:.6em 0;">
+                                <div>
+                                    <h4 style="margin:0 0 .3em;"><?php esc_html_e( 'Click', 'epappous-club' ); ?></h4>
+                                    <ul style="margin:0; line-height:1.7;">
+                                        <li><strong>ID:</strong> #<?php echo (int) $click['id']; ?></li>
+                                        <li><strong><?php esc_html_e( 'Cookie token:', 'epappous-club' ); ?></strong> <code style="font-size:11px;"><?php echo esc_html( $click['cookie_token'] ); ?></code></li>
+                                        <li><strong><?php esc_html_e( 'Πρώτο click:', 'epappous-club' ); ?></strong> <?php echo esc_html( date_i18n( 'd/m/Y H:i:s', $first_ts ) ); ?></li>
+                                        <li><strong><?php esc_html_e( 'Τελευταίο click:', 'epappous-club' ); ?></strong> <?php echo esc_html( date_i18n( 'd/m/Y H:i:s', $last_ts ) ); ?></li>
+                                        <li><strong><?php esc_html_e( 'Σύνολο clicks:', 'epappous-club' ); ?></strong> <?php echo (int) $click['click_count']; ?></li>
+                                        <li><strong><?php esc_html_e( 'Cookie λήγει:', 'epappous-club' ); ?></strong> <?php echo esc_html( date_i18n( 'd/m/Y H:i', $expires_ts ) ); ?></li>
+                                    </ul>
+                                </div>
+                                <div>
+                                    <h4 style="margin:0 0 .3em;"><?php esc_html_e( 'Referrer', 'epappous-club' ); ?></h4>
+                                    <?php if ( $referrer_row ) : ?>
+                                        <ul style="margin:0; line-height:1.7;">
+                                            <li><strong><?php esc_html_e( 'Όνομα:', 'epappous-club' ); ?></strong> <?php echo esc_html( trim( $referrer_row['first_name'] . ' ' . $referrer_row['last_name'] ) ); ?></li>
+                                            <li><strong>Email:</strong> <?php echo esc_html( $referrer_row['email'] ); ?></li>
+                                            <li><strong><?php esc_html_e( 'Member ID:', 'epappous-club' ); ?></strong> <?php echo (int) $referrer_row['id']; ?></li>
+                                            <li><strong>WP user ID:</strong> <?php echo (int) ( $referrer_row['user_id'] ?? 0 ); ?></li>
+                                            <li><strong><?php esc_html_e( 'Referral code:', 'epappous-club' ); ?></strong> <code><?php echo esc_html( $referrer_row['referral_code'] ); ?></code></li>
+                                        </ul>
+                                    <?php else : ?>
+                                        <p style="margin:0;"><em><?php esc_html_e( 'Ο referrer έχει διαγραφεί.', 'epappous-club' ); ?></em></p>
+                                    <?php endif; ?>
+                                </div>
+                                <div>
+                                    <h4 style="margin:0 0 .3em;"><?php esc_html_e( 'Εγγραφή φίλου', 'epappous-club' ); ?></h4>
+                                    <?php if ( $has_member && $member_row ) : ?>
+                                        <ul style="margin:0; line-height:1.7;">
+                                            <li><strong><?php esc_html_e( 'Όνομα:', 'epappous-club' ); ?></strong> <?php echo esc_html( trim( $member_row['first_name'] . ' ' . $member_row['last_name'] ) ); ?></li>
+                                            <li><strong>Email:</strong> <?php echo esc_html( $member_row['email'] ); ?></li>
+                                            <li><strong><?php esc_html_e( 'Username:', 'epappous-club' ); ?></strong>
+                                                <?php
+                                                if ( $member_user ) {
+                                                    echo '<code>' . esc_html( $member_user->user_login ) . '</code>';
+                                                } else {
+                                                    echo '<em>' . esc_html__( 'δεν συνδέθηκε με WP user', 'epappous-club' ) . '</em>';
+                                                }
+                                                ?>
+                                            </li>
+                                            <li><strong><?php esc_html_e( 'Member ID:', 'epappous-club' ); ?></strong> <?php echo (int) $member_row['id']; ?></li>
+                                            <li><strong>WP user ID:</strong> <?php echo (int) $member_user_id; ?></li>
+                                            <li><strong><?php esc_html_e( 'Έγινε μέλος:', 'epappous-club' ); ?></strong> <?php echo esc_html( date_i18n( 'd/m/Y H:i', strtotime( $click['converted_at'] ) ) ); ?></li>
+                                        </ul>
+                                    <?php else : ?>
+                                        <p style="margin:0;"><em><?php esc_html_e( 'Δεν έχει εγγραφεί ακόμα.', 'epappous-club' ); ?></em></p>
+                                        <?php if ( ! empty( $click['referred_email'] ) ) : ?>
+                                            <p style="margin:.4em 0 0;">
+                                                <small><?php esc_html_e( 'Καταγεγραμμένο email:', 'epappous-club' ); ?> <code><?php echo esc_html( $click['referred_email'] ); ?></code></small>
+                                            </p>
+                                        <?php endif; ?>
+                                    <?php endif; ?>
+                                </div>
+                                <div>
+                                    <h4 style="margin:0 0 .3em;"><?php esc_html_e( 'Αγορά φίλου', 'epappous-club' ); ?></h4>
+                                    <?php if ( $has_purchase && $order ) :
+                                        $order_url = admin_url( 'post.php?post=' . (int) $order->get_id() . '&action=edit' );
+                                        ?>
+                                        <ul style="margin:0; line-height:1.7;">
+                                            <li><strong><?php esc_html_e( 'Order ID:', 'epappous-club' ); ?></strong>
+                                                <a href="<?php echo esc_url( $order_url ); ?>">#<?php echo (int) $order->get_id(); ?></a>
+                                            </li>
+                                            <li><strong><?php esc_html_e( 'Σύνολο:', 'epappous-club' ); ?></strong> <?php echo wp_kses_post( wc_price( (float) $click['purchase_total'], [ 'currency' => $order->get_currency() ] ) ); ?></li>
+                                            <li><strong><?php esc_html_e( 'Status:', 'epappous-club' ); ?></strong> <?php echo esc_html( wc_get_order_status_name( $order->get_status() ) ); ?></li>
+                                            <li><strong>Email:</strong> <?php echo esc_html( $order->get_billing_email() ); ?></li>
+                                            <li><strong><?php esc_html_e( 'Ημερομηνία αγοράς:', 'epappous-club' ); ?></strong> <?php echo esc_html( date_i18n( 'd/m/Y H:i', strtotime( $click['purchased_at'] ) ) ); ?></li>
+                                        </ul>
+                                    <?php elseif ( $has_purchase ) : ?>
+                                        <ul style="margin:0; line-height:1.7;">
+                                            <li><strong><?php esc_html_e( 'Order ID:', 'epappous-club' ); ?></strong> #<?php echo (int) $click['purchased_order_id']; ?> <em>(<?php esc_html_e( 'δεν βρέθηκε στο WC', 'epappous-club' ); ?>)</em></li>
+                                            <li><strong><?php esc_html_e( 'Σύνολο:', 'epappous-club' ); ?></strong> <?php echo wp_kses_post( wc_price( (float) $click['purchase_total'] ) ); ?></li>
+                                        </ul>
+                                    <?php else : ?>
+                                        <p style="margin:0;"><em><?php esc_html_e( 'Δεν έχει κάνει αγορά ακόμα.', 'epappous-club' ); ?></em></p>
+                                    <?php endif; ?>
+                                </div>
+                                <div>
+                                    <h4 style="margin:0 0 .3em;"><?php esc_html_e( 'Ανταμοιβή', 'epappous-club' ); ?></h4>
+                                    <?php
+                                    $reward_referrer = (int) EPC_Settings::get( 'epc_referral_reward_referrer' );
+                                    $reward_referred = (int) EPC_Settings::get( 'epc_referral_reward_referred' );
+                                    ?>
+                                    <ul style="margin:0; line-height:1.7;">
+                                        <li><strong><?php esc_html_e( 'Πόντοι referrer:', 'epappous-club' ); ?></strong> <?php echo (int) $reward_referrer; ?></li>
+                                        <li><strong><?php esc_html_e( 'Πόντοι φίλου:', 'epappous-club' ); ?></strong> <?php echo (int) $reward_referred; ?></li>
+                                        <li><strong><?php esc_html_e( 'Δόθηκε:', 'epappous-club' ); ?></strong>
+                                            <?php
+                                            if ( $is_rewarded ) {
+                                                echo esc_html( date_i18n( 'd/m/Y H:i', strtotime( $click['rewarded_at'] ) ) );
+                                            } else {
+                                                $missing = [];
+                                                if ( ! $has_member ) {
+                                                    $missing[] = __( 'εγγραφή μέλους', 'epappous-club' );
+                                                }
+                                                if ( ! $has_purchase ) {
+                                                    $missing[] = __( 'αγορά', 'epappous-club' );
+                                                }
+                                                if ( $missing ) {
+                                                    printf(
+                                                        /* translators: %s: missing conditions */
+                                                        esc_html__( 'Όχι — λείπει: %s', 'epappous-club' ),
+                                                        esc_html( implode( ' & ', $missing ) )
+                                                    );
+                                                } else {
+                                                    esc_html_e( 'Όχι ακόμα', 'epappous-club' );
+                                                }
+                                            }
+                                            ?>
+                                        </li>
+                                    </ul>
+                                </div>
+                            </div>
+                        </td>
                     </tr>
                 <?php endforeach; ?>
             </tbody>
         </table>
+        <script>
+            (function($){
+                $(document).on('click', '.epc-debug-toggle', function(){
+                    var target = '#' + $(this).data('target');
+                    $(target).toggle();
+                });
+            })(jQuery);
+        </script>
 
         <?php if ( $click_pages > 1 ) : ?>
             <div class="tablenav bottom">

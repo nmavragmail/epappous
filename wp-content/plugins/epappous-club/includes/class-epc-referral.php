@@ -30,8 +30,10 @@ class EPC_Referral {
     private function __construct() {
         add_action( 'init', [ $this, 'capture_referral_cookie' ] );
 
-        // WooCommerce hooks
-        add_action( 'woocommerce_order_status_completed', [ $this, 'on_order_completed' ] );
+        // WooCommerce hooks. Both processing and completed are listened to so
+        // referrals work in shops that never move orders to "completed".
+        add_action( 'woocommerce_order_status_processing', [ $this, 'on_order_paid' ] );
+        add_action( 'woocommerce_order_status_completed', [ $this, 'on_order_paid' ] );
         add_action( 'woocommerce_checkout_order_processed', [ $this, 'attach_referral_to_order' ] );
         add_action( 'woocommerce_store_api_checkout_order_processed', [ $this, 'attach_referral_to_order_from_blocks' ] );
 
@@ -168,61 +170,9 @@ class EPC_Referral {
     }
 
     /**
-     * Mark the matching click row as converted once the referred visitor
-     * actually becomes a Pappou Club member.
-     */
-    private function mark_click_converted( int $referrer_id, int $member_id ): void {
-        global $wpdb;
-
-        $token = isset( $_COOKIE['epc_ref_click'] ) ? sanitize_text_field( wp_unslash( $_COOKIE['epc_ref_click'] ) ) : '';
-        $row   = null;
-
-        if ( $token ) {
-            $row = $wpdb->get_row(
-                $wpdb->prepare(
-                    "SELECT id FROM {$wpdb->prefix}epc_referral_clicks
-                      WHERE cookie_token = %s
-                        AND converted_member_id IS NULL
-                      LIMIT 1",
-                    $token
-                )
-            );
-        }
-
-        if ( ! $row ) {
-            $days = self::cookie_days();
-            $row  = $wpdb->get_row(
-                $wpdb->prepare(
-                    "SELECT id FROM {$wpdb->prefix}epc_referral_clicks
-                      WHERE referrer_member_id = %d
-                        AND converted_member_id IS NULL
-                        AND first_clicked_at >= DATE_SUB(NOW(), INTERVAL %d DAY)
-                      ORDER BY first_clicked_at DESC
-                      LIMIT 1",
-                    $referrer_id,
-                    $days
-                )
-            );
-        }
-
-        if ( ! $row ) {
-            return;
-        }
-
-        $wpdb->update(
-            "{$wpdb->prefix}epc_referral_clicks",
-            [
-                'converted_member_id' => $member_id,
-                'converted_at'        => current_time( 'mysql' ),
-            ],
-            [ 'id' => (int) $row->id ],
-            [ '%d', '%s' ],
-            [ '%d' ]
-        );
-    }
-
-    /**
-     * When a new member registers, record the referral if a cookie exists.
+     * When a new member registers, mark the matching referral click as
+     * converted (membership step). Rewards are granted only once BOTH
+     * membership and purchase have happened.
      */
     public function on_member_registered( int $member_id, array $data ) {
         if ( EPC_Settings::get( 'epc_referral_enabled' ) !== '1' ) {
@@ -232,83 +182,48 @@ class EPC_Referral {
             return;
         }
 
-        $ref_code = $_COOKIE['epc_ref'] ?? '';
-        if ( empty( $ref_code ) ) {
+        $click = $this->find_click_for_new_member( $member_id, $data );
+        if ( ! $click ) {
+            return;
+        }
+
+        // Self-referral guard.
+        if ( (int) $click->referrer_member_id === $member_id ) {
+            return;
+        }
+
+        if ( ! $this->can_refer( (int) $click->referrer_member_id ) ) {
             return;
         }
 
         global $wpdb;
 
-        $referrer = $wpdb->get_row(
-            $wpdb->prepare(
-                "SELECT id FROM {$wpdb->prefix}epc_members WHERE referral_code = %s AND status = 'active'",
-                sanitize_text_field( $ref_code )
-            )
-        );
-
-        if ( ! $referrer || (int) $referrer->id === $member_id ) {
-            return;
-        }
-
-        if ( ! $this->can_refer( $referrer->id ) ) {
-            return;
-        }
-
-        $reward_referrer = (int) EPC_Settings::get( 'epc_referral_reward_referrer' );
-        $reward_referred = (int) EPC_Settings::get( 'epc_referral_reward_referred' );
-        $reward_type     = EPC_Settings::get( 'epc_referral_reward_type' );
-
-        $inserted = $wpdb->insert(
-            "{$wpdb->prefix}epc_referrals",
-            [
-                'referrer_member_id' => $referrer->id,
-                'referred_member_id' => $member_id,
-                'referred_email'     => $data['email'] ?? '',
-                'type'               => 'membership',
-                'reward_points'      => $reward_referrer,
-                'reward_type'        => $reward_type,
-                'status'             => 'completed',
-                'completed_at'       => current_time( 'mysql' ),
-            ],
-            [ '%d', '%d', '%s', '%s', '%d', '%s', '%s', '%s' ]
-        );
-
-        if ( false === $inserted ) {
-            if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
-                error_log( 'ePappous Club: Failed to insert membership referral for referrer #' . $referrer->id );
-            }
-            return;
-        }
-
-        // If no purchase is required, give rewards immediately
-        if ( EPC_Settings::get( 'epc_referral_require_purchase' ) !== '1' ) {
-            $this->give_points( $referrer->id, $reward_referrer, 'referral_bonus_referrer', $member_id );
-            $this->give_points( $member_id, $reward_referred, 'referral_bonus_referred', $referrer->id );
-
+        if ( empty( $click->converted_member_id ) ) {
             $wpdb->update(
-                "{$wpdb->prefix}epc_referrals",
-                [ 'reward_given' => 1 ],
-                [ 'referrer_member_id' => $referrer->id, 'referred_member_id' => $member_id ],
-                [ '%d' ],
-                [ '%d', '%d' ]
+                "{$wpdb->prefix}epc_referral_clicks",
+                [
+                    'converted_member_id' => $member_id,
+                    'converted_at'        => current_time( 'mysql' ),
+                    'referred_email'      => $data['email'] ?? $click->referred_email,
+                ],
+                [ 'id' => (int) $click->id ],
+                [ '%d', '%s', '%s' ],
+                [ '%d' ]
             );
-
-            do_action( 'epc_points_changed', (int) $referrer->id );
-            do_action( 'epc_points_changed', $member_id );
         }
 
-        // Link the member record
         $wpdb->update(
             "{$wpdb->prefix}epc_members",
-            [ 'referred_by' => $referrer->id ],
+            [ 'referred_by' => (int) $click->referrer_member_id ],
             [ 'id' => $member_id ],
             [ '%d' ],
             [ '%d' ]
         );
 
-        $this->mark_click_converted( (int) $referrer->id, $member_id );
+        do_action( 'epc_referral_membership_recorded', (int) $click->referrer_member_id, $member_id );
 
-        do_action( 'epc_referral_completed', $referrer->id, $member_id, 'membership' );
+        // If a purchase already happened on this click, complete the referral.
+        $this->grant_rewards_if_complete( (int) $click->id );
     }
 
     /**
@@ -322,11 +237,14 @@ class EPC_Referral {
     }
 
     /**
-     * Attach referral code to the order meta at checkout.
+     * Attach referral code + click token to the order meta at checkout so the
+     * referral can be reconciled later regardless of cookie state.
      */
     public function attach_referral_to_order( $order_id ) {
-        $ref_code = $_COOKIE['epc_ref'] ?? '';
-        if ( empty( $ref_code ) ) {
+        $ref_code     = isset( $_COOKIE['epc_ref'] ) ? sanitize_text_field( wp_unslash( $_COOKIE['epc_ref'] ) ) : '';
+        $click_token  = isset( $_COOKIE['epc_ref_click'] ) ? sanitize_text_field( wp_unslash( $_COOKIE['epc_ref_click'] ) ) : '';
+
+        if ( empty( $ref_code ) && empty( $click_token ) ) {
             return;
         }
 
@@ -335,14 +253,21 @@ class EPC_Referral {
             return;
         }
 
-        $order->update_meta_data( '_epc_referral_code', sanitize_text_field( $ref_code ) );
+        if ( ! empty( $ref_code ) ) {
+            $order->update_meta_data( '_epc_referral_code', $ref_code );
+        }
+        if ( ! empty( $click_token ) ) {
+            $order->update_meta_data( '_epc_referral_click_token', $click_token );
+        }
         $order->save();
     }
 
     /**
-     * When an order is completed, process the referral reward for purchases.
+     * When a referred order moves to processing/completed, record the
+     * purchase against the matching click row. Rewards fire only once the
+     * referred buyer is also a Pappou Club member.
      */
-    public function on_order_completed( $order_id ) {
+    public function on_order_paid( $order_id ) {
         if ( EPC_Settings::get( 'epc_referral_enabled' ) !== '1' ) {
             return;
         }
@@ -354,47 +279,248 @@ class EPC_Referral {
         if ( ! $order ) {
             return;
         }
-
-        $ref_code = $order->get_meta( '_epc_referral_code', true );
-        if ( empty( $ref_code ) ) {
+        if ( $order->get_meta( '_epc_referral_processed', true ) ) {
             return;
         }
 
-        // Already processed
-        if ( $order->get_meta( '_epc_referral_processed', true ) ) {
+        $token    = (string) $order->get_meta( '_epc_referral_click_token', true );
+        $ref_code = (string) $order->get_meta( '_epc_referral_code', true );
+        if ( empty( $token ) && empty( $ref_code ) ) {
+            return;
+        }
+
+        $click = $this->find_click_for_order( $order, $token, $ref_code );
+        if ( ! $click ) {
+            return;
+        }
+
+        // Self-referral guard.
+        $buyer_email = $order->get_billing_email();
+        $referrer_id = (int) $click->referrer_member_id;
+        $referred_member = $this->get_member_by_email_or_user( $buyer_email, (int) $order->get_user_id() );
+        if ( $referred_member && (int) $referred_member->id === $referrer_id ) {
+            $order->update_meta_data( '_epc_referral_processed', '1' );
+            $order->save();
             return;
         }
 
         $min_order = (float) EPC_Settings::get( 'epc_referral_min_order' );
         if ( $min_order > 0 && (float) $order->get_total() < $min_order ) {
+            $order->update_meta_data( '_epc_referral_processed', '1' );
+            $order->save();
+            return;
+        }
+
+        if ( ! $this->can_refer( $referrer_id ) ) {
+            $order->update_meta_data( '_epc_referral_processed', '1' );
+            $order->save();
             return;
         }
 
         global $wpdb;
 
-        $referrer = $wpdb->get_row(
-            $wpdb->prepare(
-                "SELECT id FROM {$wpdb->prefix}epc_members WHERE referral_code = %s AND status = 'active'",
-                $ref_code
-            )
-        );
-        if ( ! $referrer ) {
-            return;
+        $update = [
+            'purchased_order_id' => (int) $order_id,
+            'purchased_at'       => current_time( 'mysql' ),
+            'purchase_total'     => (float) $order->get_total(),
+            'referred_email'     => $buyer_email ?: $click->referred_email,
+        ];
+        $formats = [ '%d', '%s', '%f', '%s' ];
+
+        if ( $referred_member && empty( $click->converted_member_id ) ) {
+            $update['converted_member_id'] = (int) $referred_member->id;
+            $update['converted_at']        = current_time( 'mysql' );
+            $formats[]                     = '%d';
+            $formats[]                     = '%s';
         }
 
-        $buyer_email = $order->get_billing_email();
-        $referred    = $wpdb->get_row(
-            $wpdb->prepare(
-                "SELECT id FROM {$wpdb->prefix}epc_members WHERE email = %s",
-                $buyer_email
-            )
+        $wpdb->update(
+            "{$wpdb->prefix}epc_referral_clicks",
+            $update,
+            [ 'id' => (int) $click->id ],
+            $formats,
+            [ '%d' ]
         );
 
-        if ( ! $referred || (int) $referred->id === (int) $referrer->id ) {
-            return;
+        $order->update_meta_data( '_epc_referral_processed', '1' );
+        $order->save();
+
+        do_action( 'epc_referral_purchase_recorded', $referrer_id, (int) $order_id );
+
+        $this->grant_rewards_if_complete( (int) $click->id );
+    }
+
+    /**
+     * Locate the EPC member row for an order buyer (by user_id first, then email).
+     */
+    private function get_member_by_email_or_user( string $email, int $user_id ) {
+        global $wpdb;
+        if ( $user_id > 0 ) {
+            $row = $wpdb->get_row(
+                $wpdb->prepare(
+                    "SELECT * FROM {$wpdb->prefix}epc_members WHERE user_id = %d LIMIT 1",
+                    $user_id
+                )
+            );
+            if ( $row ) {
+                return $row;
+            }
+        }
+        if ( $email ) {
+            return $wpdb->get_row(
+                $wpdb->prepare(
+                    "SELECT * FROM {$wpdb->prefix}epc_members WHERE email = %s LIMIT 1",
+                    $email
+                )
+            );
+        }
+        return null;
+    }
+
+    /**
+     * Find the click row that should be associated with this paid order.
+     */
+    private function find_click_for_order( \WC_Order $order, string $token, string $ref_code ) {
+        global $wpdb;
+
+        if ( $token ) {
+            $row = $wpdb->get_row(
+                $wpdb->prepare(
+                    "SELECT * FROM {$wpdb->prefix}epc_referral_clicks WHERE cookie_token = %s LIMIT 1",
+                    $token
+                )
+            );
+            if ( $row ) {
+                return $row;
+            }
         }
 
-        if ( ! $this->can_refer( $referrer->id ) ) {
+        if ( $ref_code ) {
+            $row = $wpdb->get_row(
+                $wpdb->prepare(
+                    "SELECT * FROM {$wpdb->prefix}epc_referral_clicks
+                      WHERE ref_code = %s AND rewarded_at IS NULL
+                      ORDER BY first_clicked_at DESC LIMIT 1",
+                    $ref_code
+                )
+            );
+            if ( $row ) {
+                return $row;
+            }
+
+            // No click recorded — synthesise a row so the order is still tracked.
+            $referrer = $wpdb->get_row(
+                $wpdb->prepare(
+                    "SELECT id FROM {$wpdb->prefix}epc_members WHERE referral_code = %s AND status = 'active' LIMIT 1",
+                    $ref_code
+                )
+            );
+            if ( ! $referrer ) {
+                return null;
+            }
+
+            $synth_token = 'order-' . (int) $order->get_id();
+            $wpdb->insert(
+                "{$wpdb->prefix}epc_referral_clicks",
+                [
+                    'referrer_member_id' => (int) $referrer->id,
+                    'ref_code'           => $ref_code,
+                    'cookie_token'       => $synth_token,
+                    'click_count'        => 0,
+                    'first_clicked_at'   => current_time( 'mysql' ),
+                    'last_clicked_at'    => current_time( 'mysql' ),
+                ],
+                [ '%d', '%s', '%s', '%d', '%s', '%s' ]
+            );
+
+            return $wpdb->get_row(
+                $wpdb->prepare(
+                    "SELECT * FROM {$wpdb->prefix}epc_referral_clicks WHERE cookie_token = %s LIMIT 1",
+                    $synth_token
+                )
+            );
+        }
+
+        return null;
+    }
+
+    /**
+     * Look up the click row that should be tied to a freshly registered member.
+     */
+    private function find_click_for_new_member( int $member_id, array $data ) {
+        global $wpdb;
+
+        $token = isset( $_COOKIE['epc_ref_click'] ) ? sanitize_text_field( wp_unslash( $_COOKIE['epc_ref_click'] ) ) : '';
+        if ( $token ) {
+            $row = $wpdb->get_row(
+                $wpdb->prepare(
+                    "SELECT * FROM {$wpdb->prefix}epc_referral_clicks WHERE cookie_token = %s LIMIT 1",
+                    $token
+                )
+            );
+            if ( $row ) {
+                return $row;
+            }
+        }
+
+        $code = isset( $_COOKIE['epc_ref'] ) ? sanitize_text_field( wp_unslash( $_COOKIE['epc_ref'] ) ) : '';
+        if ( $code ) {
+            $row = $wpdb->get_row(
+                $wpdb->prepare(
+                    "SELECT * FROM {$wpdb->prefix}epc_referral_clicks
+                      WHERE ref_code = %s
+                        AND converted_member_id IS NULL
+                        AND rewarded_at IS NULL
+                      ORDER BY first_clicked_at DESC LIMIT 1",
+                    $code
+                )
+            );
+            if ( $row ) {
+                return $row;
+            }
+        }
+
+        // Fallback: a "purchase first" click row (created from order meta) that
+        // shares the buyer email and is still un-converted.
+        $email = isset( $data['email'] ) ? sanitize_email( $data['email'] ) : '';
+        if ( $email ) {
+            $row = $wpdb->get_row(
+                $wpdb->prepare(
+                    "SELECT * FROM {$wpdb->prefix}epc_referral_clicks
+                      WHERE referred_email = %s
+                        AND converted_member_id IS NULL
+                      ORDER BY first_clicked_at DESC LIMIT 1",
+                    $email
+                )
+            );
+            if ( $row ) {
+                return $row;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * If a click row has both a converted member and a recorded purchase,
+     * grant rewards (idempotently) and write a row in epc_referrals.
+     */
+    private function grant_rewards_if_complete( int $click_id ): void {
+        global $wpdb;
+
+        $click = $wpdb->get_row(
+            $wpdb->prepare(
+                "SELECT * FROM {$wpdb->prefix}epc_referral_clicks WHERE id = %d LIMIT 1",
+                $click_id
+            )
+        );
+        if ( ! $click ) {
+            return;
+        }
+        if ( ! empty( $click->rewarded_at ) ) {
+            return;
+        }
+        if ( empty( $click->converted_member_id ) || empty( $click->purchased_order_id ) ) {
             return;
         }
 
@@ -402,14 +528,35 @@ class EPC_Referral {
         $reward_referred = (int) EPC_Settings::get( 'epc_referral_reward_referred' );
         $reward_type     = EPC_Settings::get( 'epc_referral_reward_type' );
 
-        $inserted = $wpdb->insert(
+        $this->give_points(
+            (int) $click->referrer_member_id,
+            $reward_referrer,
+            'referral_purchase_referrer',
+            (int) $click->purchased_order_id
+        );
+        $this->give_points(
+            (int) $click->converted_member_id,
+            $reward_referred,
+            'referral_purchase_referred',
+            (int) $click->purchased_order_id
+        );
+
+        $wpdb->update(
+            "{$wpdb->prefix}epc_referral_clicks",
+            [ 'rewarded_at' => current_time( 'mysql' ) ],
+            [ 'id' => (int) $click->id ],
+            [ '%s' ],
+            [ '%d' ]
+        );
+
+        $wpdb->insert(
             "{$wpdb->prefix}epc_referrals",
             [
-                'referrer_member_id' => $referrer->id,
-                'referred_member_id' => $referred->id,
-                'referred_email'     => $buyer_email,
+                'referrer_member_id' => (int) $click->referrer_member_id,
+                'referred_member_id' => (int) $click->converted_member_id,
+                'referred_email'     => (string) $click->referred_email,
                 'type'               => 'purchase',
-                'order_id'           => $order_id,
+                'order_id'           => (int) $click->purchased_order_id,
                 'reward_points'      => $reward_referrer,
                 'reward_type'        => $reward_type,
                 'reward_given'       => 1,
@@ -418,71 +565,10 @@ class EPC_Referral {
             ],
             [ '%d', '%d', '%s', '%s', '%d', '%d', '%s', '%d', '%s', '%s' ]
         );
-        if ( false === $inserted ) {
-            if ( defined( 'WP_DEBUG' ) && WP_DEBUG ) {
-                error_log( 'ePappous Club: Failed to insert purchase referral for order #' . $order_id );
-            }
-            return;
-        }
 
-        $this->give_points( $referrer->id, $reward_referrer, 'referral_purchase_referrer', $order_id );
-        $this->give_points( $referred->id, $reward_referred, 'referral_purchase_referred', $order_id );
-
-        $order->update_meta_data( '_epc_referral_processed', '1' );
-        $order->save();
-
-        do_action( 'epc_referral_completed', $referrer->id, $referred->id, 'purchase' );
-        do_action( 'epc_points_changed', (int) $referrer->id );
-        do_action( 'epc_points_changed', (int) $referred->id );
-
-        // Fulfill pending membership referrals that required a purchase
-        $this->fulfill_pending_membership_referral( (int) $referrer->id, (int) $referred->id );
-    }
-
-    /**
-     * If a membership referral was recorded with require_purchase ON,
-     * the reward was deferred. Now that the referred member has purchased,
-     * give the deferred rewards.
-     */
-    private function fulfill_pending_membership_referral( int $referrer_id, int $referred_id ) {
-        if ( EPC_Settings::get( 'epc_referral_require_purchase' ) !== '1' ) {
-            return;
-        }
-
-        global $wpdb;
-        $pending = $wpdb->get_row(
-            $wpdb->prepare(
-                "SELECT id FROM {$wpdb->prefix}epc_referrals
-                 WHERE referrer_member_id = %d
-                   AND referred_member_id = %d
-                   AND type = 'membership'
-                   AND reward_given = 0
-                 LIMIT 1",
-                $referrer_id,
-                $referred_id
-            )
-        );
-
-        if ( ! $pending ) {
-            return;
-        }
-
-        $reward_referrer = (int) EPC_Settings::get( 'epc_referral_reward_referrer' );
-        $reward_referred = (int) EPC_Settings::get( 'epc_referral_reward_referred' );
-
-        $this->give_points( $referrer_id, $reward_referrer, 'referral_bonus_referrer', $referred_id );
-        $this->give_points( $referred_id, $reward_referred, 'referral_bonus_referred', $referrer_id );
-
-        $wpdb->update(
-            "{$wpdb->prefix}epc_referrals",
-            [ 'reward_given' => 1, 'completed_at' => current_time( 'mysql' ) ],
-            [ 'id' => $pending->id ],
-            [ '%d', '%s' ],
-            [ '%d' ]
-        );
-
-        do_action( 'epc_points_changed', $referrer_id );
-        do_action( 'epc_points_changed', $referred_id );
+        do_action( 'epc_referral_completed', (int) $click->referrer_member_id, (int) $click->converted_member_id, 'full' );
+        do_action( 'epc_points_changed', (int) $click->referrer_member_id );
+        do_action( 'epc_points_changed', (int) $click->converted_member_id );
     }
 
     /**
