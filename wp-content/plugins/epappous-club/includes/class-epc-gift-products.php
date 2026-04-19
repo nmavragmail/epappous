@@ -374,10 +374,21 @@ class EPC_Gift_Products {
     }
 
     public function render_gift_points_total_row(): void {
-        $total = self::cart_gift_points_total();
+        $gift_points = self::cart_gift_points_total();
+
+        // Also account for the monetary redemption slider so the row shows the
+        // TOTAL points the order will debit (gifts + slider redemption), not
+        // just the gift portion.
+        $redeem_points = 0;
+        if ( function_exists( 'WC' ) && WC()->session ) {
+            $redeem_points = (int) WC()->session->get( 'epc_points_used', 0 );
+        }
+
+        $total = $gift_points + $redeem_points;
         if ( $total < 1 ) {
             return;
         }
+
         $label    = EPC_Settings::get( 'epc_currency_label' );
         $balance  = self::current_member_balance();
         $shortage = $balance - $total;
@@ -395,6 +406,20 @@ class EPC_Gift_Products {
                     );
                     ?>
                 </strong>
+                <?php if ( $gift_points > 0 && $redeem_points > 0 ) : ?>
+                    <br>
+                    <small style="color:#555;">
+                        <?php
+                        printf(
+                            /* translators: 1: gift points, 2: redeem points, 3: points label */
+                            esc_html__( 'Δώρα: %1$s · Έκπτωση πόντων: %2$s %3$s', 'epappous-club' ),
+                            esc_html( number_format_i18n( $gift_points ) ),
+                            esc_html( number_format_i18n( $redeem_points ) ),
+                            esc_html( $label )
+                        );
+                        ?>
+                    </small>
+                <?php endif; ?>
                 <br>
                 <small style="color:#555;">
                     <?php
