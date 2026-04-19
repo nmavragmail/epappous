@@ -674,9 +674,19 @@ class EPC_WooCommerce {
         // and calculate_potential_points_for_order.
         $eligible_total = $this->compute_eligible_order_total( $order );
 
+        // If the order is gift-only (no paid item contributed to the gross
+        // total), shipping is intentionally excluded from earning even when
+        // the "Συμπεριλαμβάνει μεταφορικά" toggle is on — gift-only orders
+        // are settled in points, not euros. Mirror that here so the debug
+        // breakdown matches reality instead of showing a phantom gross.
+        $gift_only_order   = $items_gross_total <= 0
+            && class_exists( 'EPC_Gift_Products' )
+            && EPC_Gift_Products::order_gift_points_total( $order ) > 0;
+        $shipping_in_gross = $include_shipping && ! $gift_only_order;
+
         // Gross potential = before subtracting the points-redemption discount.
         // This is what the customer would have earned if they hadn't redeemed.
-        $gross_base      = $items_gross_total + ( $include_shipping ? $shipping_total : 0.0 );
+        $gross_base      = $items_gross_total + ( $shipping_in_gross ? $shipping_total : 0.0 );
         $potential_gross = (int) floor( $gross_base * $points_per_euro );
         $potential       = (int) floor( $eligible_total * $points_per_euro );
         $earned_meta_raw = $order->get_meta( '_epc_points_earned', true );
@@ -734,7 +744,8 @@ class EPC_WooCommerce {
             'items_breakdown'  => $items_breakdown,
             'items_gross'      => (float) $items_gross_total,
             'shipping_total'   => (float) $shipping_total,
-            'shipping_counts'  => (bool) $include_shipping,
+            'shipping_counts'  => (bool) $shipping_in_gross,
+            'gift_only_order'  => (bool) $gift_only_order,
             'points_discount'  => (float) $points_discount,
             'eligible_total'   => (float) $eligible_total,
             'points_per_euro'  => (float) $points_per_euro,
@@ -911,6 +922,8 @@ class EPC_WooCommerce {
         $include_shipping  = EPC_Settings::get( 'epc_woo_earn_include_shipping' ) === '1';
 
         $eligible_total = 0.0;
+        $has_gift_item  = false;
+        $has_paid_item  = false;
         foreach ( $order->get_items() as $item ) {
             $product = $item->get_product();
             if ( ! $product ) {
@@ -920,6 +933,7 @@ class EPC_WooCommerce {
             // line item too, but skip them explicitly so they never get accidentally
             // counted (e.g. if a future change starts pricing them as %0.00 strings).
             if ( class_exists( 'EPC_Gift_Products' ) && EPC_Gift_Products::is_gift_product( $product ) ) {
+                $has_gift_item = true;
                 continue;
             }
             if ( $exclude_sale && $product->is_on_sale() ) {
@@ -932,10 +946,19 @@ class EPC_WooCommerce {
                     continue;
                 }
             }
-            $eligible_total += (float) $item->get_total();
+            $line_total      = (float) $item->get_total();
+            $eligible_total += $line_total;
+            if ( $line_total > 0 ) {
+                $has_paid_item = true;
+            }
         }
 
-        if ( $include_shipping ) {
+        // Add shipping only if there is at least one paid product to reward.
+        // Rationale: in a gift-only order the customer pays just for shipping;
+        // those euros shouldn't earn loyalty points (they already "paid" for
+        // the gift in points). Mixed carts (gifts + paid products) keep
+        // earning shipping points as before.
+        if ( $include_shipping && ! ( $has_gift_item && ! $has_paid_item ) ) {
             $eligible_total += (float) $order->get_shipping_total();
         }
 
