@@ -827,6 +827,7 @@ class EPC_WooCommerce {
         if ( class_exists( 'EPC_Gift_Products' ) ) {
             $gift_pts = (int) EPC_Gift_Products::order_gift_points_total( $order );
         }
+        $total_redeemed_pts = $redeem_pts + $gift_pts;
 
         // Nothing to show? Bail.
         if ( null === $points && $redeem_pts < 1 && $gift_pts < 1 ) {
@@ -837,12 +838,14 @@ class EPC_WooCommerce {
             $earn_label = $settled
                 ? __( 'Πόντοι που κέρδισε ο πελάτης από αυτή την παραγγελία', 'epappous-club' )
                 : __( 'Πόντοι που θα κερδίσει ο πελάτης όταν επιβεβαιωθεί η παραγγελία', 'epappous-club' );
+            $total_redeem_label = __( 'Σύνολο πόντων που εξαργύρωσε ο πελάτης', 'epappous-club' );
             $redeem_label = __( 'Πόντοι που εξαργύρωσε ο πελάτης σε έκπτωση', 'epappous-club' );
             $gift_label   = __( 'Πόντοι που εξαργύρωσε ο πελάτης για δώρα', 'epappous-club' );
         } else {
             $earn_label = $settled
                 ? __( 'Πόντοι από αυτή την παραγγελία', 'epappous-club' )
                 : __( 'Πόντοι που θα κερδίσετε όταν επιβεβαιωθεί η παραγγελία', 'epappous-club' );
+            $total_redeem_label = __( 'Σύνολο πόντων που εξαργυρώσατε', 'epappous-club' );
             $redeem_label = __( 'Πόντοι που εξαργυρώσατε σε έκπτωση', 'epappous-club' );
             $gift_label   = __( 'Πόντοι που εξαργυρώσατε για δώρα', 'epappous-club' );
         }
@@ -851,6 +854,10 @@ class EPC_WooCommerce {
 
         if ( null !== $points ) {
             $lines[] = [ $earn_label, (string) (int) $points ];
+        }
+
+        if ( $total_redeemed_pts > 0 ) {
+            $lines[] = [ $total_redeem_label, (string) $total_redeemed_pts ];
         }
 
         if ( $redeem_pts > 0 ) {
