@@ -855,19 +855,22 @@ class EPC_Referral {
             return $result;
         }
 
-        $token    = (string) $order->get_meta( '_epc_referral_click_token', true );
-        $ref_code = (string) $order->get_meta( '_epc_referral_code', true );
-        if ( ! $force_reconcile && empty( $token ) && empty( $ref_code ) ) {
-            $result['message'] = 'missing_ref_meta';
-            return $result;
-        }
-
         $buyer_email = sanitize_email( (string) $order->get_billing_email() );
         $buyer_user  = (int) $order->get_user_id();
         $referred_member = $this->get_member_by_email_or_user( $buyer_email, $buyer_user );
         $referred_member_id = $referred_member ? (int) $referred_member->id : 0;
+        $token    = (string) $order->get_meta( '_epc_referral_click_token', true );
+        $ref_code = (string) $order->get_meta( '_epc_referral_code', true );
+        if ( ! $force_reconcile && empty( $token ) && empty( $ref_code ) && $buyer_email === '' && $referred_member_id < 1 ) {
+            $result['message'] = 'missing_ref_meta';
+            return $result;
+        }
 
         $click = $this->find_click_for_order( $order, $token, $ref_code, $buyer_email, $referred_member_id );
+        if ( ! $click && ( $buyer_email !== '' || $referred_member_id > 0 ) ) {
+            // Reconciliation fallback: locate an existing (possibly below-minimum) click by buyer identity.
+            $click = $this->find_existing_click_for_buyer( $buyer_email, $referred_member_id );
+        }
         if ( ! $click ) {
             $result['message'] = 'click_not_found';
             return $result;
@@ -904,8 +907,14 @@ class EPC_Referral {
 
         $existing_purchase_order_id = (int) $click->purchased_order_id;
         if ( $existing_purchase_order_id > 0 && $existing_purchase_order_id !== $order_id ) {
-            $result['message'] = 'click_already_bound_to_other_order';
-            return $result;
+            $existing_order = wc_get_order( $existing_purchase_order_id );
+            $existing_total = $existing_order ? (float) $existing_order->get_total() : (float) $click->purchase_total;
+            $existing_below_minimum = ( $min_order > 0 && $existing_total < $min_order );
+            $can_upgrade_purchase   = ( $existing_below_minimum && ! $is_below_minimum );
+            if ( ! $can_upgrade_purchase ) {
+                $result['message'] = 'click_already_bound_to_other_order';
+                return $result;
+            }
         }
 
         $was_rewarded = ! empty( $click->rewarded_at );
@@ -971,6 +980,40 @@ class EPC_Referral {
         $result['rewarded_now'] = $rewarded_now;
         $result['message']      = $is_below_minimum ? 'updated_purchase_below_min_order' : ( $rewarded_now ? 'updated_and_rewarded' : 'updated' );
         return $result;
+    }
+
+    /**
+     * Locate an existing click row by buyer identity (for reconciliation fallbacks).
+     */
+    private function find_existing_click_for_buyer( string $buyer_email, int $buyer_member_id = 0 ) {
+        global $wpdb;
+
+        $buyer_email     = sanitize_email( $buyer_email );
+        $buyer_member_id = (int) $buyer_member_id;
+        if ( $buyer_email === '' && $buyer_member_id < 1 ) {
+            return null;
+        }
+
+        $where = [ 'rewarded_at IS NULL' ];
+        $args  = [];
+
+        if ( $buyer_member_id > 0 && $buyer_email !== '' ) {
+            $where[] = '(converted_member_id = %d OR LOWER(referred_email) = %s)';
+            $args[]  = $buyer_member_id;
+            $args[]  = strtolower( $buyer_email );
+        } elseif ( $buyer_member_id > 0 ) {
+            $where[] = 'converted_member_id = %d';
+            $args[]  = $buyer_member_id;
+        } else {
+            $where[] = 'LOWER(referred_email) = %s';
+            $args[]  = strtolower( $buyer_email );
+        }
+
+        $sql = "SELECT * FROM {$wpdb->prefix}epc_referral_clicks
+                WHERE " . implode( ' AND ', $where ) . '
+                ORDER BY first_clicked_at DESC LIMIT 1';
+
+        return $wpdb->get_row( $wpdb->prepare( $sql, ...$args ) );
     }
 
     /**
