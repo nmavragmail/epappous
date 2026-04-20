@@ -353,11 +353,7 @@ class EPC_User_Profile {
             ARRAY_A
         ) ?: [];
 
-        $cassette      = get_user_meta( $wp_user_id, self::USER_META_CASSETTE, true );
-        $cassette      = ( $cassette === 'yes' ) ? 'yes' : 'no';
-        $cassette_date = get_user_meta( $wp_user_id, self::USER_META_CASSETTE_DATE, true );
-        $cassette_date = is_string( $cassette_date ) ? $cassette_date : '';
-        $cassette_audit = self::get_cassette_audit_for_display( $wp_user_id );
+        $show_cassette = ! EPC_Settings::cassette_gift_ui_hidden_for_wp_user( $wp_user_id );
         ?>
         <div class="epc-profile-box epc-notes-box">
             <div class="epc-profile-box-header epc-notes-box-header">
@@ -366,6 +362,13 @@ class EPC_User_Profile {
             </div>
             <div class="epc-profile-box-body">
 
+                <?php if ( $show_cassette ) :
+                    $cassette      = get_user_meta( $wp_user_id, self::USER_META_CASSETTE, true );
+                    $cassette      = ( $cassette === 'yes' ) ? 'yes' : 'no';
+                    $cassette_date = get_user_meta( $wp_user_id, self::USER_META_CASSETTE_DATE, true );
+                    $cassette_date = is_string( $cassette_date ) ? $cassette_date : '';
+                    $cassette_audit = self::get_cassette_audit_for_display( $wp_user_id );
+                    ?>
                 <div class="epc-cassette-gift-row">
                     <label class="epc-cassette-gift-label"><?php esc_html_e( 'Έχει πάρει δώρο κασετίνα;', 'epappous-club' ); ?></label>
                     <div class="epc-cassette-gift-controls">
@@ -403,6 +406,7 @@ class EPC_User_Profile {
                     </p>
                     <span class="epc-cassette-saved-msg" style="display:none;"></span>
                 </div>
+                <?php endif; ?>
 
                 <div class="epc-note-add-row">
                     <label><?php esc_html_e( 'Νέα σημείωση', 'epappous-club' ); ?></label>
@@ -625,6 +629,10 @@ class EPC_User_Profile {
 
         if ( ! EPC_Capabilities::current_user_can_edit_wp_user( $user_id ) ) {
             wp_send_json_error( 'Forbidden', 403 );
+        }
+
+        if ( EPC_Settings::cassette_gift_ui_hidden_for_wp_user( $user_id ) ) {
+            wp_send_json_error( __( 'Η κασσετίνα δώρο δεν ισχύει για αυτόν τον τύπο πελάτη.', 'epappous-club' ) );
         }
 
         if ( ! in_array( $received, [ 'yes', 'no' ], true ) ) {

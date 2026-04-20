@@ -102,6 +102,8 @@ class EPC_Settings {
             'epc_notify_referral_complete'  => '1',
             'epc_notify_tier_upgrade'       => '1',
             'epc_admin_email'               => '',
+            'epc_cassette_gift_enabled'     => '1',
+            'epc_cassette_gift_exclude_b2b_group_ids' => '34',
             'epc_cassette_gift_email_body'  => '',
 
             // ── WooCommerce integration ──
@@ -160,6 +162,8 @@ class EPC_Settings {
             // Notifications
             'epc_notify_new_member', 'epc_notify_referral_complete',
             'epc_notify_tier_upgrade', 'epc_admin_email',
+            'epc_cassette_gift_enabled',
+            'epc_cassette_gift_exclude_b2b_group_ids',
             // WooCommerce
             'epc_woo_earn_on_complete', 'epc_woo_earn_statuses',
             'epc_woo_exclude_sale_items', 'epc_woo_exclude_categories',
@@ -200,6 +204,51 @@ class EPC_Settings {
                 'default'           => '',
             ]
         );
+
+        register_setting(
+            'epc_settings_group',
+            'epc_cassette_gift_enabled',
+            [
+                'sanitize_callback' => [ self::class, 'sanitize_yes_no' ],
+                'default'           => '1',
+            ]
+        );
+
+        register_setting(
+            'epc_settings_group',
+            'epc_cassette_gift_exclude_b2b_group_ids',
+            [
+                'sanitize_callback' => [ self::class, 'sanitize_comma_separated_ints' ],
+                'default'           => '34',
+            ]
+        );
+    }
+
+    /**
+     * Sanitize 0/1 toggle stored as string.
+     */
+    public static function sanitize_yes_no( $value ): string {
+        return (string) ( (string) $value === '1' ? '1' : '0' );
+    }
+
+    /**
+     * Comma-separated positive integers (B2B King group post IDs).
+     */
+    public static function sanitize_comma_separated_ints( $value ): string {
+        if ( ! is_string( $value ) ) {
+            return '';
+        }
+        $parts = array_filter( array_map( 'trim', explode( ',', $value ) ) );
+        $ids   = [];
+        foreach ( $parts as $p ) {
+            $n = absint( $p );
+            if ( $n > 0 ) {
+                $ids[] = $n;
+            }
+        }
+        $ids = array_values( array_unique( $ids ) );
+        sort( $ids );
+        return implode( ',', $ids );
     }
 
     public function sanitize_setting( $value ) {
@@ -214,5 +263,37 @@ class EPC_Settings {
      */
     public static function sanitize_non_negative_int( $value ): string {
         return (string) max( 0, absint( $value ) );
+    }
+
+    /**
+     * Parsed list of B2B King group IDs excluded from cassette gift (admin UI + email).
+     *
+     * @return int[]
+     */
+    public static function get_cassette_gift_exclude_b2b_group_ids(): array {
+        $raw = (string) self::get( 'epc_cassette_gift_exclude_b2b_group_ids' );
+        $parts = array_filter( array_map( 'trim', explode( ',', $raw ) ) );
+        $ids   = [];
+        foreach ( $parts as $p ) {
+            $n = absint( $p );
+            if ( $n > 0 ) {
+                $ids[] = $n;
+            }
+        }
+        return array_values( array_unique( $ids ) );
+    }
+
+    /**
+     * Whether cassette gift admin UI and order email action should be hidden for this WP user.
+     */
+    public static function cassette_gift_ui_hidden_for_wp_user( int $user_id ): bool {
+        if ( self::get( 'epc_cassette_gift_enabled' ) !== '1' ) {
+            return true;
+        }
+        $exclude = self::get_cassette_gift_exclude_b2b_group_ids();
+        if ( empty( $exclude ) ) {
+            return false;
+        }
+        return EPC_B2BKing::user_b2b_group_is_excluded( $user_id, $exclude );
     }
 }

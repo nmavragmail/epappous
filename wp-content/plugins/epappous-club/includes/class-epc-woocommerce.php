@@ -62,6 +62,13 @@ class EPC_WooCommerce {
         return $edited_at !== '';
     }
 
+    /**
+     * Whether cassette gift UI (order metabox, profile row) should be shown for this WP user.
+     */
+    private function cassette_gift_available_for_wp_user( int $user_id ): bool {
+        return $user_id > 0 && ! EPC_Settings::cassette_gift_ui_hidden_for_wp_user( $user_id );
+    }
+
     public static function instance() {
         if ( null === self::$instance ) {
             self::$instance = new self();
@@ -120,6 +127,7 @@ class EPC_WooCommerce {
 
         // Old inline admin order panels removed; using sidebar metaboxes instead.
         add_action( 'add_meta_boxes', [ $this, 'register_order_side_metaboxes' ], 35 );
+        add_action( 'add_meta_boxes', [ $this, 'maybe_remove_cassette_order_metabox' ], 40 );
 
         add_action( 'wp_enqueue_scripts', [ $this, 'enqueue_checkout_js' ] );
 
@@ -161,6 +169,10 @@ class EPC_WooCommerce {
         }
 
         if ( $user_id < 1 ) {
+            return;
+        }
+
+        if ( ! $this->cassette_gift_available_for_wp_user( $user_id ) ) {
             return;
         }
 
@@ -246,6 +258,60 @@ class EPC_WooCommerce {
                 'side',
                 'low'
             );
+        }
+    }
+
+    /**
+     * Remove cassette metabox entirely when disabled or when customer B2B group is excluded.
+     */
+    public function maybe_remove_cassette_order_metabox(): void {
+        if ( ! is_admin() || ! function_exists( 'remove_meta_box' ) ) {
+            return;
+        }
+
+        $screens = [ 'shop_order' ];
+        if ( function_exists( 'wc_get_page_screen_id' ) ) {
+            $hpos_screen = wc_get_page_screen_id( 'shop-order' );
+            if ( is_string( $hpos_screen ) && '' !== $hpos_screen ) {
+                $screens[] = $hpos_screen;
+            }
+        }
+
+        $order = null;
+
+        if ( isset( $_GET['post'], $_GET['action'] ) && 'edit' === $_GET['action'] ) { // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+            $post_id = (int) $_GET['post']; // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+            if ( $post_id > 0 && get_post_type( $post_id ) === 'shop_order' ) {
+                $order = wc_get_order( $post_id );
+            }
+        }
+
+        if ( ! $order && isset( $_GET['page'], $_GET['action'], $_GET['id'] ) // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+            && 'wc-orders' === $_GET['page'] // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+            && 'edit' === $_GET['action'] // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+        ) {
+            $order = wc_get_order( (int) $_GET['id'] ); // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+        }
+
+        if ( ! $order instanceof \WC_Order ) {
+            return;
+        }
+
+        $user_id = (int) $order->get_user_id();
+        if ( $user_id < 1 ) {
+            $email = sanitize_email( (string) $order->get_billing_email() );
+            if ( is_email( $email ) ) {
+                $u = get_user_by( 'email', $email );
+                if ( $u ) {
+                    $user_id = (int) $u->ID;
+                }
+            }
+        }
+
+        if ( $user_id > 0 && ! $this->cassette_gift_available_for_wp_user( $user_id ) ) {
+            foreach ( array_unique( $screens ) as $screen ) {
+                remove_meta_box( 'epc-order-gift-box', $screen, 'side' );
+            }
         }
     }
 
@@ -390,6 +456,10 @@ class EPC_WooCommerce {
             return;
         }
 
+        if ( ! $this->cassette_gift_available_for_wp_user( $user_id ) ) {
+            return;
+        }
+
         $received = $this->user_has_cassette_gift_received( $user_id );
         $raw_date = (string) get_user_meta( $user_id, 'epc_cassette_gift_date', true );
         $date_txt = '—';
@@ -429,6 +499,10 @@ class EPC_WooCommerce {
         }
         if ( ! EPC_Capabilities::current_user_can_edit_wp_user( $user_id ) ) {
             wp_send_json_error( 'Forbidden', 403 );
+        }
+
+        if ( EPC_Settings::cassette_gift_ui_hidden_for_wp_user( $user_id ) ) {
+            wp_send_json_error( __( 'Η κασσετίνα δώρο δεν ισχύει για αυτόν τον τύπο πελάτη.', 'epappous-club' ) );
         }
 
         if ( $this->user_has_cassette_gift_received( $user_id ) ) {
