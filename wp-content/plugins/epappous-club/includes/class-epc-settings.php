@@ -88,13 +88,14 @@ class EPC_Settings {
             'epc_referral_reward_referrer'      => '100',
             'epc_referral_reward_referred'      => '50',
             'epc_referral_reward_type'          => 'points',
-            'epc_referral_require_purchase'     => '0',
             'epc_referral_min_order'            => '0',
             'epc_referral_max_referrals'        => '0',
             'epc_referral_cookie_days'          => '30',
             'epc_referral_code_prefix'          => 'PAPPOU',
             'epc_referral_track_membership'     => '1',
             'epc_referral_track_purchase'       => '1',
+            'epc_referral_clicks_prune_unrewarded_days' => '120',
+            'epc_referral_clicks_prune_rewarded_days'   => '0',
 
             // ── Notifications ──
             'epc_notify_new_member'         => '1',
@@ -149,10 +150,12 @@ class EPC_Settings {
             // Referral
             'epc_referral_enabled', 'epc_referral_reward_referrer',
             'epc_referral_reward_referred', 'epc_referral_reward_type',
-            'epc_referral_require_purchase', 'epc_referral_min_order',
+            'epc_referral_min_order',
             'epc_referral_max_referrals', 'epc_referral_cookie_days',
             'epc_referral_code_prefix', 'epc_referral_track_membership',
             'epc_referral_track_purchase',
+            'epc_referral_clicks_prune_unrewarded_days',
+            'epc_referral_clicks_prune_rewarded_days',
             // Notifications
             'epc_notify_new_member', 'epc_notify_referral_complete',
             'epc_notify_tier_upgrade', 'epc_admin_email',

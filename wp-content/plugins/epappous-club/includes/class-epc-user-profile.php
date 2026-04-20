@@ -65,7 +65,7 @@ class EPC_User_Profile {
      * Hide color scheme, syntax highlighting, keyboard shortcuts, toolbar rows.
      */
     public function hide_wp_profile_sections() {
-        if ( ! current_user_can( 'manage_options' ) && ! current_user_can( 'manage_woocommerce' ) ) {
+        if ( ! EPC_Capabilities::current_user_can_manage_club() ) {
             return;
         }
         ?>
@@ -79,7 +79,7 @@ class EPC_User_Profile {
     }
 
     public function render_section( $user ) {
-        if ( ! current_user_can( 'manage_options' ) && ! current_user_can( 'manage_woocommerce' ) ) {
+        if ( ! EPC_Capabilities::current_user_can_manage_club() || ! EPC_Capabilities::current_user_can_edit_wp_user( (int) $user->ID ) ) {
             return;
         }
 
@@ -484,8 +484,8 @@ class EPC_User_Profile {
 
     public function ajax_add_note() {
         check_ajax_referer( 'epc_admin_nonce', 'nonce' );
-        if ( ! current_user_can( 'manage_options' ) && ! current_user_can( 'manage_woocommerce' ) ) {
-            wp_send_json_error( 'Unauthorized' );
+        if ( ! EPC_Capabilities::current_user_can_manage_club() ) {
+            wp_send_json_error( 'Unauthorized', 403 );
         }
 
         $user_id   = (int) ( $_POST['user_id'] ?? 0 );
@@ -493,6 +493,10 @@ class EPC_User_Profile {
 
         if ( $user_id < 1 || empty( $note_text ) ) {
             wp_send_json_error( 'Missing data' );
+        }
+
+        if ( ! EPC_Capabilities::current_user_can_edit_wp_user( $user_id ) ) {
+            wp_send_json_error( 'Forbidden', 403 );
         }
 
         global $wpdb;
@@ -520,8 +524,8 @@ class EPC_User_Profile {
 
     public function ajax_delete_note() {
         check_ajax_referer( 'epc_admin_nonce', 'nonce' );
-        if ( ! current_user_can( 'manage_options' ) && ! current_user_can( 'manage_woocommerce' ) ) {
-            wp_send_json_error( 'Unauthorized' );
+        if ( ! EPC_Capabilities::current_user_can_manage_club() ) {
+            wp_send_json_error( 'Unauthorized', 403 );
         }
 
         $note_id = (int) ( $_POST['note_id'] ?? 0 );
@@ -530,6 +534,19 @@ class EPC_User_Profile {
         }
 
         global $wpdb;
+        $owner = (int) $wpdb->get_var(
+            $wpdb->prepare(
+                "SELECT user_id FROM {$wpdb->prefix}epc_member_notes WHERE id = %d LIMIT 1",
+                $note_id
+            )
+        );
+        if ( $owner < 1 ) {
+            wp_send_json_error( 'Not found' );
+        }
+        if ( ! EPC_Capabilities::current_user_can_edit_wp_user( $owner ) ) {
+            wp_send_json_error( 'Forbidden', 403 );
+        }
+
         $wpdb->delete(
             "{$wpdb->prefix}epc_member_notes",
             [ 'id' => $note_id ],
@@ -544,8 +561,8 @@ class EPC_User_Profile {
      */
     public function ajax_update_note() {
         check_ajax_referer( 'epc_admin_nonce', 'nonce' );
-        if ( ! current_user_can( 'manage_options' ) && ! current_user_can( 'manage_woocommerce' ) ) {
-            wp_send_json_error( 'Unauthorized' );
+        if ( ! EPC_Capabilities::current_user_can_manage_club() ) {
+            wp_send_json_error( 'Unauthorized', 403 );
         }
 
         $note_id   = (int) ( $_POST['note_id'] ?? 0 );
@@ -554,6 +571,10 @@ class EPC_User_Profile {
 
         if ( $note_id < 1 || $user_id < 1 || $note_text === '' ) {
             wp_send_json_error( 'Missing data' );
+        }
+
+        if ( ! EPC_Capabilities::current_user_can_edit_wp_user( $user_id ) ) {
+            wp_send_json_error( 'Forbidden', 403 );
         }
 
         global $wpdb;
@@ -590,8 +611,8 @@ class EPC_User_Profile {
      */
     public function ajax_save_cassette_gift() {
         check_ajax_referer( 'epc_admin_nonce', 'nonce' );
-        if ( ! current_user_can( 'manage_options' ) && ! current_user_can( 'manage_woocommerce' ) ) {
-            wp_send_json_error( 'Unauthorized' );
+        if ( ! EPC_Capabilities::current_user_can_manage_club() ) {
+            wp_send_json_error( 'Unauthorized', 403 );
         }
 
         $user_id = (int) ( $_POST['user_id'] ?? 0 );
@@ -600,6 +621,10 @@ class EPC_User_Profile {
 
         if ( $user_id < 1 ) {
             wp_send_json_error( __( 'Λείπει χρήστης.', 'epappous-club' ) );
+        }
+
+        if ( ! EPC_Capabilities::current_user_can_edit_wp_user( $user_id ) ) {
+            wp_send_json_error( 'Forbidden', 403 );
         }
 
         if ( ! in_array( $received, [ 'yes', 'no' ], true ) ) {
@@ -645,8 +670,8 @@ class EPC_User_Profile {
      */
     public function ajax_toggle_membership() {
         check_ajax_referer( 'epc_admin_nonce', 'nonce' );
-        if ( ! current_user_can( 'manage_options' ) && ! current_user_can( 'manage_woocommerce' ) ) {
-            wp_send_json_error( 'Unauthorized' );
+        if ( ! EPC_Capabilities::current_user_can_manage_club() ) {
+            wp_send_json_error( 'Unauthorized', 403 );
         }
 
         global $wpdb;
@@ -656,6 +681,16 @@ class EPC_User_Profile {
         $enable    = ! empty( $_POST['enable'] );
 
         if ( $member_id > 0 ) {
+            $mid_user = (int) $wpdb->get_var(
+                $wpdb->prepare(
+                    "SELECT user_id FROM {$wpdb->prefix}epc_members WHERE id = %d LIMIT 1",
+                    $member_id
+                )
+            );
+            if ( $mid_user > 0 && ! EPC_Capabilities::current_user_can_edit_wp_user( $mid_user ) ) {
+                wp_send_json_error( 'Forbidden', 403 );
+            }
+
             $new_status = $enable ? 'active' : 'inactive';
             $wpdb->update(
                 "{$wpdb->prefix}epc_members",
@@ -674,6 +709,10 @@ class EPC_User_Profile {
         }
 
         if ( $user_id > 0 ) {
+            if ( ! EPC_Capabilities::current_user_can_edit_wp_user( $user_id ) ) {
+                wp_send_json_error( 'Forbidden', 403 );
+            }
+
             $wp_user = get_userdata( $user_id );
             if ( ! $wp_user ) {
                 wp_send_json_error( 'User not found' );
@@ -730,8 +769,8 @@ class EPC_User_Profile {
      */
     public function ajax_adjust_points() {
         check_ajax_referer( 'epc_admin_nonce', 'nonce' );
-        if ( ! current_user_can( 'manage_options' ) && ! current_user_can( 'manage_woocommerce' ) ) {
-            wp_send_json_error( 'Unauthorized' );
+        if ( ! EPC_Capabilities::current_user_can_manage_club() ) {
+            wp_send_json_error( 'Unauthorized', 403 );
         }
 
         $member_id = (int) ( $_POST['member_id'] ?? 0 );
@@ -747,13 +786,18 @@ class EPC_User_Profile {
 
         $member = $wpdb->get_row(
             $wpdb->prepare(
-                "SELECT id, points FROM {$wpdb->prefix}epc_members WHERE id = %d",
+                "SELECT id, points, user_id FROM {$wpdb->prefix}epc_members WHERE id = %d",
                 $member_id
             )
         );
 
         if ( ! $member ) {
             wp_send_json_error( __( 'Δεν βρέθηκε μέλος', 'epappous-club' ) );
+        }
+
+        $wp_uid = (int) $member->user_id;
+        if ( $wp_uid > 0 && ! EPC_Capabilities::current_user_can_edit_wp_user( $wp_uid ) ) {
+            wp_send_json_error( 'Forbidden', 403 );
         }
 
         $points_delta = $type === 'remove' ? -$amount : $amount;
@@ -816,8 +860,8 @@ class EPC_User_Profile {
      */
     public function ajax_search_members() {
         check_ajax_referer( 'epc_admin_nonce', 'nonce' );
-        if ( ! current_user_can( 'manage_options' ) && ! current_user_can( 'manage_woocommerce' ) ) {
-            wp_send_json_error( 'Unauthorized' );
+        if ( ! EPC_Capabilities::current_user_can_manage_club() ) {
+            wp_send_json_error( 'Unauthorized', 403 );
         }
 
         $q = sanitize_text_field( $_GET['q'] ?? '' );

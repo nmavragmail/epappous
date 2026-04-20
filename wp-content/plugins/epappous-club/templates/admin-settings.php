@@ -247,7 +247,7 @@ if ( ! is_array( $tiers ) ) {
                         <div class="epc-card-header">
                             <h2><?php esc_html_e( 'Ρυθμίσεις Referral', 'epappous-club' ); ?></h2>
                             <p class="epc-card-desc">
-                                <?php esc_html_e( 'Το σύστημα referral επιτρέπει στα μέλη να προσκαλούν φίλους. Κάθε μέλος παίρνει ένα μοναδικό κωδικό (π.χ. PAPPOU-A3X9) που μοιράζεται μέσω link. Όταν κάποιος γίνει μέλος ή αγοράσει, και οι δύο κερδίζουν πόντους.', 'epappous-club' ); ?>
+                                <?php esc_html_e( 'Κάθε μέλος έχει μοναδικό κωδικό και link (?ref=). Οι πόντοι ανταμοιβής χορηγούνται όταν ολοκληρωθούν και η εγγραφή του νέου μέλους και επιλέξιμη παραγγελία (με τα δύο σχετικά toggles ενεργά), εφόσον και οι δύο χρήστες ανήκουν στο B2B group «Pappou Club» και τηρούνται όρια παραγγελιών/αριθμού referrals.', 'epappous-club' ); ?>
                             </p>
                         </div>
                         <div class="epc-card-body">
@@ -270,22 +270,8 @@ if ( ! is_array( $tiers ) ) {
                             </div>
 
                             <hr class="epc-divider" />
-                            <h3><?php esc_html_e( 'Ανταμοιβές', 'epappous-club' ); ?></h3>
-
-                            <div class="epc-field-row">
-                                <label for="epc_referral_reward_type"><?php esc_html_e( 'Τύπος Ανταμοιβής', 'epappous-club' ); ?></label>
-                                <select id="epc_referral_reward_type" name="epc_referral_reward_type">
-                                    <option value="points" <?php selected( EPC_Settings::get( 'epc_referral_reward_type' ), 'points' ); ?>>
-                                        <?php esc_html_e( 'Πόντοι', 'epappous-club' ); ?>
-                                    </option>
-                                    <option value="discount_fixed" <?php selected( EPC_Settings::get( 'epc_referral_reward_type' ), 'discount_fixed' ); ?>>
-                                        <?php esc_html_e( 'Σταθερή Έκπτωση (€)', 'epappous-club' ); ?>
-                                    </option>
-                                    <option value="discount_percent" <?php selected( EPC_Settings::get( 'epc_referral_reward_type' ), 'discount_percent' ); ?>>
-                                        <?php esc_html_e( 'Ποσοστιαία Έκπτωση (%)', 'epappous-club' ); ?>
-                                    </option>
-                                </select>
-                            </div>
+                            <h3><?php esc_html_e( 'Ανταμοιβές (πόντοι club)', 'epappous-club' ); ?></h3>
+                            <p class="description"><?php esc_html_e( 'Η απονομή γίνεται πάντα ως πόντοι στον πίνακα μελών (όχι κουπόνι έκπτωσης).', 'epappous-club' ); ?></p>
 
                             <div class="epc-field-row">
                                 <label for="epc_referral_reward_referrer"><?php esc_html_e( 'Ανταμοιβή Αυτού που Προσκαλεί', 'epappous-club' ); ?></label>
@@ -327,17 +313,6 @@ if ( ! is_array( $tiers ) ) {
                             </div>
 
                             <div class="epc-field-row">
-                                <label for="epc_referral_require_purchase"><?php esc_html_e( 'Απαιτείται Αγορά για Ανταμοιβή', 'epappous-club' ); ?></label>
-                                <label class="epc-toggle">
-                                    <input type="hidden" name="epc_referral_require_purchase" value="0" />
-                                    <input type="checkbox" id="epc_referral_require_purchase" name="epc_referral_require_purchase" value="1"
-                                           <?php checked( EPC_Settings::get( 'epc_referral_require_purchase' ), '1' ); ?> />
-                                    <span class="epc-toggle-slider"></span>
-                                </label>
-                                <p class="description"><?php esc_html_e( 'Αν ενεργό, η ανταμοιβή δίνεται μόνο μετά την πρώτη αγορά.', 'epappous-club' ); ?></p>
-                            </div>
-
-                            <div class="epc-field-row">
                                 <label for="epc_referral_min_order"><?php esc_html_e( 'Ελάχιστο Ποσό Παραγγελίας (€)', 'epappous-club' ); ?></label>
                                 <input type="number" id="epc_referral_min_order" name="epc_referral_min_order"
                                        value="<?php echo esc_attr( EPC_Settings::get( 'epc_referral_min_order' ) ); ?>"
@@ -359,6 +334,26 @@ if ( ! is_array( $tiers ) ) {
                                        value="<?php echo esc_attr( EPC_Settings::get( 'epc_referral_cookie_days' ) ); ?>"
                                        class="small-text" min="1" />
                                 <p class="description"><?php esc_html_e( 'Πόσες ημέρες διατηρείται το referral cookie στον browser.', 'epappous-club' ); ?></p>
+                            </div>
+
+                            <hr class="epc-divider" />
+                            <h3><?php esc_html_e( 'Εκκαθάριση καταγραφών clicks (referral)', 'epappous-club' ); ?></h3>
+                            <p class="description"><?php esc_html_e( 'Ημερήσιο cron διαγράφει παλιές γραμμές από τον πίνακα referral clicks ώστε να μην μεγαλώνει απεριόριστα. 0 = απενεργοποίηση για το αντίστοιμο κομμάτι.', 'epappous-club' ); ?></p>
+
+                            <div class="epc-field-row">
+                                <label for="epc_referral_clicks_prune_unrewarded_days"><?php esc_html_e( 'Ημέρες διατήρησης μη ανταμειφθέντων leads', 'epappous-club' ); ?></label>
+                                <input type="number" id="epc_referral_clicks_prune_unrewarded_days" name="epc_referral_clicks_prune_unrewarded_days"
+                                       value="<?php echo esc_attr( EPC_Settings::get( 'epc_referral_clicks_prune_unrewarded_days' ) ); ?>"
+                                       class="small-text" min="0" />
+                                <p class="description"><?php esc_html_e( 'Διαγραφή γραμμών χωρίς rewarded_at παλαιότερων από Ν ημέρες.', 'epappous-club' ); ?></p>
+                            </div>
+
+                            <div class="epc-field-row">
+                                <label for="epc_referral_clicks_prune_rewarded_days"><?php esc_html_e( 'Ημέρες διατήρησης ολοκληρωμένων (rewarded)', 'epappous-club' ); ?></label>
+                                <input type="number" id="epc_referral_clicks_prune_rewarded_days" name="epc_referral_clicks_prune_rewarded_days"
+                                       value="<?php echo esc_attr( EPC_Settings::get( 'epc_referral_clicks_prune_rewarded_days' ) ); ?>"
+                                       class="small-text" min="0" />
+                                <p class="description"><?php esc_html_e( 'Διαγραφή γραμμών με rewarded_at παλαιότερο από Ν ημέρες. 0 = να μη διαγράφονται.', 'epappous-club' ); ?></p>
                             </div>
                         </div>
                     </div>

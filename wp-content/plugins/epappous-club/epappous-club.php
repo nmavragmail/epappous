@@ -3,7 +3,7 @@
  * Plugin Name: ePappous Club
  * Plugin URI: https://epappous.gr
  * Description: Loyalty & membership club with referral tracking, gift products, and full settings management.
- * Version: 1.15.8
+ * Version: 1.15.9
  * Author: ePappous
  * Author URI: https://epappous.gr
  * Text Domain: epappous-club
@@ -17,16 +17,19 @@ if ( ! defined( 'ABSPATH' ) ) {
     exit;
 }
 
-define( 'EPC_VERSION', '1.15.8' );
+define( 'EPC_VERSION', '1.15.9' );
 define( 'EPC_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'EPC_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
 define( 'EPC_PLUGIN_BASENAME', plugin_basename( __FILE__ ) );
 
 require_once EPC_PLUGIN_DIR . 'includes/class-epc-database.php';
+require_once EPC_PLUGIN_DIR . 'includes/class-epc-dob-validator.php';
+require_once EPC_PLUGIN_DIR . 'includes/class-epc-capabilities.php';
 require_once EPC_PLUGIN_DIR . 'includes/class-epc-settings.php';
 require_once EPC_PLUGIN_DIR . 'includes/class-epc-b2bking.php';
 require_once EPC_PLUGIN_DIR . 'includes/class-epc-member-sync.php';
 require_once EPC_PLUGIN_DIR . 'includes/class-epc-referral.php';
+require_once EPC_PLUGIN_DIR . 'includes/class-epc-referral-clicks-cleanup.php';
 require_once EPC_PLUGIN_DIR . 'includes/class-epc-birthday.php';
 require_once EPC_PLUGIN_DIR . 'includes/class-epc-expiry.php';
 // Tiers module disabled site-wide (no UI / no tier emails). Re-enable by uncommenting:
@@ -55,12 +58,14 @@ function epc_activate() {
     EPC_Database::activate();
     EPC_Birthday::schedule();
     EPC_Expiry::schedule();
+    EPC_Referral_Clicks_Cleanup::schedule();
 }
 
 function epc_deactivate() {
     EPC_Database::deactivate();
     EPC_Birthday::unschedule();
     EPC_Expiry::unschedule();
+    EPC_Referral_Clicks_Cleanup::unschedule();
 }
 
 add_action( 'plugins_loaded', 'epc_init' );
@@ -70,9 +75,12 @@ function epc_init() {
 
     EPC_Database::maybe_upgrade();
 
+    EPC_Referral_Clicks_Cleanup::schedule();
+
     EPC_Settings::instance();
     EPC_Member_Sync::instance();
     EPC_Referral::instance();
+    EPC_Referral_Clicks_Cleanup::init();
     EPC_Birthday::instance();
     EPC_Expiry::instance();
     // EPC_Tiers::instance();

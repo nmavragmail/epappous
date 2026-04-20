@@ -2319,32 +2319,25 @@ class EPC_WooCommerce {
             return;
         }
 
-        if ( ! $this->is_valid_dob_string( $dob ) ) {
+        $min_age = (int) EPC_Settings::get( 'epc_min_age' );
+        $dob_chk = EPC_DOB_Validator::validate_club_dob(
+            $dob,
+            [
+                'required' => true,
+                'min_age'  => $min_age,
+            ]
+        );
+        if ( is_wp_error( $dob_chk ) ) {
+            $map     = [
+                'epc_dob_invalid' => 'epc_club_dob_invalid',
+                'epc_dob_age'     => 'epc_club_dob_age',
+            ];
+            $code    = $dob_chk->get_error_code();
             $errors->add(
-                'epc_club_dob_invalid',
-                __( 'Μη έγκυρη ημερομηνία γέννησης. Χρησιμοποίησε τη μορφή ΕΕΕΕ-MM-ΗΗ.', 'epappous-club' )
+                $map[ $code ] ?? 'epc_club_dob_invalid',
+                $dob_chk->get_error_message()
             );
             return;
-        }
-
-        $min_age = (int) EPC_Settings::get( 'epc_min_age' );
-        if ( $min_age > 0 ) {
-            try {
-                $birth = new \DateTime( $dob );
-                $now   = new \DateTime();
-                $age   = (int) $now->diff( $birth )->y;
-                if ( $age < $min_age ) {
-                    $errors->add(
-                        'epc_club_dob_age',
-                        sprintf(
-                            /* translators: %d: minimum age */
-                            __( 'Πρέπει να είσαι τουλάχιστον %d ετών για εγγραφή στο Club.', 'epappous-club' ),
-                            $min_age
-                        )
-                    );
-                }
-            } catch ( \Throwable $e ) { // phpcs:ignore Generic.CodeAnalysis.EmptyStatement.DetectedCatch
-            }
         }
     }
 
@@ -2446,36 +2439,17 @@ class EPC_WooCommerce {
             return;
         }
 
-        if ( ! $this->is_valid_dob_string( $dob ) ) {
-            wc_add_notice(
-                __( 'Μη έγκυρη ημερομηνία γέννησης.', 'epappous-club' ),
-                'error'
-            );
-            return;
-        }
-
         $min_age = (int) EPC_Settings::get( 'epc_min_age' );
-        if ( $min_age > 0 ) {
-            try {
-                $birth = new \DateTime( $dob );
-                $now   = new \DateTime();
-                $age   = (int) $now->diff( $birth )->y;
-                if ( $age < $min_age ) {
-                    wc_add_notice(
-                        sprintf(
-                            /* translators: %d: minimum age */
-                            __( 'Πρέπει να είσαι τουλάχιστον %d ετών για εγγραφή στο Club.', 'epappous-club' ),
-                            $min_age
-                        ),
-                        'error'
-                    );
-                }
-            } catch ( \Throwable $e ) {
-                wc_add_notice(
-                    __( 'Μη έγκυρη ημερομηνία γέννησης.', 'epappous-club' ),
-                    'error'
-                );
-            }
+        $dob_chk = EPC_DOB_Validator::validate_club_dob(
+            $dob,
+            [
+                'required' => true,
+                'min_age'  => $min_age,
+            ]
+        );
+        if ( is_wp_error( $dob_chk ) ) {
+            wc_add_notice( $dob_chk->get_error_message(), 'error' );
+            return;
         }
     }
 
@@ -2580,39 +2554,22 @@ class EPC_WooCommerce {
             return;
         }
 
-        if ( '' === $dob || ! $this->is_valid_dob_string( $dob ) ) {
+        $min_age = (int) EPC_Settings::get( 'epc_min_age' );
+        $dob_chk = EPC_DOB_Validator::validate_club_dob(
+            $dob,
+            [
+                'required' => true,
+                'min_age'  => $min_age,
+            ]
+        );
+        if ( is_wp_error( $dob_chk ) ) {
             $order->update_meta_data( '_epc_checkout_club_processed', '1' );
             $order->add_order_note(
-                __( 'Παππού Club: λείπει ή είναι άκυρη η ημερομηνία γέννησης — η εγγραφή δεν ολοκληρώθηκε.', 'epappous-club' )
+                __( 'Παππού Club: λείπει ή δεν είναι έγκυρη η ημερομηνία γέννησης — η εγγραφή δεν ολοκληρώθηκε.', 'epappous-club' )
+                . ' ' . $dob_chk->get_error_message()
             );
             $order->save();
             return;
-        }
-
-        $min_age = (int) EPC_Settings::get( 'epc_min_age' );
-        if ( $min_age > 0 ) {
-            try {
-                $birth = new \DateTime( $dob );
-                $now   = new \DateTime();
-                $age   = (int) $now->diff( $birth )->y;
-                if ( $age < $min_age ) {
-                    $order->update_meta_data( '_epc_checkout_club_processed', '1' );
-                    $order->add_order_note(
-                        sprintf(
-                            /* translators: %d: minimum age */
-                            __( 'Παππού Club: ηλικία κάτω του επιτρεπτού ορίου (%d) — εγγραφή ακυρώθηκε.', 'epappous-club' ),
-                            $min_age
-                        )
-                    );
-                    $order->save();
-                    return;
-                }
-            } catch ( \Throwable $e ) {
-                $order->update_meta_data( '_epc_checkout_club_processed', '1' );
-                $order->add_order_note( __( 'Παππού Club: άκυρη ημερομηνία γέννησης — εγγραφή ακυρώθηκε.', 'epappous-club' ) );
-                $order->save();
-                return;
-            }
         }
 
         global $wpdb;
@@ -2740,14 +2697,6 @@ class EPC_WooCommerce {
             )
         );
         return $c > 0;
-    }
-
-    private function is_valid_dob_string( string $dob ): bool {
-        if ( ! preg_match( '/^\d{4}-\d{2}-\d{2}$/', $dob ) ) {
-            return false;
-        }
-        $parts = array_map( 'intval', explode( '-', $dob ) );
-        return wp_checkdate( $parts[1], $parts[2], $parts[0], $dob );
     }
 
     /**

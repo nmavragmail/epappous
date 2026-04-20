@@ -335,13 +335,12 @@ class EPC_Registration {
         $currency_lbl = EPC_Settings::get( 'epc_currency_label' );
         $club_lbl = EPC_Settings::get( 'epc_club_name' );
 
-        $ref_enabled   = EPC_Settings::get( 'epc_referral_enabled' ) === '1';
-        $track_mem     = EPC_Settings::get( 'epc_referral_track_membership' ) === '1';
+        $ref_enabled    = EPC_Settings::get( 'epc_referral_enabled' ) === '1';
+        $track_mem      = EPC_Settings::get( 'epc_referral_track_membership' ) === '1';
         $track_purchase = EPC_Settings::get( 'epc_referral_track_purchase' ) === '1';
-        $reward_ref    = (int) EPC_Settings::get( 'epc_referral_reward_referrer' );
-        $reward_new    = (int) EPC_Settings::get( 'epc_referral_reward_referred' );
-        $req_purchase  = EPC_Settings::get( 'epc_referral_require_purchase' ) === '1';
-        $min_order     = (float) EPC_Settings::get( 'epc_referral_min_order' );
+        $reward_ref     = (int) EPC_Settings::get( 'epc_referral_reward_referrer' );
+        $reward_new     = (int) EPC_Settings::get( 'epc_referral_reward_referred' );
+        $min_order      = (float) EPC_Settings::get( 'epc_referral_min_order' );
 
         $show_referral_ui = $ref_enabled && ( $track_mem || $track_purchase );
         $ref_stats       = $show_referral_ui ? EPC_Referral::get_stats( (int) $member['id'] ) : null;
@@ -372,7 +371,7 @@ class EPC_Registration {
                         */ ?>
                         <?php if ( $show_referral_ui ) : ?>
                             <li>
-                                <?php esc_html_e( 'Referral: μοιράζεσαι το προσωπικό σου link. Όταν κάποιος επισκέπτεται το site με αυτό το link, αποθηκεύεται για λίγες μέρες. Αν εγγραφεί ως μέλος ή/και αγοράσει, μπορείτε να κερδίσετε πόντους — ανάλογα με τις ρυθμίσεις που βλέπεις παρακάτω.', 'epappous-club' ); ?>
+                                <?php esc_html_e( 'Referral: μοιράζεσαι το link σου. Οι πόντοι ανταμοιβής χορηγούνται όταν έχουν ολοκληρωθεί και τα δύο βήματα που ισχύουν στο κατάστημα (εγγραφή μέλους και επιλέξιμη αγορά), και τηρούνται οι λοιποί κανόνες (π.χ. B2B group, ελάχιστο παραγγελίας).', 'epappous-club' ); ?>
                             </li>
                         <?php endif; ?>
                     </ol>
@@ -412,47 +411,40 @@ class EPC_Registration {
                 <?php if ( $show_referral_ui && $share_link !== '' ) : ?>
                 <div class="epc-profile-referral-box">
                     <h3 class="epc-profile-referral-title"><?php esc_html_e( 'Το link σου για referrals', 'epappous-club' ); ?></h3>
-                    <p class="epc-profile-referral-hint"><?php esc_html_e( 'Αντέγραψε και στείλε το στους φίλους σου. Όταν μπουν από αυτό το link και γίνουν μέλη ή αγοράσουν, μπορείτε να κερδίσετε πόντους (αν ισχύουν οι κανόνες του καταστήματος).', 'epappous-club' ); ?></p>
+                    <p class="epc-profile-referral-hint"><?php esc_html_e( 'Αντέγραψε και στείλε το στους φίλους σου. Οι πόντοι ανταμοιβής ισχύουν όταν ολοκληρωθούν τα απαιτούμενα βήματα (εγγραφή + επιλέξιμη αγορά), σύμφωνα με τις ρυθμίσεις του καταστήματος.', 'epappous-club' ); ?></p>
                     <div class="epc-profile-share-row">
                         <input type="text" readonly class="epc-profile-share-input" id="epc-ref-share-url" value="<?php echo esc_attr( $share_link ); ?>" aria-label="<?php esc_attr_e( 'Referral link', 'epappous-club' ); ?>" />
                         <button type="button" class="epc-btn-secondary epc-copy-ref-link" data-copy="<?php echo esc_attr( $share_link ); ?>"><?php esc_html_e( 'Αντιγραφή', 'epappous-club' ); ?></button>
                     </div>
                     <div class="epc-profile-reward-grid">
-                        <?php if ( $track_mem ) : ?>
-                            <div class="epc-profile-reward-item">
-                                <strong><?php esc_html_e( 'Εσύ (πρόσκληση)', 'epappous-club' ); ?></strong>
-                                <span><?php printf( esc_html__( 'Έως %s πόντοι όταν ο φίλος γίνεται μέλος', 'epappous-club' ), number_format_i18n( $reward_ref ) ); ?></span>
-                                <?php if ( $req_purchase ) : ?>
-                                    <em class="epc-profile-reward-note"><?php esc_html_e( 'Η ανταμοιβή καταβάλλεται μετά την πρώτη αγορά του φίλου — όπως έχει οριστεί στο κατάστημα.', 'epappous-club' ); ?></em>
-                                <?php endif; ?>
-                            </div>
-                        <?php endif; ?>
-                        <?php if ( $track_mem ) : ?>
-                            <div class="epc-profile-reward-item">
-                                <strong><?php esc_html_e( 'Ο φίλος (νέο μέλος)', 'epappous-club' ); ?></strong>
-                                <span><?php printf( esc_html__( 'Έως %s πόντοι εγγραφής', 'epappous-club' ), number_format_i18n( $reward_new ) ); ?></span>
-                            </div>
-                        <?php endif; ?>
-                        <?php if ( $track_purchase ) : ?>
-                            <div class="epc-profile-reward-item epc-profile-reward-item--wide">
-                                <strong><?php esc_html_e( 'Αγορά μέσω referral', 'epappous-club' ); ?></strong>
-                                <span>
-                                    <?php
-                                    printf(
-                                        esc_html__( 'Επιπλέον πόντοι όταν ολοκληρωθεί επιλέξιμη παραγγελία — εσύ και ο φίλος (ωφελήματα όπως στο admin).', 'epappous-club' )
-                                    );
-                                    if ( $min_order > 0 ) {
-                                        echo ' ';
-                                        if ( function_exists( 'wc_price' ) ) {
-                                            echo wp_kses_post( wc_price( $min_order ) );
-                                        } else {
-                                            printf( esc_html__( 'Ελάχιστο ποσό παραγγελίας: %s', 'epappous-club' ), number_format_i18n( $min_order, 2 ) );
-                                        }
+                        <div class="epc-profile-reward-item epc-profile-reward-item--wide">
+                            <strong><?php esc_html_e( 'Πόντοι ανταμοιβής (όταν ολοκληρωθεί το referral)', 'epappous-club' ); ?></strong>
+                            <span>
+                                <?php
+                                printf(
+                                    /* translators: 1: points for referrer, 2: points for new member */
+                                    esc_html__( 'Έως %1$s πόντοι για εσένα (πρόσκληση) και %2$s για τον φίλο — μόνο ως πόντοι club, όταν ισχύουν ενεργά και τα δύο κομμάτια (εγγραφή + αγορά) στη ρύθμιση και οι λοιποί κανόνες.', 'epappous-club' ),
+                                    number_format_i18n( $reward_ref ),
+                                    number_format_i18n( $reward_new )
+                                );
+                                if ( $min_order > 0 ) {
+                                    echo ' ';
+                                    if ( function_exists( 'wc_price' ) ) {
+                                        echo wp_kses_post( wc_price( $min_order ) );
+                                        echo ' <span class="description">' . esc_html__( 'ελάχιστο ποσό παραγγελίας για να μετρήσει η αγορά.', 'epappous-club' ) . '</span>';
+                                    } else {
+                                        printf(
+                                            esc_html__( 'Ελάχιστο ποσό παραγγελίας: %s', 'epappous-club' ),
+                                            number_format_i18n( $min_order, 2 )
+                                        );
                                     }
-                                    ?>
-                                </span>
-                            </div>
-                        <?php endif; ?>
+                                }
+                                ?>
+                            </span>
+                            <?php if ( ! $track_mem || ! $track_purchase ) : ?>
+                                <em class="epc-profile-reward-note"><?php esc_html_e( 'Στο admin πρέπει να είναι ενεργά και «εγγραφή» και «αγορά» για να εκδοθούν οι πόντοι.', 'epappous-club' ); ?></em>
+                            <?php endif; ?>
+                        </div>
                     </div>
                 </div>
                 <?php endif; ?>
@@ -514,17 +506,16 @@ class EPC_Registration {
             wp_send_json_error( __( 'Πρέπει να αποδεχτείς τους όρους χρήσης.', 'epappous-club' ) );
         }
 
-        // Check minimum age
         $min_age = (int) EPC_Settings::get( 'epc_min_age' );
-        if ( $min_age > 0 && ! empty( $dob ) ) {
-            $birth = new DateTime( $dob );
-            $now   = new DateTime();
-            $age   = (int) $now->diff( $birth )->y;
-            if ( $age < $min_age ) {
-                wp_send_json_error(
-                    sprintf( __( 'Πρέπει να είσαι τουλάχιστον %d ετών.', 'epappous-club' ), $min_age )
-                );
-            }
+        $dob_chk = EPC_DOB_Validator::validate_club_dob(
+            $dob,
+            [
+                'required' => $min_age > 0,
+                'min_age'  => $min_age,
+            ]
+        );
+        if ( is_wp_error( $dob_chk ) ) {
+            wp_send_json_error( $dob_chk->get_error_message() );
         }
 
         global $wpdb;
@@ -612,6 +603,18 @@ class EPC_Registration {
         $phone = sanitize_text_field( $_POST['phone'] ?? '' );
         $dob   = sanitize_text_field( $_POST['date_of_birth'] ?? '' );
 
+        $min_age = (int) EPC_Settings::get( 'epc_min_age' );
+        $dob_chk = EPC_DOB_Validator::validate_club_dob(
+            $dob,
+            [
+                'required' => false,
+                'min_age'  => $min_age,
+            ]
+        );
+        if ( is_wp_error( $dob_chk ) ) {
+            wp_send_json_error( $dob_chk->get_error_message() );
+        }
+
         $update = [
             'phone' => $phone,
         ];
@@ -619,7 +622,7 @@ class EPC_Registration {
 
         if ( ! empty( $dob ) ) {
             $update['date_of_birth'] = $dob;
-            $format[] = '%s';
+            $format[]                = '%s';
         }
 
         $wpdb->update(
