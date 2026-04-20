@@ -68,10 +68,19 @@ class EPC_Admin {
     }
 
     public function enqueue_assets( $hook ) {
-        $is_epc_page    = strpos( $hook, 'epc-' ) !== false;
-        $is_profile     = in_array( $hook, [ 'profile.php', 'user-edit.php' ], true );
+        $is_epc_page = strpos( $hook, 'epc-' ) !== false;
+        $is_profile  = in_array( $hook, [ 'profile.php', 'user-edit.php' ], true );
+        $is_wc_order = false;
 
-        if ( ! $is_epc_page && ! $is_profile ) {
+        if ( function_exists( 'get_current_screen' ) ) {
+            $screen = get_current_screen();
+            if ( $screen && isset( $screen->id ) ) {
+                $screen_id   = (string) $screen->id;
+                $is_wc_order = ( 'shop_order' === $screen_id ) || ( false !== strpos( $screen_id, 'wc-orders' ) );
+            }
+        }
+
+        if ( ! $is_epc_page && ! $is_profile && ! $is_wc_order ) {
             return;
         }
 
