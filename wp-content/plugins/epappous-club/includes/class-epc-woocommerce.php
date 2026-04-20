@@ -359,7 +359,7 @@ class EPC_WooCommerce {
             echo '<p class="epc-order-gift-msg" style="display:none;margin-top:8px;"></p>';
             echo '</div>';
         } else {
-            echo '<p style="margin-top:10px;color:#6b7280;">' . esc_html__( 'Έχει ήδη σταλεί ενημέρωση για την κασσετίνα.', 'epappous-club' ) . '</p>';
+            echo '<p style="margin-top:10px;color:#6b7280;">' . esc_html__( 'έχει ήδη σταλεί ενημέρωση για την Κασσετίνα δώρο', 'epappous-club' ) . '</p>';
         }
         ?>
         <script>
@@ -438,7 +438,7 @@ class EPC_WooCommerce {
         }
 
         if ( get_user_meta( $user_id, EPC_User_Profile::USER_META_CASSETTE, true ) === 'yes' ) {
-            wp_send_json_error( __( 'Έχει ήδη σταλεί ενημέρωση για την κασσετίνα.', 'epappous-club' ) );
+            wp_send_json_error( __( 'έχει ήδη σταλεί ενημέρωση για την Κασσετίνα δώρο', 'epappous-club' ) );
         }
 
         $order = wc_get_order( $order_id );
