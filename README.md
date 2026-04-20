@@ -194,13 +194,14 @@ phpunit -c phpunit.xml.dist
 
 → **[`docs/Pappou-Club-Admin-Manual-el.docx`](docs/Pappou-Club-Admin-Manual-el.docx)**
 
-Για να ξαναπαραχθεί το `.docx` μετά από αλλαγές κειμένου, τρέξτε:
+**Πώς «γεμίζει»:** Το `.docx` **δεν** επεξεργάζεται χειροκίνητα ως πηγή αλήθειας. Παράγεται από το script [`docs/build_admin_manual.py`](docs/build_admin_manual.py) (όλο το κείμενο και οι οδηγίες για screenshots βρίσκονται εκεί). Η πρώτη σελίδα του εγγράφου εξηγεί το ίδιο για τον τελικό αναγνώστη.
+
+**Μετά από αλλαγές στο plugin** (νέες ρυθμίσεις, νέα οθόνη, αλλαγή ροής): ενημερώστε το `build_admin_manual.py` όπου χρειάζεται, τρέξτε την παρακάτω εντολή και **commit** το νέο `Pappou-Club-Admin-Manual-el.docx` μαζί με τον κώδικα. Αν έχετε προσθέσει δικά σας στιγμιότυπα μέσα σε παλιό `.docx`, κρατήστε αντίγραφο πριν την αναδημιουργία — το script αντικαθιστά ολόκληρο το αρχείο.
 
 ```bash
+pip install python-docx   # μία φορά αν λείπει
 python3 docs/build_admin_manual.py
 ```
-
-(Απαιτείται `python-docx`.)
 
 ---
 
