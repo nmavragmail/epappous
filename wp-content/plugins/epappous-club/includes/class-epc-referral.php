@@ -522,12 +522,8 @@ class EPC_Referral {
                 continue;
             }
 
-            $min_order = (float) EPC_Settings::get( 'epc_referral_min_order' );
-            if ( $min_order > 0 && (float) $order->get_total() < $min_order ) {
-                $entry['message'] = 'below_min_order';
-                $entries[]        = $entry;
-                continue;
-            }
+            $min_order       = (float) EPC_Settings::get( 'epc_referral_min_order' );
+            $is_below_minimum = ( $min_order > 0 && (float) $order->get_total() < $min_order );
 
             if ( ! $this->can_refer( $referrer_id ) ) {
                 $entry['message'] = 'max_referrals_reached';
@@ -572,7 +568,9 @@ class EPC_Referral {
             $order->save();
 
             do_action( 'epc_referral_purchase_recorded', $referrer_id, $order_id );
-            $this->grant_rewards_if_complete( $click_id );
+            if ( ! $is_below_minimum ) {
+                $this->grant_rewards_if_complete( $click_id );
+            }
 
             $fresh_click = $wpdb->get_row(
                 $wpdb->prepare(
@@ -583,7 +581,9 @@ class EPC_Referral {
             $is_rewarded_now      = ( $fresh_click && ! empty( $fresh_click->rewarded_at ) );
             $entry['rewarded_now'] = ( ! $was_rewarded && $is_rewarded_now );
             $entry['updated']      = true;
-            $entry['message']      = $entry['rewarded_now'] ? 'updated_by_referred_email_and_rewarded' : 'updated_by_referred_email';
+            $entry['message']      = $is_below_minimum
+                ? 'updated_purchase_below_min_order'
+                : ( $entry['rewarded_now'] ? 'updated_by_referred_email_and_rewarded' : 'updated_by_referred_email' );
             $entries[]             = $entry;
         }
 
@@ -676,11 +676,8 @@ class EPC_Referral {
             return $entry;
         }
 
-        $min_order = (float) EPC_Settings::get( 'epc_referral_min_order' );
-        if ( $min_order > 0 && (float) $order->get_total() < $min_order ) {
-            $entry['message'] = 'below_min_order';
-            return $entry;
-        }
+        $min_order        = (float) EPC_Settings::get( 'epc_referral_min_order' );
+        $is_below_minimum = ( $min_order > 0 && (float) $order->get_total() < $min_order );
 
         if ( ! $this->can_refer( $referrer_id ) ) {
             $entry['message'] = 'max_referrals_reached';
@@ -725,7 +722,9 @@ class EPC_Referral {
         $order->save();
 
         do_action( 'epc_referral_purchase_recorded', $referrer_id, $order_id );
-        $this->grant_rewards_if_complete( $click_id );
+        if ( ! $is_below_minimum ) {
+            $this->grant_rewards_if_complete( $click_id );
+        }
 
         $fresh_click = $wpdb->get_row(
             $wpdb->prepare(
@@ -736,9 +735,13 @@ class EPC_Referral {
         $is_rewarded_now       = ( $fresh_click && ! empty( $fresh_click->rewarded_at ) );
         $entry['rewarded_now'] = ( ! $was_rewarded && $is_rewarded_now );
         $entry['updated']      = true;
-        $entry['message']      = $manual_order_id > 0
-            ? ( $entry['rewarded_now'] ? 'updated_by_manual_order_and_rewarded' : 'updated_by_manual_order' )
-            : ( $entry['rewarded_now'] ? 'updated_by_referred_email_full_check_and_rewarded' : 'updated_by_referred_email_full_check' );
+        if ( $is_below_minimum ) {
+            $entry['message'] = $manual_order_id > 0 ? 'updated_by_manual_order_below_min_order' : 'updated_by_referred_email_full_check_below_min_order';
+        } else {
+            $entry['message'] = $manual_order_id > 0
+                ? ( $entry['rewarded_now'] ? 'updated_by_manual_order_and_rewarded' : 'updated_by_manual_order' )
+                : ( $entry['rewarded_now'] ? 'updated_by_referred_email_full_check_and_rewarded' : 'updated_by_referred_email_full_check' );
+        }
 
         return $entry;
     }
@@ -883,17 +886,8 @@ class EPC_Referral {
             return $result;
         }
 
-        $min_order = (float) EPC_Settings::get( 'epc_referral_min_order' );
-        if ( $min_order > 0 && (float) $order->get_total() < $min_order ) {
-            $order->update_meta_data( '_epc_referral_processed', '1' );
-            if ( $force_reconcile ) {
-                $order->update_meta_data( '_epc_referral_reconciled_at', current_time( 'mysql' ) );
-                $order->update_meta_data( '_epc_referral_reconcile_result', 'below_min_order' );
-            }
-            $order->save();
-            $result['message'] = 'below_min_order';
-            return $result;
-        }
+        $min_order        = (float) EPC_Settings::get( 'epc_referral_min_order' );
+        $is_below_minimum = ( $min_order > 0 && (float) $order->get_total() < $min_order );
 
         if ( ! $this->can_refer( $referrer_id ) ) {
             $order->update_meta_data( '_epc_referral_processed', '1' );
@@ -952,8 +946,9 @@ class EPC_Referral {
         $order->save();
 
         do_action( 'epc_referral_purchase_recorded', $referrer_id, (int) $order_id );
-
-        $this->grant_rewards_if_complete( (int) $click->id );
+        if ( ! $is_below_minimum ) {
+            $this->grant_rewards_if_complete( (int) $click->id );
+        }
 
         $fresh_click = $wpdb->get_row(
             $wpdb->prepare(
@@ -967,14 +962,14 @@ class EPC_Referral {
         if ( $force_reconcile ) {
             $order->update_meta_data(
                 '_epc_referral_reconcile_result',
-                $rewarded_now ? 'updated_and_rewarded' : 'updated'
+                $is_below_minimum ? 'updated_purchase_below_min_order' : ( $rewarded_now ? 'updated_and_rewarded' : 'updated' )
             );
             $order->save();
         }
 
         $result['updated']      = true;
         $result['rewarded_now'] = $rewarded_now;
-        $result['message']      = $rewarded_now ? 'updated_and_rewarded' : 'updated';
+        $result['message']      = $is_below_minimum ? 'updated_purchase_below_min_order' : ( $rewarded_now ? 'updated_and_rewarded' : 'updated' );
         return $result;
     }
 
