@@ -579,6 +579,10 @@ class EPC_Referral {
         $buyer_email = sanitize_email( $buyer_email );
         $buyer_member_id = (int) $buyer_member_id;
 
+        $is_self_referral_row = static function ( $row ) use ( $buyer_member_id ): bool {
+            return ( $buyer_member_id > 0 && $row && (int) $row->referrer_member_id === $buyer_member_id );
+        };
+
         $matches_buyer = static function ( $row ) use ( $buyer_email, $buyer_member_id ): bool {
             if ( ! $row ) {
                 return false;
@@ -600,7 +604,7 @@ class EPC_Referral {
                     $token
                 )
             );
-            if ( $matches_buyer( $row ) ) {
+            if ( $matches_buyer( $row ) && ! $is_self_referral_row( $row ) ) {
                 return $row;
             }
         }
@@ -610,6 +614,10 @@ class EPC_Referral {
             if ( $buyer_member_id > 0 || $buyer_email !== '' ) {
                 $where = [ 'ref_code = %s', 'rewarded_at IS NULL' ];
                 $args  = [ $ref_code ];
+                if ( $buyer_member_id > 0 ) {
+                    $where[] = 'referrer_member_id <> %d';
+                    $args[]  = $buyer_member_id;
+                }
 
                 if ( $buyer_member_id > 0 ) {
                     $where[] = '(converted_member_id = %d OR converted_member_id IS NULL)';
@@ -626,20 +634,26 @@ class EPC_Referral {
                         ORDER BY first_clicked_at DESC LIMIT 1';
 
                 $row = $wpdb->get_row( $wpdb->prepare( $sql, ...$args ) );
-                if ( $row ) {
+                if ( $row && ! $is_self_referral_row( $row ) ) {
                     return $row;
                 }
             }
 
+            $legacy_where = [ 'ref_code = %s', 'rewarded_at IS NULL' ];
+            $legacy_args  = [ $ref_code ];
+            if ( $buyer_member_id > 0 ) {
+                $legacy_where[] = 'referrer_member_id <> %d';
+                $legacy_args[]  = $buyer_member_id;
+            }
             $row = $wpdb->get_row(
                 $wpdb->prepare(
                     "SELECT * FROM {$wpdb->prefix}epc_referral_clicks
-                      WHERE ref_code = %s AND rewarded_at IS NULL
+                      WHERE " . implode( ' AND ', $legacy_where ) . "
                       ORDER BY first_clicked_at DESC LIMIT 1",
-                    $ref_code
+                    ...$legacy_args
                 )
             );
-            if ( $row ) {
+            if ( $row && ! $is_self_referral_row( $row ) ) {
                 return $row;
             }
 
@@ -681,6 +695,10 @@ class EPC_Referral {
         if ( $buyer_member_id > 0 || $buyer_email !== '' ) {
             $where = [ 'rewarded_at IS NULL', 'purchased_order_id IS NULL' ];
             $args  = [];
+            if ( $buyer_member_id > 0 ) {
+                $where[] = 'referrer_member_id <> %d';
+                $args[]  = $buyer_member_id;
+            }
             if ( $buyer_member_id > 0 && $buyer_email !== '' ) {
                 $where[] = '(converted_member_id = %d OR LOWER(referred_email) = %s)';
                 $args[]  = $buyer_member_id;
@@ -698,7 +716,7 @@ class EPC_Referral {
                     ORDER BY first_clicked_at DESC LIMIT 1';
 
             $row = $wpdb->get_row( $wpdb->prepare( $sql, ...$args ) );
-            if ( $row ) {
+            if ( $row && ! $is_self_referral_row( $row ) ) {
                 return $row;
             }
         }
