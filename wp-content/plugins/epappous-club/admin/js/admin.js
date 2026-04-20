@@ -346,6 +346,7 @@
 
     $(document).on('click', '.epc-send-cassette-email-btn', function () {
         var $btn = $(this);
+        var originalText = $btn.text();
         var orderId = parseInt($btn.data('order-id'), 10) || 0;
         var userId = parseInt($btn.data('user-id'), 10) || 0;
         var nonce = $btn.data('nonce') || epcAdmin.nonce;
@@ -358,7 +359,7 @@
             return;
         }
 
-        $btn.prop('disabled', true);
+        $btn.prop('disabled', true).text(epcI('cassetteEmailSending', 'Αποστολή...'));
         $.post(epcAdmin.ajaxUrl, {
             action: 'epc_send_cassette_gift_email',
             order_id: orderId,
@@ -379,7 +380,7 @@
                 $msg.text(epcI('error')).css('color', '#ef4444').show();
             }
         }).always(function () {
-            $btn.prop('disabled', false);
+            $btn.prop('disabled', false).text(originalText || epcI('cassetteEmailButton', 'Ενημέρωση πελάτη για κασσετίνα'));
         });
     });
 
