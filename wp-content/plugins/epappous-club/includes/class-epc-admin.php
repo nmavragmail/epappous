@@ -293,6 +293,8 @@ class EPC_Admin {
                     ? res.data.message
                     : epcResolveString('saved', '{$saved_txt}');
                 msg.style.color = '#10b981';
+                var alreadySentText = epcResolveString('alreadySentCassetteGift', 'έχει ήδη σταλεί ενημέρωση για την Κασσετίνα δώρο');
+                btn.replaceWith('<p style="margin-top:10px;color:#6b7280;">' + alreadySentText + '</p>');
             } else {
                 msg.textContent = (res && res.data && res.data.message)
                     ? res.data.message
@@ -308,7 +310,9 @@ class EPC_Admin {
         }).finally(function () {
             btn.disabled = false;
             btn.dataset.epcSending = '0';
-            btn.textContent = originalText || epcResolveString('cassetteEmailButton', 'Ενημέρωση πελάτη για κασσετίνα');
+            if (btn.parentNode) {
+                btn.textContent = originalText || epcResolveString('cassetteEmailButton', 'Ενημέρωση πελάτη για κασσετίνα');
+            }
         });
     }, true);
 })();
