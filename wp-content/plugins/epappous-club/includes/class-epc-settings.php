@@ -287,8 +287,9 @@ class EPC_Settings {
      * Whether cassette gift admin UI and order email action should be hidden for this WP user.
      */
     public static function cassette_gift_ui_hidden_for_wp_user( int $user_id ): bool {
+        // When OFF, do not hide the cassette UI for anyone (list below is ignored).
         if ( self::get( 'epc_cassette_gift_enabled' ) !== '1' ) {
-            return true;
+            return false;
         }
         $exclude = self::get_cassette_gift_exclude_b2b_group_ids();
         if ( empty( $exclude ) ) {
