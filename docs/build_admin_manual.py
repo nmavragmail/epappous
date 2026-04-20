@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import base64
 import io
+import zipfile
 from pathlib import Path
 
 from docx import Document
@@ -55,8 +56,10 @@ def _add_title_page(doc: Document) -> None:
             "αν είχατε επικολλήσει δικά σας screenshots μέσα στο παλιό .docx, κρατήστε αντίγραφο πριν την αναδημιουργία.",
             "Οι «γκρι» εικόνες στο έγγραφο είναι θέσεις (placeholder). Αντικαταστήστε τις με Print Screen από το πραγματικό admin, "
             "όπως περιγράφεται κάτω από κάθε εικόνα.",
-            "Μετά από κάθε σημαντική αλλαγή στο plugin (νέες ρυθμίσεις, νέα οθόνη, αλλαγή μενού), ο συντηρητής του κώδικα πρέπει "
-            "να ενημερώνει το `build_admin_manual.py` και να ξανατρέχει το script, ώστε το .docx στο GitHub να μένει επίκαιρο.",
+            "Μετά από κάθε merge στο branch main, το GitHub Actions (workflow «Regenerate admin manual») ξανατρέχει το script και, "
+            "αν άλλαξε το περιεχόμενο του .docx, κάνει αυτόματα commit το νέο αρχείο — δεν χρειάζεται να τρέχετε εσείς Python τοπικά.",
+            "Όταν αλλάζει κάτι στο plugin που πρέπει να εμφανίζεται στο εγχειρίδιο, ο συντηρητής του κώδικα ενημερώνει το `build_admin_manual.py` "
+            "στο ίδιο commit· μετά το merge στο main το workflow ανανεώνει το .docx στο repository.",
         ],
     )
     doc.add_page_break()
@@ -273,7 +276,46 @@ def build() -> Path:
     )
 
     doc.save(out)
+    # Stable zip/core metadata so the same script text yields the same .docx bytes
+    # (local + CI); avoids noise commits when nothing in the manual body changed.
+    _normalize_docx_package_timestamps( out )
+
     return out
+
+
+def _normalize_docx_package_timestamps( path: Path ) -> None:
+    """
+    Replace OOXML core properties so repeated builds are byte-identical when
+    body content is unchanged (used by CI to avoid empty/noise commits).
+    """
+    fixed_core = b"""<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<cp:coreProperties xmlns:cp="http://schemas.openxmlformats.org/package-metadata/core-properties" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:dcterms="http://purl.org/dc/terms/" xmlns:dcmitype="http://purl.org/dc/dcmitype/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+  <dc:title/>
+  <dc:subject/>
+  <dc:creator>ePappous Club</dc:creator>
+  <cp:keywords/>
+  <dc:description>Pappou Club admin manual (generated)</dc:description>
+  <cp:lastModifiedBy>ePappous Club</cp:lastModifiedBy>
+  <dcterms:created xsi:type="dcterms:W3CDTF">2026-01-01T00:00:00Z</dcterms:created>
+  <dcterms:modified xsi:type="dcterms:W3CDTF">2026-01-01T00:00:00Z</dcterms:modified>
+</cp:coreProperties>
+"""
+    tmp = path.with_suffix( ".tmp.docx" )
+    try:
+        with zipfile.ZipFile( path, "r" ) as zin, zipfile.ZipFile( tmp, "w", compression=zipfile.ZIP_DEFLATED ) as zout:
+            for item in sorted( zin.infolist(), key=lambda i: i.filename ):
+                data = zin.read( item.filename )
+                if item.filename == "docProps/core.xml":
+                    data = fixed_core
+                zi = zipfile.ZipInfo( filename=item.filename, date_time=( 2026, 1, 1, 0, 0, 0 ) )
+                zi.compress_type = zipfile.ZIP_DEFLATED
+                zi.external_attr = item.external_attr
+                zout.writestr( zi, data )
+        tmp.replace( path )
+    except Exception:
+        if tmp.exists():
+            tmp.unlink( missing_ok=True )  # type: ignore[arg-type]
+        raise
 
 
 if __name__ == "__main__":

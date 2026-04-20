@@ -1,0 +1,43 @@
+# Rebuild docs/Pappou-Club-Admin-Manual-el.docx after merges to main so the repo
+# always contains an up-to-date Word manual without local python-docx runs.
+name: Regenerate admin manual (docx)
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: write
+
+jobs:
+  docx:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install python-docx
+        run: pip install python-docx
+
+      - name: Build docx (deterministic output when script unchanged)
+        run: python3 docs/build_admin_manual.py
+
+      - name: Commit if changed
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add docs/Pappou-Club-Admin-Manual-el.docx
+          if git diff --staged --quiet; then
+            echo "No docx changes."
+            exit 0
+          fi
+          git commit -m "chore(docs): regenerate Pappou-Club-Admin-Manual-el.docx [skip ci]"
+          git push
