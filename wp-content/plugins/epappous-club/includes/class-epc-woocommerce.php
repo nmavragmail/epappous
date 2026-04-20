@@ -79,6 +79,10 @@ class EPC_WooCommerce {
         add_action( 'woocommerce_order_status_completed', [ $this, 'earn_points_on_order' ], 20 );
         add_action( 'woocommerce_order_status_cancelled', [ $this, 'revoke_points_on_order' ], 20 );
         add_action( 'woocommerce_order_status_refunded', [ $this, 'revoke_points_on_order' ], 20 );
+        // Hold / pending / failed: reverse awarded points so they are not kept while order is not fulfilled.
+        add_action( 'woocommerce_order_status_pending', [ $this, 'revoke_points_on_order' ], 20 );
+        add_action( 'woocommerce_order_status_on-hold', [ $this, 'revoke_points_on_order' ], 20 );
+        add_action( 'woocommerce_order_status_failed', [ $this, 'revoke_points_on_order' ], 20 );
 
         // Backup hooks so points are never missed (payment received, thank-you, any status change to eligible).
         add_action( 'woocommerce_payment_complete', [ $this, 'earn_points_on_order' ], 25 );
@@ -1321,6 +1325,14 @@ class EPC_WooCommerce {
         if ( ! $this->order_status_is_eligible_for_earning( $order ) ) {
             return;
         }
+
+        // After a prior reversal (on-hold / pending / failed / cancelled / refunded), allow earning again.
+        if ( $order->get_meta( '_epc_points_revoked', true ) === '1' ) {
+            $order->delete_meta_data( '_epc_points_revoked' );
+            $order->delete_meta_data( '_epc_points_revoked_amount' );
+            $order->save();
+        }
+
         if ( $order->get_meta( '_epc_club_loyalty_settled', true ) === '1' ) {
             return;
         }
@@ -1460,7 +1472,11 @@ class EPC_WooCommerce {
     }
 
     /**
-     * Revoke previously awarded order points when order is cancelled/refunded.
+     * Revoke previously awarded order points when order is cancelled/refunded
+     * or moved to pending / on-hold / failed (order no longer treated as fulfilled for loyalty).
+     *
+     * Clears settlement meta after reversal so if the order returns to processing/completed,
+     * points can be awarded again (earn_points_on_order checks for duplicate order_earning log).
      */
     public function revoke_points_on_order( $order_id ) {
         if ( EPC_Settings::get( 'epc_club_enabled' ) !== '1' ) {
@@ -1477,9 +1493,10 @@ class EPC_WooCommerce {
         }
 
         $awarded_points = (int) $order->get_meta( '_epc_points_earned', true );
-        if ( $awarded_points < 1 ) {
-            $order->update_meta_data( '_epc_points_revoked', '1' );
-            $order->save();
+        $was_settled    = $order->get_meta( '_epc_club_loyalty_settled', true ) === '1';
+
+        // Nothing was ever awarded and loyalty was not marked settled — nothing to reverse.
+        if ( $awarded_points < 1 && ! $was_settled ) {
             return;
         }
 
@@ -1511,9 +1528,9 @@ class EPC_WooCommerce {
             return;
         }
 
-        $member_id       = (int) $member['id'];
-        $current_points  = (int) $member['points'];
-        $points_to_revoke = min( $awarded_points, max( 0, $current_points ) );
+        $member_id        = (int) $member['id'];
+        $current_points   = (int) $member['points'];
+        $points_to_revoke = $awarded_points > 0 ? min( $awarded_points, max( 0, $current_points ) ) : 0;
 
         $wpdb->query( 'START TRANSACTION' );
 
@@ -1548,9 +1565,22 @@ class EPC_WooCommerce {
             }
         }
 
+        // Remove order_earning log row so a future eligible status can award again.
+        $wpdb->delete(
+            "{$wpdb->prefix}epc_points_log",
+            [
+                'reason'         => 'order_earning',
+                'reference_type' => 'order',
+                'reference_id'   => (int) $order_id,
+            ],
+            [ '%s', '%s', '%d' ]
+        );
+
         try {
             $order->update_meta_data( '_epc_points_revoked', '1' );
             $order->update_meta_data( '_epc_points_revoked_amount', $points_to_revoke );
+            $order->update_meta_data( '_epc_points_earned', 0 );
+            $order->delete_meta_data( '_epc_club_loyalty_settled' );
             $order->save();
         } catch ( Throwable $e ) {
             $wpdb->query( 'ROLLBACK' );
