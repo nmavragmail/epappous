@@ -147,6 +147,41 @@ class EPC_WooCommerce {
         // Admin order action: manually recalculate club points for this order.
         add_filter( 'woocommerce_order_actions', [ $this, 'register_order_recalculate_action' ] );
         add_action( 'woocommerce_order_action_epc_recalculate_points', [ $this, 'handle_order_recalculate_action' ] );
+
+        // Orders list (HPOS `admin.php?page=wc-orders` + legacy CPT list): net Club points per order.
+        add_filter( 'manage_woocommerce_page_wc-orders_columns', [ $this, 'register_orders_list_points_column' ], 20 );
+        add_action( 'manage_woocommerce_page_wc-orders_custom_column', [ $this, 'render_orders_list_points_column_hpos' ], 10, 2 );
+        add_filter( 'manage_edit-shop_order_columns', [ $this, 'register_orders_list_points_column' ], 20 );
+        add_action( 'manage_shop_order_posts_custom_column', [ $this, 'render_orders_list_points_column_legacy' ], 20, 2 );
+
+        add_action( 'admin_enqueue_scripts', [ $this, 'enqueue_wc_orders_list_styles' ], 20 );
+    }
+
+    /**
+     * Styles for the orders list column only (not the full ePappous admin bundle).
+     */
+    public function enqueue_wc_orders_list_styles( string $hook ): void {
+        if ( ! is_admin() ) {
+            return;
+        }
+
+        $is_wc_orders_list = ( 'woocommerce_page_wc-orders' === $hook )
+            && ( ! isset( $_GET['action'] ) || 'edit' !== $_GET['action'] ); // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+
+        $is_legacy_orders_list = ( 'edit.php' === $hook )
+            && isset( $_GET['post_type'] ) // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+            && 'shop_order' === $_GET['post_type']; // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+
+        if ( ! $is_wc_orders_list && ! $is_legacy_orders_list ) {
+            return;
+        }
+
+        wp_enqueue_style(
+            'epc-wc-orders-list',
+            EPC_PLUGIN_URL . 'admin/css/wc-orders-list.css',
+            [],
+            EPC_VERSION
+        );
     }
 
     /**
@@ -2944,6 +2979,99 @@ class EPC_WooCommerce {
     private function get_block_order_meta_other( \WC_Order $order, string $field_id ): string {
         $key = '_wc_other/' . $field_id;
         return (string) $order->get_meta( $key, true );
+    }
+
+    /**
+     * WooCommerce orders list: add "Club points" column (after order total when present).
+     *
+     * @param array<string,string> $columns Columns.
+     * @return array<string,string>
+     */
+    public function register_orders_list_points_column( array $columns ): array {
+        if ( isset( $columns['epc_points'] ) ) {
+            return $columns;
+        }
+        $label = __( 'Πόντοι Club', 'epappous-club' );
+        $new   = [];
+        $done  = false;
+        foreach ( $columns as $key => $text ) {
+            $new[ $key ] = $text;
+            if ( 'order_total' === $key ) {
+                $new['epc_points'] = $label;
+                $done              = true;
+            }
+        }
+        if ( ! $done ) {
+            $new['epc_points'] = $label;
+        }
+        return $new;
+    }
+
+    /**
+     * HPOS orders table: output cell for our column ($order is WC_Order).
+     *
+     * @param string       $column Column key.
+     * @param \WC_Order|null $order  Order instance.
+     */
+    public function render_orders_list_points_column_hpos( string $column, $order ): void {
+        if ( 'epc_points' !== $column ) {
+            return;
+        }
+        if ( is_numeric( $order ) ) {
+            $order = wc_get_order( (int) $order );
+        }
+        if ( ! $order instanceof \WC_Order ) {
+            echo '<span class="epc-order-list-pts epc-order-list-na">—</span>';
+            return;
+        }
+        echo '<span class="epc-order-list-pts">' . esc_html( $this->format_orders_list_points_cell( $order ) ) . '</span>';
+    }
+
+    /**
+     * Legacy post-based orders list.
+     *
+     * @param string $column  Column key.
+     * @param int    $post_id Order post ID.
+     */
+    public function render_orders_list_points_column_legacy( string $column, int $post_id ): void {
+        if ( 'epc_points' !== $column ) {
+            return;
+        }
+        $order = wc_get_order( $post_id );
+        if ( ! $order instanceof \WC_Order ) {
+            echo '<span class="epc-order-list-pts epc-order-list-na">—</span>';
+            return;
+        }
+        echo '<span class="epc-order-list-pts">' . esc_html( $this->format_orders_list_points_cell( $order ) ) . '</span>';
+    }
+
+    /**
+     * Single cell: net Pappou Club points for this order (+ earned, − checkout redeem, − gift debit), or "—" if N/A.
+     */
+    private function format_orders_list_points_cell( \WC_Order $order ): string {
+        if ( EPC_Settings::get( 'epc_club_enabled' ) !== '1' ) {
+            return '—';
+        }
+        if ( ! EPC_B2BKing::order_customer_in_pappou_club( $order ) ) {
+            return '—';
+        }
+
+        $earned = (int) $order->get_meta( '_epc_points_earned', true );
+        $redeem = (int) $order->get_meta( '_epc_points_redeemed', true );
+        $gift   = 0;
+        if ( class_exists( 'EPC_Gift_Products' ) ) {
+            $gift = (int) $order->get_meta( EPC_Gift_Products::ORDER_META_DEBITED_AMOUNT, true );
+        }
+
+        $net = $earned - $redeem - $gift;
+
+        if ( 0 === $net ) {
+            return '0';
+        }
+        if ( $net > 0 ) {
+            return '+' . (string) $net;
+        }
+        return (string) $net;
     }
 
     /*

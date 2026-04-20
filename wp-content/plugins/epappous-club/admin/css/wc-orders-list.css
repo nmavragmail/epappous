@@ -1,0 +1,14 @@
+/* WooCommerce orders list — Pappou Club points column */
+.epc-order-list-pts {
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+}
+
+.epc-order-list-pts:not(.epc-order-list-na) {
+    font-weight: 600;
+}
+
+.epc-order-list-na {
+    color: #787c82;
+    font-weight: normal;
+}
