@@ -353,10 +353,14 @@ class EPC_WooCommerce {
         echo '<p><strong>' . esc_html__( 'Έχει πάρει Κασσετίνα - Δώρο:', 'epappous-club' ) . '</strong> ' .
             esc_html( $received ? __( 'Ναι', 'epappous-club' ) : __( 'Όχι', 'epappous-club' ) ) . '</p>';
         echo '<p><strong>' . esc_html__( 'Ημερομηνία δώρου:', 'epappous-club' ) . '</strong> ' . esc_html( $date_txt ) . '</p>';
-        echo '<div class="epc-order-gift-actions" style="margin-top:10px;">';
-        echo '<button type="button" class="button button-primary epc-send-cassette-email-btn" data-order-id="' . (int) $order->get_id() . '" data-user-id="' . (int) $user_id . '" data-nonce="' . esc_attr( wp_create_nonce( 'epc_admin_nonce' ) ) . '" data-ajax-url="' . esc_url( admin_url( 'admin-ajax.php' ) ) . '">' . esc_html__( 'Ενημέρωση πελάτη για κασσετίνα', 'epappous-club' ) . '</button>';
-        echo '<p class="epc-order-gift-msg" style="display:none;margin-top:8px;"></p>';
-        echo '</div>';
+        if ( ! $received ) {
+            echo '<div class="epc-order-gift-actions" style="margin-top:10px;">';
+            echo '<button type="button" class="button button-primary epc-send-cassette-email-btn" data-order-id="' . (int) $order->get_id() . '" data-user-id="' . (int) $user_id . '" data-nonce="' . esc_attr( wp_create_nonce( 'epc_admin_nonce' ) ) . '" data-ajax-url="' . esc_url( admin_url( 'admin-ajax.php' ) ) . '">' . esc_html__( 'Ενημέρωση πελάτη για κασσετίνα', 'epappous-club' ) . '</button>';
+            echo '<p class="epc-order-gift-msg" style="display:none;margin-top:8px;"></p>';
+            echo '</div>';
+        } else {
+            echo '<p style="margin-top:10px;color:#6b7280;">' . esc_html__( 'Έχει ήδη σταλεί ενημέρωση για την κασσετίνα.', 'epappous-club' ) . '</p>';
+        }
         ?>
         <script>
         (function () {
@@ -431,6 +435,10 @@ class EPC_WooCommerce {
         }
         if ( ! EPC_Capabilities::current_user_can_edit_wp_user( $user_id ) ) {
             wp_send_json_error( 'Forbidden', 403 );
+        }
+
+        if ( get_user_meta( $user_id, EPC_User_Profile::USER_META_CASSETTE, true ) === 'yes' ) {
+            wp_send_json_error( __( 'Έχει ήδη σταλεί ενημέρωση για την κασσετίνα.', 'epappous-club' ) );
         }
 
         $order = wc_get_order( $order_id );
