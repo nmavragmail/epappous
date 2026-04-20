@@ -70,25 +70,24 @@ $now_ts      = (int) current_time( 'U' );
     if ( is_array( $reconcile_result ) && ! empty( $reconcile_result['ran_at'] ) ) :
         $ran_at = date_i18n( 'd/m/Y H:i:s', (int) $reconcile_result['ran_at'] );
         ?>
-        <div class="notice notice-info is-dismissible" style="margin-top:12px;">
-            <p>
-                <strong><?php esc_html_e( 'Τελευταίος αναδρομικός έλεγχος referrals:', 'epappous-club' ); ?></strong>
+        <div class="notice notice-info is-dismissible" style="margin:10px 0; padding:8px 12px;">
+            <p style="margin:0; font-size:12px; line-height:1.4;">
+                <strong><?php esc_html_e( 'Τελευταίος αναδρομικός έλεγχος:', 'epappous-club' ); ?></strong>
                 <?php echo esc_html( $ran_at ); ?>
-            </p>
-            <p style="margin:.35em 0;">
+                &nbsp;•&nbsp;
                 <?php
                 printf(
                     /* translators: 1: checked orders count, 2: repaired orders count */
-                    esc_html__( 'Ελέγχθηκαν %1$d παραγγελίες, διορθώθηκαν %2$d.', 'epappous-club' ),
+                    esc_html__( '%1$d έλεγχοι, %2$d διορθώσεις', 'epappous-club' ),
                     (int) ( $reconcile_result['checked'] ?? 0 ),
                     (int) ( $reconcile_result['repaired'] ?? 0 )
                 );
                 ?>
             </p>
             <?php if ( ! empty( $reconcile_result['summary'] ) && is_array( $reconcile_result['summary'] ) ) : ?>
-                <details style="margin-top:6px;">
-                    <summary><strong><?php esc_html_e( 'Αναλυτικό log', 'epappous-club' ); ?></strong></summary>
-                    <ul style="margin:.7em 0 0 1.1em; list-style:disc;">
+                <details style="margin-top:4px;">
+                    <summary style="font-size:12px;"><?php esc_html_e( 'Αναλυτικό log', 'epappous-club' ); ?></summary>
+                    <ul style="margin:.4em 0 0 1.1em; list-style:disc;">
                         <?php foreach ( $reconcile_result['summary'] as $line ) : ?>
                             <li><code style="font-size:11px;"><?php echo esc_html( (string) $line ); ?></code></li>
                         <?php endforeach; ?>
