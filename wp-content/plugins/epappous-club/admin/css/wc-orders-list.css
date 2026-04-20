@@ -1,9 +1,21 @@
-/* WooCommerce orders list — Pappou Club points column */
+/* WooCommerce orders list — Pappou Club net points column (single-line header + values) */
 .wp-list-table th.column-epc_points,
 .wp-list-table td.column-epc_points {
     width: 1%;
-    max-width: 6.5em;
+    max-width: 7.5em;
     box-sizing: border-box;
+    white-space: nowrap;
+    vertical-align: middle;
+}
+
+.wp-list-table th.column-epc_points {
+    text-align: right;
+    line-height: 1.2;
+}
+
+.wp-list-table th.column-epc_points .sorting-indicators {
+    display: inline;
+    white-space: nowrap;
 }
 
 .wp-list-table td.column-epc_points {

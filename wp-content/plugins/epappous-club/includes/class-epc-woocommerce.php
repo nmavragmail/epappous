@@ -2982,7 +2982,7 @@ class EPC_WooCommerce {
     }
 
     /**
-     * WooCommerce orders list: add "Club points" column (after order total when present).
+     * WooCommerce orders list: add net points column (after order total when present).
      *
      * @param array<string,string> $columns Columns.
      * @return array<string,string>
@@ -2991,7 +2991,7 @@ class EPC_WooCommerce {
         if ( isset( $columns['epc_points'] ) ) {
             return $columns;
         }
-        $label = __( 'Πόντοι Club', 'epappous-club' );
+        $label = __( 'Πόντοι', 'epappous-club' );
         $new   = [];
         $done  = false;
         foreach ( $columns as $key => $text ) {
