@@ -1810,7 +1810,11 @@ class EPC_WooCommerce {
 
         $reward_ref   = (int) EPC_Settings::get( 'epc_referral_reward_referrer' );
         $club_name    = EPC_Settings::get( 'epc_club_name' );
-        $share_link   = add_query_arg( 'ref', rawurlencode( $member->referral_code ), home_url( '/' ) );
+        $share_base   = function_exists( 'get_permalink' ) && is_singular() ? get_permalink() : home_url( add_query_arg( [] ) );
+        if ( ! is_string( $share_base ) || $share_base === '' ) {
+            $share_base = home_url( '/' );
+        }
+        $share_link   = add_query_arg( 'ref', rawurlencode( $member->referral_code ), $share_base );
         $email_subject = sprintf(
             /* translators: %s: club name */
             __( 'Έλα στο %s!', 'epappous-club' ),
