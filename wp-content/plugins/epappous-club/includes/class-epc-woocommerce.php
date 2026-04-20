@@ -354,9 +354,65 @@ class EPC_WooCommerce {
             esc_html( $received ? __( 'Ναι', 'epappous-club' ) : __( 'Όχι', 'epappous-club' ) ) . '</p>';
         echo '<p><strong>' . esc_html__( 'Ημερομηνία δώρου:', 'epappous-club' ) . '</strong> ' . esc_html( $date_txt ) . '</p>';
         echo '<div class="epc-order-gift-actions" style="margin-top:10px;">';
-        echo '<button type="button" class="button button-primary epc-send-cassette-email-btn" data-order-id="' . (int) $order->get_id() . '" data-user-id="' . (int) $user_id . '" data-nonce="' . esc_attr( wp_create_nonce( 'epc_admin_nonce' ) ) . '">' . esc_html__( 'Ενημέρωση πελάτη για κασσετίνα', 'epappous-club' ) . '</button>';
+        echo '<button type="button" class="button button-primary epc-send-cassette-email-btn" data-order-id="' . (int) $order->get_id() . '" data-user-id="' . (int) $user_id . '" data-nonce="' . esc_attr( wp_create_nonce( 'epc_admin_nonce' ) ) . '" data-ajax-url="' . esc_url( admin_url( 'admin-ajax.php' ) ) . '">' . esc_html__( 'Ενημέρωση πελάτη για κασσετίνα', 'epappous-club' ) . '</button>';
         echo '<p class="epc-order-gift-msg" style="display:none;margin-top:8px;"></p>';
         echo '</div>';
+        ?>
+        <script>
+        (function () {
+            var btn = document.querySelector('.epc-send-cassette-email-btn');
+            if (!btn || btn.dataset.inlineBound === '1') return;
+            btn.dataset.inlineBound = '1';
+            btn.addEventListener('click', function (e) {
+                e.preventDefault();
+                e.stopImmediatePropagation();
+                var orderId = parseInt(btn.getAttribute('data-order-id') || '0', 10);
+                var userId  = parseInt(btn.getAttribute('data-user-id') || '0', 10);
+                var nonce   = btn.getAttribute('data-nonce') || '';
+                var ajaxUrl = btn.getAttribute('data-ajax-url') || '';
+                var msg = btn.closest('.epc-order-gift-actions');
+                msg = msg ? msg.querySelector('.epc-order-gift-msg') : null;
+                if (!orderId || !userId || !ajaxUrl) {
+                    if (msg) { msg.textContent = '<?php echo esc_js( __( 'Σφάλμα', 'epappous-club' ) ); ?>'; msg.style.color = '#ef4444'; msg.style.display = 'block'; }
+                    return;
+                }
+                var original = btn.textContent;
+                btn.disabled = true;
+                btn.textContent = '<?php echo esc_js( __( 'Αποστολή...', 'epappous-club' ) ); ?>';
+                var body = new URLSearchParams();
+                body.set('action', 'epc_send_cassette_gift_email');
+                body.set('order_id', String(orderId));
+                body.set('user_id', String(userId));
+                body.set('nonce', nonce);
+                fetch(ajaxUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8' },
+                    body: body.toString(),
+                    credentials: 'same-origin'
+                }).then(function (r) { return r.json(); }).then(function (res) {
+                    if (!msg) return;
+                    if (res && res.success) {
+                        msg.textContent = (res.data && res.data.message) ? res.data.message : '<?php echo esc_js( __( 'Αποθηκεύτηκε!', 'epappous-club' ) ); ?>';
+                        msg.style.color = '#10b981';
+                    } else {
+                        msg.textContent = (res && res.data && res.data.message) ? res.data.message : '<?php echo esc_js( __( 'Σφάλμα!', 'epappous-club' ) ); ?>';
+                        msg.style.color = '#ef4444';
+                    }
+                    msg.style.display = 'block';
+                }).catch(function () {
+                    if (msg) {
+                        msg.textContent = '<?php echo esc_js( __( 'Σφάλμα!', 'epappous-club' ) ); ?>';
+                        msg.style.color = '#ef4444';
+                        msg.style.display = 'block';
+                    }
+                }).finally(function () {
+                    btn.disabled = false;
+                    btn.textContent = original;
+                });
+            }, true);
+        })();
+        </script>
+        <?php
     }
 
     /**
