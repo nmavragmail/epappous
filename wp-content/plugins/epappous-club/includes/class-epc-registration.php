@@ -38,6 +38,25 @@ class EPC_Registration {
     }
 
     /**
+     * Build homepage URL in current WPML language (if WPML is active).
+     * Keeps default language on root and language-specific pages on their directory.
+     */
+    private function referral_home_url(): string {
+        $url = home_url( '/' );
+        if ( defined( 'ICL_SITEPRESS_VERSION' ) ) {
+            $lang = apply_filters( 'wpml_current_language', null );
+            if ( is_string( $lang ) && $lang !== '' ) {
+                $translated = apply_filters( 'wpml_permalink', $url, $lang, true );
+                if ( is_string( $translated ) && $translated !== '' ) {
+                    $url = $translated;
+                }
+            }
+        }
+
+        return $url;
+    }
+
+    /**
      * Award configured signup bonus once per member (points log reason signup_bonus).
      *
      * @param int   $member_id New member row id.
@@ -344,7 +363,7 @@ class EPC_Registration {
 
         $show_referral_ui = $ref_enabled && ( $track_mem || $track_purchase );
         $ref_stats       = $show_referral_ui ? EPC_Referral::get_stats( (int) $member['id'] ) : null;
-        $share_link      = $show_referral_ui ? add_query_arg( 'ref', rawurlencode( $member['referral_code'] ), home_url( '/' ) ) : '';
+        $share_link      = $show_referral_ui ? add_query_arg( 'ref', rawurlencode( $member['referral_code'] ), $this->referral_home_url() ) : '';
 
         ob_start();
         ?>
