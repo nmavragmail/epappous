@@ -198,11 +198,11 @@ phpunit -c phpunit.xml.dist
 
 Για βήμα-βήμα οδηγίες στα ελληνικά (persona ~50 ετών, βασική εξοικείωση με WordPress):
 
-→ `**[docs/Pappou-Club-Admin-Manual-el.docx](docs/Pappou-Club-Admin-Manual-el.docx)**`
+→ **[`docs/Pappou-Club-Admin-Manual-el.docx`](docs/Pappou-Club-Admin-Manual-el.docx)**
 
-**Πώς «γεμίζει»:** Το `.docx` **δεν** επεξεργάζεται χειροκίνητα ως πηγή αλήθειας. Παράγεται από το script `[docs/build_admin_manual.py](docs/build_admin_manual.py)` (όλο το κείμενο και οι οδηγίες για screenshots βρίσκονται εκεί). Η πρώτη σελίδα του εγγράφου εξηγεί το ίδιο για τον τελικό αναγνώστη.
+**Πώς «γεμίζει»:** Το `.docx` **δεν** επεξεργάζεται χειροκίνητα ως πηγή αλήθειας. Παράγεται από το script [`docs/build_admin_manual.py`](docs/build_admin_manual.py) (όλο το κείμενο και οι οδηγίες για screenshots βρίσκονται εκεί). Η πρώτη σελίδα του εγγράφου εξηγεί το ίδιο για τον τελικό αναγνώστη.
 
-**Μετά από merge στο `main`:** τρέχει αυτόματα το workflow `[.github/workflows/regenerate-admin-manual.yml](.github/workflows/regenerate-admin-manual.yml)` — ξαναχτίζει το `Pappou-Club-Admin-Manual-el.docx` και, αν άλλαξε, κάνει commit (δεν χρειάζεται να τρέχετε εσείς Python). Όταν αλλάζει κάτι που πρέπει να περιγραφεί στο εγχειρίδιο, ενημερώνεται το `docs/build_admin_manual.py` στο ίδιο PR· μετά το merge το workflow ενημερώνει το `.docx`.
+**Μετά από merge στο `main`:** τρέχει αυτόματα το workflow [`.github/workflows/regenerate-admin-manual.yml`](.github/workflows/regenerate-admin-manual.yml) — ξαναχτίζει το `Pappou-Club-Admin-Manual-el.docx` και, αν άλλαξε, κάνει commit (δεν χρειάζεται να τρέχετε εσείς Python). Όταν αλλάζει κάτι που πρέπει να περιγραφεί στο εγχειρίδιο, ενημερώνεται το `docs/build_admin_manual.py` στο ίδιο PR· μετά το merge το workflow ενημερώνει το `.docx`.
 
 **Τοπικά (προαιρετικό):** αν θέλετε να προεπισκοπήσετε το Word πριν το merge:
 
