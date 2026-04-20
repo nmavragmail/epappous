@@ -26,13 +26,40 @@ class EPC_WooCommerce {
             return false;
         }
 
-        $raw = get_user_meta( $user_id, EPC_User_Profile::USER_META_CASSETTE, true );
-        if ( is_bool( $raw ) ) {
-            return $raw;
+        $truthy = [ 'yes', '1', 'true', 'on', 'nai', 'ναι' ];
+        $keys   = [
+            EPC_User_Profile::USER_META_CASSETTE,
+            // Legacy/compat key used by older admin/profile flows.
+            'epc_cassette_received',
+        ];
+
+        foreach ( $keys as $key ) {
+            $raw = get_user_meta( $user_id, $key, true );
+            if ( is_bool( $raw ) ) {
+                if ( $raw ) {
+                    return true;
+                }
+                continue;
+            }
+
+            if ( is_array( $raw ) ) {
+                $raw = reset( $raw );
+            }
+
+            $val = strtolower( trim( (string) $raw ) );
+            if ( in_array( $val, $truthy, true ) ) {
+                return true;
+            }
         }
 
-        $val = strtolower( trim( (string) $raw ) );
-        return in_array( $val, [ 'yes', '1', 'true', 'on', 'nai', 'ναι' ], true );
+        // Extra safety: if date/audit exists, consider it already received.
+        $gift_date = trim( (string) get_user_meta( $user_id, EPC_User_Profile::USER_META_CASSETTE_DATE, true ) );
+        if ( $gift_date !== '' ) {
+            return true;
+        }
+
+        $edited_at = trim( (string) get_user_meta( $user_id, EPC_User_Profile::USER_META_CASSETTE_EDITED_AT, true ) );
+        return $edited_at !== '';
     }
 
     public static function instance() {
