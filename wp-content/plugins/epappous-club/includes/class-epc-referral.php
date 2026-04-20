@@ -30,6 +30,8 @@ class EPC_Referral {
     private function __construct() {
         add_action( 'init', [ $this, 'capture_referral_cookie' ] );
         add_action( 'admin_post_epc_referral_reconcile_orders', [ $this, 'handle_admin_reconcile_orders' ] );
+        add_action( 'admin_post_epc_referral_reconcile_click', [ $this, 'handle_admin_reconcile_click' ] );
+        add_action( 'admin_post_epc_referral_attach_purchase_order', [ $this, 'handle_admin_attach_purchase_order' ] );
 
         // WooCommerce hooks. Both processing and completed are listened to so
         // referrals work in shops that never move orders to "completed".
@@ -83,6 +85,65 @@ class EPC_Referral {
 
         wp_safe_redirect( admin_url( 'admin.php?page=epc-referrals' ) );
         exit;
+    }
+
+    /**
+     * Admin action: reconcile a single click row by referred email.
+     */
+    public function handle_admin_reconcile_click(): void {
+        if ( ! is_admin() || ! current_user_can( 'manage_options' ) ) {
+            wp_die( esc_html__( 'Δεν επιτρέπεται η ενέργεια.', 'epappous-club' ) );
+        }
+        check_admin_referer( 'epc_referral_reconcile_click', 'epc_referral_reconcile_click_nonce' );
+
+        $click_id = isset( $_POST['click_id'] ) ? (int) $_POST['click_id'] : 0; // phpcs:ignore WordPress.Security.NonceVerification.Missing
+        $entry    = $this->reconcile_single_click_row( $click_id, 0, 90 );
+        $this->store_single_click_admin_result( $entry );
+
+        wp_safe_redirect( admin_url( 'admin.php?page=epc-referrals&focus_click=' . max( 0, $click_id ) ) );
+        exit;
+    }
+
+    /**
+     * Admin action: manually attach an order ID as the referred purchase.
+     */
+    public function handle_admin_attach_purchase_order(): void {
+        if ( ! is_admin() || ! current_user_can( 'manage_options' ) ) {
+            wp_die( esc_html__( 'Δεν επιτρέπεται η ενέργεια.', 'epappous-club' ) );
+        }
+        check_admin_referer( 'epc_referral_attach_purchase_order', 'epc_referral_attach_purchase_order_nonce' );
+
+        $click_id  = isset( $_POST['click_id'] ) ? (int) $_POST['click_id'] : 0; // phpcs:ignore WordPress.Security.NonceVerification.Missing
+        $order_id  = isset( $_POST['manual_order_id'] ) ? (int) $_POST['manual_order_id'] : 0; // phpcs:ignore WordPress.Security.NonceVerification.Missing
+        $entry     = $this->reconcile_single_click_row( $click_id, $order_id, 90 );
+        $this->store_single_click_admin_result( $entry );
+
+        wp_safe_redirect( admin_url( 'admin.php?page=epc-referrals&focus_click=' . max( 0, $click_id ) ) );
+        exit;
+    }
+
+    /**
+     * Persist one-off admin result for per-click actions.
+     *
+     * @param array<string,mixed> $entry Result payload.
+     */
+    private function store_single_click_admin_result( array $entry ): void {
+        $line = sprintf(
+            '#%d / order #%d — %s',
+            (int) ( $entry['click_id'] ?? 0 ),
+            (int) ( $entry['order_id'] ?? 0 ),
+            (string) ( $entry['message'] ?? 'unknown' )
+        );
+
+        set_transient(
+            'epc_referral_single_click_last',
+            [
+                'ran_at'  => (int) current_time( 'timestamp' ),
+                'summary' => $line,
+                'entry'   => $entry,
+            ],
+            HOUR_IN_SECONDS * 24
+        );
     }
 
     /**
@@ -527,6 +588,205 @@ class EPC_Referral {
         }
 
         return [ 'entries' => $entries ];
+    }
+
+    /**
+     * Reconcile one specific click row.
+     *
+     * @param int $click_id Click row id.
+     * @param int $manual_order_id Optional explicit order id to force-check.
+     * @param int $days_back Search window in days.
+     * @return array<string,mixed>
+     */
+    private function reconcile_single_click_row( int $click_id, int $manual_order_id = 0, int $days_back = 90 ): array {
+        global $wpdb;
+
+        $entry = [
+            'order_id'      => 0,
+            'click_id'      => max( 0, $click_id ),
+            'updated'       => false,
+            'rewarded_now'  => false,
+            'message'       => 'click_not_found',
+            'error'         => false,
+        ];
+
+        if ( $click_id < 1 ) {
+            $entry['message'] = 'invalid_click_id';
+            $entry['error']   = true;
+            return $entry;
+        }
+
+        $row = $wpdb->get_row(
+            $wpdb->prepare(
+                "SELECT * FROM {$wpdb->prefix}epc_referral_clicks WHERE id = %d LIMIT 1",
+                $click_id
+            )
+        );
+        if ( ! $row ) {
+            $entry['message'] = 'click_not_found';
+            return $entry;
+        }
+
+        $email = sanitize_email( (string) ( $row->referred_email ?? '' ) );
+        if ( '' === $email ) {
+            $entry['message'] = 'referred_email_missing';
+            return $entry;
+        }
+
+        $order = null;
+        if ( $manual_order_id > 0 ) {
+            $order = wc_get_order( $manual_order_id );
+            if ( ! $order ) {
+                $entry['message'] = 'manual_order_not_found';
+                return $entry;
+            }
+
+            if ( ! in_array( (string) $order->get_status(), [ 'processing', 'completed' ], true ) ) {
+                $entry['message'] = 'manual_order_invalid_status';
+                return $entry;
+            }
+
+            $order_email = sanitize_email( (string) $order->get_billing_email() );
+            if ( strtolower( $order_email ) !== strtolower( $email ) ) {
+                $entry['message'] = 'manual_order_email_mismatch';
+                return $entry;
+            }
+        } else {
+            $order = $this->find_referral_purchase_order_by_email( $email, (string) $row->first_clicked_at, $days_back );
+            if ( ! $order ) {
+                $entry['message'] = 'no_paid_order_for_referred_email_in_window';
+                return $entry;
+            }
+        }
+
+        $order_id          = (int) $order->get_id();
+        $entry['order_id'] = $order_id;
+
+        if ( ! empty( $row->purchased_order_id ) && (int) $row->purchased_order_id > 0 && (int) $row->purchased_order_id !== $order_id ) {
+            $entry['message'] = 'click_already_bound_to_other_order';
+            return $entry;
+        }
+
+        $buyer_member    = $this->get_member_by_email_or_user( $email, (int) $order->get_user_id() );
+        $buyer_member_id = $buyer_member ? (int) $buyer_member->id : 0;
+        $referrer_id     = (int) ( $row->referrer_member_id ?? 0 );
+
+        if ( $buyer_member_id > 0 && $buyer_member_id === $referrer_id ) {
+            $entry['message'] = 'self_referral_guard';
+            return $entry;
+        }
+
+        $min_order = (float) EPC_Settings::get( 'epc_referral_min_order' );
+        if ( $min_order > 0 && (float) $order->get_total() < $min_order ) {
+            $entry['message'] = 'below_min_order';
+            return $entry;
+        }
+
+        if ( ! $this->can_refer( $referrer_id ) ) {
+            $entry['message'] = 'max_referrals_reached';
+            return $entry;
+        }
+
+        $was_rewarded = ! empty( $row->rewarded_at );
+        $update       = [
+            'purchased_order_id' => $order_id,
+            'purchased_at'       => current_time( 'mysql' ),
+            'purchase_total'     => (float) $order->get_total(),
+            'referred_email'     => $email,
+        ];
+        $formats      = [ '%d', '%s', '%f', '%s' ];
+
+        if ( $buyer_member_id > 0 && empty( $row->converted_member_id ) ) {
+            $update['converted_member_id'] = $buyer_member_id;
+            $update['converted_at']        = current_time( 'mysql' );
+            $formats[]                     = '%d';
+            $formats[]                     = '%s';
+        }
+
+        $updated = $wpdb->update(
+            "{$wpdb->prefix}epc_referral_clicks",
+            $update,
+            [ 'id' => $click_id ],
+            $formats,
+            [ '%d' ]
+        );
+        if ( false === $updated ) {
+            $entry['message'] = 'db_update_failed';
+            $entry['error']   = true;
+            return $entry;
+        }
+
+        $order->update_meta_data( '_epc_referral_processed', '1' );
+        $order->update_meta_data( '_epc_referral_reconciled_at', current_time( 'mysql' ) );
+        $order->update_meta_data(
+            '_epc_referral_reconcile_result',
+            $manual_order_id > 0 ? 'updated_by_manual_order' : 'updated_by_referred_email_full_check'
+        );
+        $order->save();
+
+        do_action( 'epc_referral_purchase_recorded', $referrer_id, $order_id );
+        $this->grant_rewards_if_complete( $click_id );
+
+        $fresh_click = $wpdb->get_row(
+            $wpdb->prepare(
+                "SELECT rewarded_at FROM {$wpdb->prefix}epc_referral_clicks WHERE id = %d LIMIT 1",
+                $click_id
+            )
+        );
+        $is_rewarded_now       = ( $fresh_click && ! empty( $fresh_click->rewarded_at ) );
+        $entry['rewarded_now'] = ( ! $was_rewarded && $is_rewarded_now );
+        $entry['updated']      = true;
+        $entry['message']      = $manual_order_id > 0
+            ? ( $entry['rewarded_now'] ? 'updated_by_manual_order_and_rewarded' : 'updated_by_manual_order' )
+            : ( $entry['rewarded_now'] ? 'updated_by_referred_email_full_check_and_rewarded' : 'updated_by_referred_email_full_check' );
+
+        return $entry;
+    }
+
+    /**
+     * Find order by billing email in last N days.
+     * Prefer order created after click timestamp, fallback to any in window.
+     */
+    private function find_referral_purchase_order_by_email( string $email, string $clicked_at = '', int $days_back = 90 ) {
+        $email = sanitize_email( $email );
+        if ( '' === $email ) {
+            return null;
+        }
+
+        $days_back = max( 1, min( 365, $days_back ) );
+        $after_ts  = (int) strtotime( '-' . $days_back . ' days', current_time( 'timestamp' ) );
+        $date_from = gmdate( 'Y-m-d H:i:s', $after_ts );
+
+        $orders = wc_get_orders(
+            [
+                'status'        => [ 'processing', 'completed' ],
+                'type'          => 'shop_order',
+                'billing_email' => $email,
+                'orderby'       => 'date',
+                'order'         => 'ASC',
+                'limit'         => 200,
+                'date_created'  => '>=' . $date_from,
+            ]
+        );
+        if ( ! is_array( $orders ) || empty( $orders ) ) {
+            return null;
+        }
+
+        $clicked_ts = $clicked_at ? (int) strtotime( $clicked_at ) : 0;
+        if ( $clicked_ts > 0 ) {
+            foreach ( $orders as $order ) {
+                if ( ! $order instanceof \WC_Order ) {
+                    continue;
+                }
+                $created = $order->get_date_created();
+                $created_ts = $created ? $created->getTimestamp() : 0;
+                if ( $created_ts >= $clicked_ts ) {
+                    return $order;
+                }
+            }
+        }
+
+        return ( $orders[0] instanceof \WC_Order ) ? $orders[0] : null;
     }
 
     /**

@@ -56,6 +56,7 @@ if ( $click_total > 0 ) {
 
 $cookie_days = (int) EPC_Referral::cookie_days();
 $now_ts      = (int) current_time( 'U' );
+$single_click_result = get_transient( 'epc_referral_single_click_last' );
 ?>
 <div class="wrap epc-wrap">
     <div class="epc-header">
@@ -94,6 +95,18 @@ $now_ts      = (int) current_time( 'U' );
                         <?php endforeach; ?>
                     </ul>
                 </details>
+            <?php endif; ?>
+        </div>
+    <?php endif; ?>
+
+    <?php if ( is_array( $single_click_result ) && ! empty( $single_click_result['ran_at'] ) ) : ?>
+        <div class="notice notice-success is-dismissible" style="margin-top:12px;">
+            <p>
+                <strong><?php esc_html_e( 'Τελευταίος έλεγχος συγκεκριμένου click:', 'epappous-club' ); ?></strong>
+                <?php echo esc_html( date_i18n( 'd/m/Y H:i:s', (int) $single_click_result['ran_at'] ) ); ?>
+            </p>
+            <?php if ( ! empty( $single_click_result['summary'] ) ) : ?>
+                <p style="margin:.35em 0;"><code><?php echo esc_html( (string) $single_click_result['summary'] ); ?></code></p>
             <?php endif; ?>
         </div>
     <?php endif; ?>
@@ -399,6 +412,16 @@ $now_ts      = (int) current_time( 'U' );
                                         <li><strong><?php esc_html_e( 'Σύνολο clicks:', 'epappous-club' ); ?></strong> <?php echo (int) $click['click_count']; ?></li>
                                         <li><strong><?php esc_html_e( 'Cookie λήγει:', 'epappous-club' ); ?></strong> <?php echo esc_html( date_i18n( 'd/m/Y H:i', $expires_ts ) ); ?></li>
                                     </ul>
+                                    <div style="margin-top:.6em;">
+                                        <form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" style="display:inline-block;">
+                                            <?php wp_nonce_field( 'epc_referral_reconcile_click', 'epc_referral_reconcile_click_nonce' ); ?>
+                                            <input type="hidden" name="action" value="epc_referral_reconcile_click" />
+                                            <input type="hidden" name="click_id" value="<?php echo (int) $click['id']; ?>" />
+                                            <button type="submit" class="button button-secondary button-small">
+                                                <?php esc_html_e( 'Πλήρης έλεγχος 90 ημερών', 'epappous-club' ); ?>
+                                            </button>
+                                        </form>
+                                    </div>
                                 </div>
                                 <div>
                                     <h4 style="margin:0 0 .3em;"><?php esc_html_e( 'Referrer', 'epappous-club' ); ?></h4>
@@ -463,6 +486,19 @@ $now_ts      = (int) current_time( 'U' );
                                         </ul>
                                     <?php else : ?>
                                         <p style="margin:0;"><em><?php esc_html_e( 'Δεν έχει κάνει αγορά ακόμα.', 'epappous-club' ); ?></em></p>
+                                        <form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" style="margin-top:.6em; display:flex; gap:6px; align-items:center; flex-wrap:wrap;">
+                                            <?php wp_nonce_field( 'epc_referral_attach_purchase_order', 'epc_referral_attach_purchase_order_nonce' ); ?>
+                                            <input type="hidden" name="action" value="epc_referral_attach_purchase_order" />
+                                            <input type="hidden" name="click_id" value="<?php echo (int) $click['id']; ?>" />
+                                            <label for="manual-order-<?php echo (int) $click['id']; ?>"><strong><?php esc_html_e( 'Χειροκίνητο Order ID:', 'epappous-club' ); ?></strong></label>
+                                            <input id="manual-order-<?php echo (int) $click['id']; ?>" type="number" min="1" name="manual_order_id" placeholder="π.χ. 1234" style="width:120px;" required />
+                                            <button type="submit" class="button button-small">
+                                                <?php esc_html_e( 'Επιβεβαίωση αγοράς', 'epappous-club' ); ?>
+                                            </button>
+                                        </form>
+                                        <p class="description" style="margin:.4em 0 0;">
+                                            <?php esc_html_e( 'Θα γίνει επιβεβαίωση ότι το Order είναι processing/completed και ότι το billing email ταιριάζει με το email του φίλου.', 'epappous-club' ); ?>
+                                        </p>
                                     <?php endif; ?>
                                 </div>
                                 <div>
