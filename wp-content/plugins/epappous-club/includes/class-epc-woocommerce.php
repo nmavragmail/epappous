@@ -176,7 +176,7 @@ class EPC_WooCommerce {
         foreach ( array_unique( $screens ) as $screen ) {
             add_meta_box(
                 'epc-order-gift-box',
-                __( 'Pappou Club — Κασσετίνα - Δώρο', 'epappous-club' ),
+                __( 'Κασσετίνα - Δώρο', 'epappous-club' ),
                 [ $this, 'render_order_gift_status_metabox' ],
                 $screen,
                 'side',
@@ -354,7 +354,7 @@ class EPC_WooCommerce {
             esc_html( $received ? __( 'Ναι', 'epappous-club' ) : __( 'Όχι', 'epappous-club' ) ) . '</p>';
         echo '<p><strong>' . esc_html__( 'Ημερομηνία δώρου:', 'epappous-club' ) . '</strong> ' . esc_html( $date_txt ) . '</p>';
         echo '<p style="margin-top:10px;">';
-        echo '<button type="button" class="button button-primary epc-send-cassette-email-btn" data-order-id="' . (int) $order->get_id() . '" data-user-id="' . (int) $user_id . '" data-nonce="' . esc_attr( wp_create_nonce( 'epc_admin_nonce' ) ) . '">' . esc_html__( 'Ενημέρωση για κασσετίνα', 'epappous-club' ) . '</button>';
+        echo '<button type="button" class="button button-primary epc-send-cassette-email-btn" data-order-id="' . (int) $order->get_id() . '" data-user-id="' . (int) $user_id . '" data-nonce="' . esc_attr( wp_create_nonce( 'epc_admin_nonce' ) ) . '">' . esc_html__( 'Ενημέρωση πελάτη για κασσετίνα', 'epappous-club' ) . '</button>';
         echo '</p>';
         echo '<p class="epc-cassette-order-email-msg" style="display:none;margin-top:8px;"></p>';
     }
@@ -417,7 +417,7 @@ class EPC_WooCommerce {
         $order->add_order_note(
             sprintf(
                 /* translators: %s: recipient email */
-                __( 'Pappou Club: στάλθηκε email «Ενημέρωση για κασσετίνα» στο %s και ενημερώθηκε το πεδίο δώρου.', 'epappous-club' ),
+                __( 'Pappou Club: στάλθηκε email «Ενημέρωση πελάτη για κασσετίνα» στο %s και ενημερώθηκε το πεδίο δώρου.', 'epappous-club' ),
                 $to_email
             )
         );

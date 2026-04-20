@@ -716,7 +716,7 @@ class EPC_Gift_Products {
         if ( $uid > 0 ) {
             $member = $wpdb->get_row(
                 $wpdb->prepare(
-                    "SELECT id, points FROM {$wpdb->prefix}epc_members WHERE user_id = %d AND status = 'active' LIMIT 1",
+                    "SELECT id, user_id, points FROM {$wpdb->prefix}epc_members WHERE user_id = %d AND status = 'active' LIMIT 1",
                     $uid
                 ),
                 ARRAY_A
@@ -727,7 +727,7 @@ class EPC_Gift_Products {
             if ( is_email( $email ) ) {
                 $member = $wpdb->get_row(
                     $wpdb->prepare(
-                        "SELECT id, points FROM {$wpdb->prefix}epc_members WHERE email = %s AND status = 'active' LIMIT 1",
+                        "SELECT id, user_id, points FROM {$wpdb->prefix}epc_members WHERE email = %s AND status = 'active' LIMIT 1",
                         $email
                     ),
                     ARRAY_A
