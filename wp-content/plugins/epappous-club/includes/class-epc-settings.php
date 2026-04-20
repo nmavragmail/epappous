@@ -102,6 +102,7 @@ class EPC_Settings {
             'epc_notify_referral_complete'  => '1',
             'epc_notify_tier_upgrade'       => '1',
             'epc_admin_email'               => '',
+            'epc_cassette_gift_email_body'  => '',
 
             // ── WooCommerce integration ──
             'epc_woo_earn_on_complete'      => '1',
@@ -188,6 +189,15 @@ class EPC_Settings {
             [
                 'sanitize_callback' => [ self::class, 'sanitize_non_negative_int' ],
                 'default'           => '0',
+            ]
+        );
+
+        register_setting(
+            'epc_settings_group',
+            'epc_cassette_gift_email_body',
+            [
+                'sanitize_callback' => 'wp_kses_post',
+                'default'           => '',
             ]
         );
     }
