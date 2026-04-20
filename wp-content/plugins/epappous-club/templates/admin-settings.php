@@ -381,8 +381,8 @@ if ( ! is_array( $tiers ) ) {
                                           name="epc_cassette_gift_email_body"
                                           class="large-text"
                                           rows="6"
-                                          placeholder="<?php echo esc_attr__( 'Γράψε εδώ το περιεχόμενο email που θα σταλεί με το κουμπί «Ενημέρωση για κασσετίνα».', 'epappous-club' ); ?>"><?php echo esc_textarea( EPC_Settings::get( 'epc_cassette_gift_email_body' ) ); ?></textarea>
-                                <p class="description"><?php esc_html_e( 'Το περιεχόμενο αυτό αποστέλλεται στον πελάτη όταν πατηθεί το κουμπί «Ενημέρωση για κασσετίνα» μέσα στην παραγγελία. Αν μείνει κενό, στέλνεται προεπιλεγμένο μήνυμα με σύνδεσμο στην αρχική σελίδα.', 'epappous-club' ); ?></p>
+                                          placeholder="<?php echo esc_attr__( 'Γράψε εδώ το περιεχόμενο email που θα σταλεί με το κουμπί «Ενημέρωση πελάτη για κασσετίνα».', 'epappous-club' ); ?>"><?php echo esc_textarea( EPC_Settings::get( 'epc_cassette_gift_email_body' ) ); ?></textarea>
+                                <p class="description"><?php esc_html_e( 'Το περιεχόμενο αυτό αποστέλλεται στον πελάτη όταν πατηθεί το κουμπί «Ενημέρωση πελάτη για κασσετίνα» μέσα στην παραγγελία. Αν μείνει κενό, στέλνεται προεπιλεγμένο μήνυμα με σύνδεσμο στην αρχική σελίδα.', 'epappous-club' ); ?></p>
                             </div>
 
                             <?php

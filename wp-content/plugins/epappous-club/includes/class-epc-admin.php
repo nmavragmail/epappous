@@ -147,7 +147,7 @@ class EPC_Admin {
             'confirmDeleteRule'     => __( 'Διαγραφή κανόνα;', 'epappous-club' ),
             'genericError'          => __( 'Σφάλμα', 'epappous-club' ),
             'cassetteEmailSending'  => __( 'Αποστολή...', 'epappous-club' ),
-            'cassetteEmailButton'   => __( 'Ενημέρωση για κασσετίνα', 'epappous-club' ),
+            'cassetteEmailButton'   => __( 'Ενημέρωση πελάτη για κασσετίνα', 'epappous-club' ),
         ];
 
         // Heavy debug payload (~5KB of long translatable sentences) only on
