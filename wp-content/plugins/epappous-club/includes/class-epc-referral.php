@@ -29,6 +29,7 @@ class EPC_Referral {
 
     private function __construct() {
         add_action( 'init', [ $this, 'capture_referral_cookie' ] );
+        add_action( 'admin_post_epc_referral_reconcile_orders', [ $this, 'handle_admin_reconcile_orders' ] );
 
         // WooCommerce hooks. Both processing and completed are listened to so
         // referrals work in shops that never move orders to "completed".
@@ -39,6 +40,49 @@ class EPC_Referral {
 
         // Membership sign-up hook (internal)
         add_action( 'epc_member_registered', [ $this, 'on_member_registered' ], 10, 2 );
+    }
+
+    /**
+     * Admin action: retrospective reconciliation for past orders.
+     */
+    public function handle_admin_reconcile_orders(): void {
+        if ( ! is_admin() || ! current_user_can( 'manage_options' ) ) {
+            wp_die( esc_html__( 'Δεν επιτρέπεται η ενέργεια.', 'epappous-club' ) );
+        }
+
+        check_admin_referer( 'epc_referral_reconcile_orders', 'epc_referral_reconcile_nonce' );
+
+        $limit  = isset( $_POST['limit'] ) ? (int) $_POST['limit'] : 250; // phpcs:ignore WordPress.Security.NonceVerification.Missing
+        $report = $this->reconcile_referrals_for_past_orders( $limit );
+
+        $summary = [];
+        foreach ( (array) $report['entries'] as $entry ) {
+            if ( ! is_array( $entry ) ) {
+                continue;
+            }
+            $summary[] = sprintf(
+                '#%d — %s',
+                (int) ( $entry['order_id'] ?? 0 ),
+                (string) ( $entry['message'] ?? 'unknown' )
+            );
+        }
+
+        set_transient(
+            'epc_referral_reconcile_last',
+            [
+                'ran_at'   => (int) current_time( 'timestamp' ),
+                'checked'  => (int) ( $report['processed'] ?? 0 ),
+                'repaired' => (int) ( $report['updated'] ?? 0 ),
+                'rewarded' => (int) ( $report['rewarded'] ?? 0 ),
+                'skipped'  => (int) ( $report['skipped'] ?? 0 ),
+                'errors'   => (int) ( $report['errors'] ?? 0 ),
+                'summary'  => $summary,
+            ],
+            HOUR_IN_SECONDS * 24
+        );
+
+        wp_safe_redirect( admin_url( 'admin.php?page=epc-referrals' ) );
+        exit;
     }
 
     /**
@@ -268,25 +312,116 @@ class EPC_Referral {
      * referred buyer is also a Pappou Club member.
      */
     public function on_order_paid( $order_id ) {
+        $this->process_order_paid_for_referral( (int) $order_id, false );
+    }
+
+    /**
+     * Retrospective reconciliation for already paid orders (processing/completed).
+     *
+     * @param int $max_orders Maximum number of orders to inspect in one run.
+     * @return array{processed:int,updated:int,rewarded:int,skipped:int,errors:int,entries:array<int,array<string,mixed>>}
+     */
+    public function reconcile_referrals_for_past_orders( int $max_orders = 300 ): array {
+        $max_orders = max( 1, min( 5000, $max_orders ) );
+
+        $report = [
+            'processed' => 0,
+            'updated'   => 0,
+            'rewarded'  => 0,
+            'skipped'   => 0,
+            'errors'    => 0,
+            'entries'   => [],
+        ];
+
+        $remaining = $max_orders;
+        $page      = 1;
+        $per_page  = 100;
+
+        while ( $remaining > 0 ) {
+            $batch = min( $per_page, $remaining );
+            $orders = wc_get_orders(
+                [
+                    'status'   => [ 'processing', 'completed' ],
+                    'type'     => 'shop_order',
+                    'return'   => 'ids',
+                    'orderby'  => 'date',
+                    'order'    => 'DESC',
+                    'paginate' => true,
+                    'paged'    => $page,
+                    'limit'    => $batch,
+                ]
+            );
+
+            $ids = ( isset( $orders->orders ) && is_array( $orders->orders ) ) ? $orders->orders : [];
+            if ( empty( $ids ) ) {
+                break;
+            }
+
+            foreach ( $ids as $order_id ) {
+                $result = $this->process_order_paid_for_referral( (int) $order_id, true );
+                $report['processed']++;
+                $report['entries'][] = $result;
+
+                if ( ! empty( $result['error'] ) ) {
+                    $report['errors']++;
+                } elseif ( ! empty( $result['updated'] ) ) {
+                    $report['updated']++;
+                    if ( ! empty( $result['rewarded_now'] ) ) {
+                        $report['rewarded']++;
+                    }
+                } else {
+                    $report['skipped']++;
+                }
+            }
+
+            $remaining -= count( $ids );
+            $page++;
+        }
+
+        return $report;
+    }
+
+    /**
+     * Shared referral processing logic for paid orders.
+     *
+     * @param int  $order_id Order ID.
+     * @param bool $force_reconcile Whether this run is retrospective reconciliation.
+     * @return array<string,mixed>
+     */
+    private function process_order_paid_for_referral( int $order_id, bool $force_reconcile ): array {
+        $result = [
+            'order_id'      => $order_id,
+            'updated'       => false,
+            'rewarded_now'  => false,
+            'message'       => '',
+            'error'         => false,
+        ];
+
         if ( EPC_Settings::get( 'epc_referral_enabled' ) !== '1' ) {
-            return;
+            $result['message'] = 'referral_disabled';
+            return $result;
         }
         if ( EPC_Settings::get( 'epc_referral_track_purchase' ) !== '1' ) {
-            return;
+            $result['message'] = 'purchase_tracking_disabled';
+            return $result;
         }
 
         $order = wc_get_order( $order_id );
         if ( ! $order ) {
-            return;
+            $result['message'] = 'order_not_found';
+            $result['error']   = true;
+            return $result;
         }
-        if ( $order->get_meta( '_epc_referral_processed', true ) ) {
-            return;
+        if ( ! $force_reconcile && $order->get_meta( '_epc_referral_processed', true ) ) {
+            $result['message'] = 'already_processed';
+            return $result;
         }
 
         $token    = (string) $order->get_meta( '_epc_referral_click_token', true );
         $ref_code = (string) $order->get_meta( '_epc_referral_code', true );
-        if ( empty( $token ) && empty( $ref_code ) ) {
-            return;
+        if ( ! $force_reconcile && empty( $token ) && empty( $ref_code ) ) {
+            $result['message'] = 'missing_ref_meta';
+            return $result;
         }
 
         $buyer_email = sanitize_email( (string) $order->get_billing_email() );
@@ -296,31 +431,55 @@ class EPC_Referral {
 
         $click = $this->find_click_for_order( $order, $token, $ref_code, $buyer_email, $referred_member_id );
         if ( ! $click ) {
-            return;
+            $result['message'] = 'click_not_found';
+            return $result;
         }
 
         // Self-referral guard.
         $referrer_id = (int) $click->referrer_member_id;
         if ( $referred_member && (int) $referred_member->id === $referrer_id ) {
             $order->update_meta_data( '_epc_referral_processed', '1' );
+            if ( $force_reconcile ) {
+                $order->update_meta_data( '_epc_referral_reconciled_at', current_time( 'mysql' ) );
+                $order->update_meta_data( '_epc_referral_reconcile_result', 'self_referral_guard' );
+            }
             $order->save();
-            return;
+            $result['message'] = 'self_referral_guard';
+            return $result;
         }
 
         $min_order = (float) EPC_Settings::get( 'epc_referral_min_order' );
         if ( $min_order > 0 && (float) $order->get_total() < $min_order ) {
             $order->update_meta_data( '_epc_referral_processed', '1' );
+            if ( $force_reconcile ) {
+                $order->update_meta_data( '_epc_referral_reconciled_at', current_time( 'mysql' ) );
+                $order->update_meta_data( '_epc_referral_reconcile_result', 'below_min_order' );
+            }
             $order->save();
-            return;
+            $result['message'] = 'below_min_order';
+            return $result;
         }
 
         if ( ! $this->can_refer( $referrer_id ) ) {
             $order->update_meta_data( '_epc_referral_processed', '1' );
+            if ( $force_reconcile ) {
+                $order->update_meta_data( '_epc_referral_reconciled_at', current_time( 'mysql' ) );
+                $order->update_meta_data( '_epc_referral_reconcile_result', 'max_referrals_reached' );
+            }
             $order->save();
-            return;
+            $result['message'] = 'max_referrals_reached';
+            return $result;
         }
 
         global $wpdb;
+
+        $existing_purchase_order_id = (int) $click->purchased_order_id;
+        if ( $existing_purchase_order_id > 0 && $existing_purchase_order_id !== $order_id ) {
+            $result['message'] = 'click_already_bound_to_other_order';
+            return $result;
+        }
+
+        $was_rewarded = ! empty( $click->rewarded_at );
 
         $update = [
             'purchased_order_id' => (int) $order_id,
@@ -337,7 +496,7 @@ class EPC_Referral {
             $formats[]                     = '%s';
         }
 
-        $wpdb->update(
+        $updated = $wpdb->update(
             "{$wpdb->prefix}epc_referral_clicks",
             $update,
             [ 'id' => (int) $click->id ],
@@ -345,12 +504,43 @@ class EPC_Referral {
             [ '%d' ]
         );
 
+        if ( false === $updated ) {
+            $result['message'] = 'db_update_failed';
+            $result['error']   = true;
+            return $result;
+        }
+
         $order->update_meta_data( '_epc_referral_processed', '1' );
+        if ( $force_reconcile ) {
+            $order->update_meta_data( '_epc_referral_reconciled_at', current_time( 'mysql' ) );
+        }
         $order->save();
 
         do_action( 'epc_referral_purchase_recorded', $referrer_id, (int) $order_id );
 
         $this->grant_rewards_if_complete( (int) $click->id );
+
+        $fresh_click = $wpdb->get_row(
+            $wpdb->prepare(
+                "SELECT rewarded_at FROM {$wpdb->prefix}epc_referral_clicks WHERE id = %d LIMIT 1",
+                (int) $click->id
+            )
+        );
+
+        $is_rewarded_now = ( $fresh_click && ! empty( $fresh_click->rewarded_at ) );
+        $rewarded_now    = ( ! $was_rewarded && $is_rewarded_now );
+        if ( $force_reconcile ) {
+            $order->update_meta_data(
+                '_epc_referral_reconcile_result',
+                $rewarded_now ? 'updated_and_rewarded' : 'updated'
+            );
+            $order->save();
+        }
+
+        $result['updated']      = true;
+        $result['rewarded_now'] = $rewarded_now;
+        $result['message']      = $rewarded_now ? 'updated_and_rewarded' : 'updated';
+        return $result;
     }
 
     /**
