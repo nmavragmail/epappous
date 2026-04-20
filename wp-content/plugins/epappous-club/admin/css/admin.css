@@ -1855,11 +1855,6 @@ label[for="epc-rule-tier"] { display: none !important; }
 .epc-debug-grid .epc-debug-label:nth-of-type(4),
 .epc-debug-grid .epc-debug-value:nth-of-type(4) { display: none !important; }
 
-/* Referrals: keep retrospective tool hidden unless re-enabled */
-.epc-referrals-retrospective-box {
-    display: none !important;
-}
-
 /* ── Responsive ── */
 
 @media (max-width: 782px) {
