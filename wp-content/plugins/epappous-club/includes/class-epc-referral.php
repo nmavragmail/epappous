@@ -378,7 +378,182 @@ class EPC_Referral {
             $page++;
         }
 
+        // Extra safety pass: bind pending referral clicks by referred_email directly
+        // to paid WooCommerce orders, even when order referral meta is missing.
+        $email_pass = $this->reconcile_pending_clicks_by_referred_email( $max_orders );
+        foreach ( (array) $email_pass['entries'] as $entry ) {
+            $report['entries'][] = $entry;
+            $report['processed']++;
+            if ( ! empty( $entry['error'] ) ) {
+                $report['errors']++;
+            } elseif ( ! empty( $entry['updated'] ) ) {
+                $report['updated']++;
+                if ( ! empty( $entry['rewarded_now'] ) ) {
+                    $report['rewarded']++;
+                }
+            } else {
+                $report['skipped']++;
+            }
+        }
+
         return $report;
+    }
+
+    /**
+     * Reconcile pending clicks by matching referred_email against paid orders.
+     *
+     * @param int $max_rows Maximum rows to inspect.
+     * @return array{entries:array<int,array<string,mixed>>}
+     */
+    private function reconcile_pending_clicks_by_referred_email( int $max_rows ): array {
+        global $wpdb;
+
+        $max_rows = max( 1, min( 5000, $max_rows ) );
+        $rows     = $wpdb->get_results(
+            $wpdb->prepare(
+                "SELECT * FROM {$wpdb->prefix}epc_referral_clicks
+                 WHERE purchased_order_id IS NULL
+                   AND rewarded_at IS NULL
+                   AND COALESCE(referred_email, '') <> ''
+                 ORDER BY first_clicked_at DESC
+                 LIMIT %d",
+                $max_rows
+            )
+        );
+
+        $entries = [];
+        foreach ( (array) $rows as $row ) {
+            $click_id = (int) ( $row->id ?? 0 );
+            $email    = sanitize_email( (string) ( $row->referred_email ?? '' ) );
+
+            $entry = [
+                'order_id'      => 0,
+                'click_id'      => $click_id,
+                'updated'       => false,
+                'rewarded_now'  => false,
+                'message'       => 'email_match_skipped',
+                'error'         => false,
+            ];
+
+            if ( $click_id < 1 || $email === '' ) {
+                $entry['message'] = 'email_missing';
+                $entries[]        = $entry;
+                continue;
+            }
+
+            $order = $this->find_latest_paid_order_by_email( $email );
+            if ( ! $order ) {
+                $entry['message'] = 'no_paid_order_for_referred_email';
+                $entries[]        = $entry;
+                continue;
+            }
+
+            $order_id = (int) $order->get_id();
+            $entry['order_id'] = $order_id;
+
+            $buyer_member    = $this->get_member_by_email_or_user( $email, (int) $order->get_user_id() );
+            $buyer_member_id = $buyer_member ? (int) $buyer_member->id : 0;
+            $referrer_id     = (int) ( $row->referrer_member_id ?? 0 );
+
+            if ( $buyer_member_id > 0 && $buyer_member_id === $referrer_id ) {
+                $entry['message'] = 'self_referral_guard';
+                $entries[]        = $entry;
+                continue;
+            }
+
+            $min_order = (float) EPC_Settings::get( 'epc_referral_min_order' );
+            if ( $min_order > 0 && (float) $order->get_total() < $min_order ) {
+                $entry['message'] = 'below_min_order';
+                $entries[]        = $entry;
+                continue;
+            }
+
+            if ( ! $this->can_refer( $referrer_id ) ) {
+                $entry['message'] = 'max_referrals_reached';
+                $entries[]        = $entry;
+                continue;
+            }
+
+            $was_rewarded = ! empty( $row->rewarded_at );
+            $update       = [
+                'purchased_order_id' => $order_id,
+                'purchased_at'       => current_time( 'mysql' ),
+                'purchase_total'     => (float) $order->get_total(),
+                'referred_email'     => $email,
+            ];
+            $formats      = [ '%d', '%s', '%f', '%s' ];
+
+            if ( $buyer_member_id > 0 && empty( $row->converted_member_id ) ) {
+                $update['converted_member_id'] = $buyer_member_id;
+                $update['converted_at']        = current_time( 'mysql' );
+                $formats[]                     = '%d';
+                $formats[]                     = '%s';
+            }
+
+            $updated = $wpdb->update(
+                "{$wpdb->prefix}epc_referral_clicks",
+                $update,
+                [ 'id' => $click_id ],
+                $formats,
+                [ '%d' ]
+            );
+
+            if ( false === $updated ) {
+                $entry['message'] = 'db_update_failed';
+                $entry['error']   = true;
+                $entries[]        = $entry;
+                continue;
+            }
+
+            $order->update_meta_data( '_epc_referral_processed', '1' );
+            $order->update_meta_data( '_epc_referral_reconciled_at', current_time( 'mysql' ) );
+            $order->update_meta_data( '_epc_referral_reconcile_result', 'updated_by_referred_email' );
+            $order->save();
+
+            do_action( 'epc_referral_purchase_recorded', $referrer_id, $order_id );
+            $this->grant_rewards_if_complete( $click_id );
+
+            $fresh_click = $wpdb->get_row(
+                $wpdb->prepare(
+                    "SELECT rewarded_at FROM {$wpdb->prefix}epc_referral_clicks WHERE id = %d LIMIT 1",
+                    $click_id
+                )
+            );
+            $is_rewarded_now      = ( $fresh_click && ! empty( $fresh_click->rewarded_at ) );
+            $entry['rewarded_now'] = ( ! $was_rewarded && $is_rewarded_now );
+            $entry['updated']      = true;
+            $entry['message']      = $entry['rewarded_now'] ? 'updated_by_referred_email_and_rewarded' : 'updated_by_referred_email';
+            $entries[]             = $entry;
+        }
+
+        return [ 'entries' => $entries ];
+    }
+
+    /**
+     * Find latest paid order (processing/completed) by billing email.
+     */
+    private function find_latest_paid_order_by_email( string $email ) {
+        $email = sanitize_email( $email );
+        if ( '' === $email ) {
+            return null;
+        }
+
+        $orders = wc_get_orders(
+            [
+                'status'        => [ 'processing', 'completed' ],
+                'type'          => 'shop_order',
+                'billing_email' => $email,
+                'orderby'       => 'date',
+                'order'         => 'DESC',
+                'limit'         => 1,
+            ]
+        );
+
+        if ( is_array( $orders ) && ! empty( $orders[0] ) && $orders[0] instanceof \WC_Order ) {
+            return $orders[0];
+        }
+
+        return null;
     }
 
     /**
