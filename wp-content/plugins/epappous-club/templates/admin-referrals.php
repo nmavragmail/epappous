@@ -97,7 +97,7 @@ $now_ts      = (int) current_time( 'U' );
         </div>
     <?php endif; ?>
 
-    <div class="epc-info-box" style="margin-top:12px;">
+    <div class="epc-info-box epc-referrals-retrospective-box" style="margin-top:12px;">
         <h3 style="margin-top:0;"><?php esc_html_e( 'Retrospective έλεγχος παραγγελιών', 'epappous-club' ); ?></h3>
         <p style="margin-top:0;">
             <?php esc_html_e( 'Ελέγχει παλιές processing/completed παραγγελίες με referral meta και επανεφαρμόζει το reconciliation ώστε να αποδοθούν πόντοι όπου λείπουν.', 'epappous-club' ); ?>
