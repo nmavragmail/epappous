@@ -375,6 +375,16 @@ if ( ! is_array( $tiers ) ) {
                                 <p class="description"><?php esc_html_e( 'Αφήστε κενό για χρήση του email του site.', 'epappous-club' ); ?></p>
                             </div>
 
+                            <div class="epc-field-row">
+                                <label for="epc_cassette_gift_email_body"><?php esc_html_e( 'Email Κασσετίνα Δώρο', 'epappous-club' ); ?></label>
+                                <textarea id="epc_cassette_gift_email_body"
+                                          name="epc_cassette_gift_email_body"
+                                          class="large-text"
+                                          rows="6"
+                                          placeholder="<?php echo esc_attr__( 'Γράψε εδώ το περιεχόμενο email που θα σταλεί με το κουμπί «Ενημέρωση για κασσετίνα».', 'epappous-club' ); ?>"><?php echo esc_textarea( EPC_Settings::get( 'epc_cassette_gift_email_body' ) ); ?></textarea>
+                                <p class="description"><?php esc_html_e( 'Το περιεχόμενο αυτό αποστέλλεται στον πελάτη όταν πατηθεί το κουμπί «Ενημέρωση για κασσετίνα» μέσα στην παραγγελία. Αν μείνει κενό, στέλνεται προεπιλεγμένο μήνυμα με σύνδεσμο στην αρχική σελίδα.', 'epappous-club' ); ?></p>
+                            </div>
+
                             <?php
                             $notifications = [
                                 'epc_notify_new_member'        => __( 'Νέο Μέλος', 'epappous-club' ),
