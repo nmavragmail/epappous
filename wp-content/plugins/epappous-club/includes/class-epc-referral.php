@@ -289,15 +289,18 @@ class EPC_Referral {
             return;
         }
 
-        $click = $this->find_click_for_order( $order, $token, $ref_code );
+        $buyer_email = sanitize_email( (string) $order->get_billing_email() );
+        $buyer_user  = (int) $order->get_user_id();
+        $referred_member = $this->get_member_by_email_or_user( $buyer_email, $buyer_user );
+        $referred_member_id = $referred_member ? (int) $referred_member->id : 0;
+
+        $click = $this->find_click_for_order( $order, $token, $ref_code, $buyer_email, $referred_member_id );
         if ( ! $click ) {
             return;
         }
 
         // Self-referral guard.
-        $buyer_email = $order->get_billing_email();
         $referrer_id = (int) $click->referrer_member_id;
-        $referred_member = $this->get_member_by_email_or_user( $buyer_email, (int) $order->get_user_id() );
         if ( $referred_member && (int) $referred_member->id === $referrer_id ) {
             $order->update_meta_data( '_epc_referral_processed', '1' );
             $order->save();
@@ -380,8 +383,25 @@ class EPC_Referral {
     /**
      * Find the click row that should be associated with this paid order.
      */
-    private function find_click_for_order( \WC_Order $order, string $token, string $ref_code ) {
+    private function find_click_for_order( \WC_Order $order, string $token, string $ref_code, string $buyer_email = '', int $buyer_member_id = 0 ) {
         global $wpdb;
+
+        $buyer_email = sanitize_email( $buyer_email );
+        $buyer_member_id = (int) $buyer_member_id;
+
+        $matches_buyer = static function ( $row ) use ( $buyer_email, $buyer_member_id ): bool {
+            if ( ! $row ) {
+                return false;
+            }
+            if ( $buyer_member_id > 0 && (int) $row->converted_member_id === $buyer_member_id ) {
+                return true;
+            }
+            if ( $buyer_email !== '' && strtolower( trim( (string) $row->referred_email ) ) === strtolower( $buyer_email ) ) {
+                return true;
+            }
+
+            return false;
+        };
 
         if ( $token ) {
             $row = $wpdb->get_row(
@@ -390,12 +410,37 @@ class EPC_Referral {
                     $token
                 )
             );
-            if ( $row ) {
+            if ( $matches_buyer( $row ) ) {
                 return $row;
             }
         }
 
         if ( $ref_code ) {
+            // First, try to match the current buyer to avoid stale-cookie mismatches.
+            if ( $buyer_member_id > 0 || $buyer_email !== '' ) {
+                $where = [ 'ref_code = %s', 'rewarded_at IS NULL' ];
+                $args  = [ $ref_code ];
+
+                if ( $buyer_member_id > 0 ) {
+                    $where[] = '(converted_member_id = %d OR converted_member_id IS NULL)';
+                    $args[]  = $buyer_member_id;
+                }
+                if ( $buyer_email !== '' ) {
+                    $where[] = "(LOWER(COALESCE(referred_email, '')) IN ('', %s) OR converted_member_id = %d)";
+                    $args[]  = strtolower( $buyer_email );
+                    $args[]  = max( 0, $buyer_member_id );
+                }
+
+                $sql = "SELECT * FROM {$wpdb->prefix}epc_referral_clicks
+                        WHERE " . implode( ' AND ', $where ) . '
+                        ORDER BY first_clicked_at DESC LIMIT 1';
+
+                $row = $wpdb->get_row( $wpdb->prepare( $sql, ...$args ) );
+                if ( $row ) {
+                    return $row;
+                }
+            }
+
             $row = $wpdb->get_row(
                 $wpdb->prepare(
                     "SELECT * FROM {$wpdb->prefix}epc_referral_clicks
@@ -426,11 +471,12 @@ class EPC_Referral {
                     'referrer_member_id' => (int) $referrer->id,
                     'ref_code'           => $ref_code,
                     'cookie_token'       => $synth_token,
+                    'referred_email'     => $buyer_email,
                     'click_count'        => 0,
                     'first_clicked_at'   => current_time( 'mysql' ),
                     'last_clicked_at'    => current_time( 'mysql' ),
                 ],
-                [ '%d', '%s', '%s', '%d', '%s', '%s' ]
+                [ '%d', '%s', '%s', '%s', '%d', '%s', '%s' ]
             );
 
             return $wpdb->get_row(
@@ -439,6 +485,32 @@ class EPC_Referral {
                     $synth_token
                 )
             );
+        }
+
+        // Last-resort reconciliation: locate a pending click row for this buyer.
+        if ( $buyer_member_id > 0 || $buyer_email !== '' ) {
+            $where = [ 'rewarded_at IS NULL', 'purchased_order_id IS NULL' ];
+            $args  = [];
+            if ( $buyer_member_id > 0 && $buyer_email !== '' ) {
+                $where[] = '(converted_member_id = %d OR LOWER(referred_email) = %s)';
+                $args[]  = $buyer_member_id;
+                $args[]  = strtolower( $buyer_email );
+            } elseif ( $buyer_member_id > 0 ) {
+                $where[] = 'converted_member_id = %d';
+                $args[]  = $buyer_member_id;
+            } else {
+                $where[] = 'LOWER(referred_email) = %s';
+                $args[]  = strtolower( $buyer_email );
+            }
+
+            $sql = "SELECT * FROM {$wpdb->prefix}epc_referral_clicks
+                    WHERE " . implode( ' AND ', $where ) . '
+                    ORDER BY first_clicked_at DESC LIMIT 1';
+
+            $row = $wpdb->get_row( $wpdb->prepare( $sql, ...$args ) );
+            if ( $row ) {
+                return $row;
+            }
         }
 
         return null;
