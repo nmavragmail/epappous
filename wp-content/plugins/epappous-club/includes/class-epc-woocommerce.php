@@ -18,6 +18,23 @@ class EPC_WooCommerce {
 
     private static $instance = null;
 
+    /**
+     * Normalize cassette gift received flag from user meta.
+     */
+    private function user_has_cassette_gift_received( int $user_id ): bool {
+        if ( $user_id < 1 ) {
+            return false;
+        }
+
+        $raw = get_user_meta( $user_id, EPC_User_Profile::USER_META_CASSETTE, true );
+        if ( is_bool( $raw ) ) {
+            return $raw;
+        }
+
+        $val = strtolower( trim( (string) $raw ) );
+        return in_array( $val, [ 'yes', '1', 'true', 'on', 'nai', 'ναι' ], true );
+    }
+
     public static function instance() {
         if ( null === self::$instance ) {
             self::$instance = new self();
@@ -116,7 +133,7 @@ class EPC_WooCommerce {
             return;
         }
 
-        if ( get_user_meta( $user_id, 'epc_cassette_gift_received', true ) !== 'yes' ) {
+        if ( ! $this->user_has_cassette_gift_received( $user_id ) ) {
             return;
         }
 
@@ -342,7 +359,7 @@ class EPC_WooCommerce {
             return;
         }
 
-        $received = get_user_meta( $user_id, 'epc_cassette_gift_received', true ) === 'yes';
+        $received = $this->user_has_cassette_gift_received( $user_id );
         $raw_date = (string) get_user_meta( $user_id, 'epc_cassette_gift_date', true );
         $date_txt = '—';
         if ( '' !== $raw_date ) {
@@ -437,7 +454,7 @@ class EPC_WooCommerce {
             wp_send_json_error( 'Forbidden', 403 );
         }
 
-        if ( get_user_meta( $user_id, EPC_User_Profile::USER_META_CASSETTE, true ) === 'yes' ) {
+        if ( $this->user_has_cassette_gift_received( $user_id ) ) {
             wp_send_json_error( __( 'έχει ήδη σταλεί ενημέρωση για την Κασσετίνα δώρο', 'epappous-club' ) );
         }
 
