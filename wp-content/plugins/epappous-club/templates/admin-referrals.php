@@ -501,6 +501,15 @@ $now_ts      = (int) current_time( 'U' );
                                             if ( $is_rewarded ) {
                                                 echo esc_html( date_i18n( 'd/m/Y H:i', strtotime( $click['rewarded_at'] ) ) );
                                             } else {
+                                                $min_order = (float) EPC_Settings::get( 'epc_referral_min_order' );
+                                                if ( $has_member && $has_purchase && $min_order > 0 && (float) $click['purchase_total'] < $min_order ) {
+                                                    printf(
+                                                        /* translators: %s: minimum order amount */
+                                                        esc_html__( 'Όχι — έγινε αγορά, αλλά δεν καλύφθηκε το ελάχιστο ποσό (%s).', 'epappous-club' ),
+                                                        wp_kses_post( wc_price( $min_order ) )
+                                                    );
+                                                    echo '<br /><small>' . esc_html__( 'Η αγορά έχει καταγραφεί κανονικά, αλλά δεν αποδίδονται πόντοι κάτω από το minimum.', 'epappous-club' ) . '</small>';
+                                                } else {
                                                 $missing = [];
                                                 if ( ! $has_member ) {
                                                     $missing[] = __( 'εγγραφή μέλους', 'epappous-club' );
@@ -516,6 +525,7 @@ $now_ts      = (int) current_time( 'U' );
                                                     );
                                                 } else {
                                                     esc_html_e( 'Όχι ακόμα', 'epappous-club' );
+                                                }
                                                 }
                                             }
                                             ?>
