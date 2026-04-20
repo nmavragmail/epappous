@@ -383,15 +383,7 @@ if ( ! is_array( $tiers ) ) {
                                            <?php checked( EPC_Settings::get( 'epc_cassette_gift_enabled' ), '1' ); ?> />
                                     <span class="epc-toggle-slider"></span>
                                 </label>
-                                <p class="description"><?php esc_html_e( 'Όταν είναι ενεργό, για τους πελάτες στις B2B ομάδες της λίστας κρύβεται το «Κασσετίνα - Δώρο» (παραγγελία & προφίλ) και δεν στέλνεται το email. Όταν είναι απενεργοποιημένο, ισχύει για όλους — η λίστα αγνοείται (και για ομάδα 34).', 'epappous-club' ); ?></p>
-                            </div>
-
-                            <div class="epc-field-row">
-                                <label for="epc_cassette_gift_exclude_b2b_group_ids"><?php esc_html_e( 'B2B King group IDs χωρίς κασσετίνα (όταν το παραπάνω είναι ενεργό)', 'epappous-club' ); ?></label>
-                                <input type="text" id="epc_cassette_gift_exclude_b2b_group_ids" name="epc_cassette_gift_exclude_b2b_group_ids"
-                                       value="<?php echo esc_attr( EPC_Settings::get( 'epc_cassette_gift_exclude_b2b_group_ids' ) ); ?>"
-                                       class="regular-text" placeholder="34" />
-                                <p class="description"><?php esc_html_e( 'Post ID ομάδων B2B King (χωρισμένα με κόμμα). Χρησιμοποιείται μόνο αν είναι ενεργή η εξαίρεση. Προεπιλογή: 34.', 'epappous-club' ); ?></p>
+                                <p class="description"><?php esc_html_e( 'Όταν είναι ενεργό, για τους πελάτες στις B2B ομάδες της λίστας (WooCommerce → B2B King group IDs χωρίς κασσετίνα) κρύβεται το «Κασσετίνα - Δώρο» (παραγγελία & προφίλ) και δεν στέλνεται το email. Όταν είναι απενεργοποιημένο, ισχύει για όλους — η λίστα αγνοείται (και για ομάδα 34).', 'epappous-club' ); ?></p>
                             </div>
 
                             <div class="epc-field-row">
@@ -452,6 +444,14 @@ if ( ! is_array( $tiers ) ) {
                                         <?php esc_html_e( 'Το B2B King δεν φαίνεται ενεργό — οι έλεγχοι ομάδας θα απορρίπτουν όλους μέχρι να φορτωθεί το plugin.', 'epappous-club' ); ?>
                                     </p>
                                 <?php endif; ?>
+                            </div>
+
+                            <div class="epc-field-row">
+                                <label for="epc_cassette_gift_exclude_b2b_group_ids"><?php esc_html_e( 'B2B King group IDs χωρίς κασσετίνα (όταν η εξαίρεση κασσετίνας είναι ενεργή στις Ειδοποιήσεις)', 'epappous-club' ); ?></label>
+                                <input type="text" id="epc_cassette_gift_exclude_b2b_group_ids" name="epc_cassette_gift_exclude_b2b_group_ids"
+                                       value="<?php echo esc_attr( EPC_Settings::get( 'epc_cassette_gift_exclude_b2b_group_ids' ) ); ?>"
+                                       class="regular-text" placeholder="34" />
+                                <p class="description"><?php esc_html_e( 'Post ID ομάδων B2B King (χωρισμένα με κόμμα). Χρησιμοποιείται μόνο αν είναι ενεργός ο διακόπτης εξαίρεσης κασσετίνας στην καρτέλα Ειδοποιήσεις. Προεπιλογή: 34.', 'epappous-club' ); ?></p>
                             </div>
 
                             <hr class="epc-divider" />
