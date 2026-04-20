@@ -370,6 +370,7 @@
             if (response.success) {
                 var text = (response.data && response.data.message) ? response.data.message : epcI('saved');
                 $msg.text(text).css('color', '#10b981').show();
+                $btn.remove();
                 setTimeout(function () { $msg.fadeOut(400); }, 3500);
             } else {
                 var err = (response && response.data && response.data.message) ? response.data.message : (response.data || epcI('error'));

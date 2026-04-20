@@ -203,6 +203,116 @@ class EPC_Admin {
             'nonce'   => wp_create_nonce( 'epc_admin_nonce' ),
             'i18n'    => $i18n,
         ] );
+
+        if ( $is_wc_order ) {
+            wp_add_inline_script( 'epc-admin-js', $this->get_wc_order_cassette_fallback_js(), 'after' );
+        }
+    }
+
+    /**
+     * Fallback click handler for cassette email button on WooCommerce order screen.
+     * HPOS can omit/strip inline <script> printed inside metabox HTML.
+     */
+    private function get_wc_order_cassette_fallback_js(): string {
+        $sending_txt = esc_js( __( 'Αποστολή...', 'epappous-club' ) );
+        $saved_txt   = esc_js( __( 'Αποθηκεύτηκε!', 'epappous-club' ) );
+        $error_txt   = esc_js( __( 'Σφάλμα!', 'epappous-club' ) );
+
+        return <<<JS
+(function () {
+    if (window.__epcCassetteFallbackBound) {
+        return;
+    }
+    window.__epcCassetteFallbackBound = true;
+
+    function epcResolveString(path, fallback) {
+        try {
+            var node = window.epcAdmin && window.epcAdmin.i18n ? window.epcAdmin.i18n : null;
+            if (!node) return fallback;
+            var parts = path.split('.');
+            for (var i = 0; i < parts.length; i++) {
+                node = node[parts[i]];
+                if (typeof node === 'undefined') return fallback;
+            }
+            return (typeof node === 'string' && node !== '') ? node : fallback;
+        } catch (e) {
+            return fallback;
+        }
+    }
+
+    document.addEventListener('click', function (event) {
+        var btn = event.target && event.target.closest ? event.target.closest('.epc-send-cassette-email-btn') : null;
+        if (!btn) {
+            return;
+        }
+
+        event.preventDefault();
+
+        var orderId = parseInt(btn.getAttribute('data-order-id') || '0', 10);
+        var userId  = parseInt(btn.getAttribute('data-user-id') || '0', 10);
+        var nonce   = btn.getAttribute('data-nonce') || (window.epcAdmin ? window.epcAdmin.nonce : '');
+        var ajaxUrl = (window.epcAdmin && window.epcAdmin.ajaxUrl) ? window.epcAdmin.ajaxUrl : '';
+        var wrap    = btn.closest('.epc-order-gift-actions');
+        var msg     = wrap ? wrap.querySelector('.epc-order-gift-msg') : null;
+
+        if (!orderId || !userId || !ajaxUrl || !nonce) {
+            if (msg) {
+                msg.textContent = epcResolveString('genericError', '{$error_txt}');
+                msg.style.color = '#ef4444';
+                msg.style.display = 'block';
+            }
+            return;
+        }
+
+        if (btn.dataset.epcSending === '1') {
+            return;
+        }
+
+        btn.dataset.epcSending = '1';
+        var originalText = btn.textContent;
+        btn.disabled = true;
+        btn.textContent = epcResolveString('cassetteEmailSending', '{$sending_txt}');
+
+        var body = new URLSearchParams();
+        body.set('action', 'epc_send_cassette_gift_email');
+        body.set('order_id', String(orderId));
+        body.set('user_id', String(userId));
+        body.set('nonce', nonce);
+
+        fetch(ajaxUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8' },
+            credentials: 'same-origin',
+            body: body.toString()
+        }).then(function (res) {
+            return res.json();
+        }).then(function (res) {
+            if (!msg) return;
+            if (res && res.success) {
+                msg.textContent = (res.data && res.data.message)
+                    ? res.data.message
+                    : epcResolveString('saved', '{$saved_txt}');
+                msg.style.color = '#10b981';
+            } else {
+                msg.textContent = (res && res.data && res.data.message)
+                    ? res.data.message
+                    : epcResolveString('error', '{$error_txt}');
+                msg.style.color = '#ef4444';
+            }
+            msg.style.display = 'block';
+        }).catch(function () {
+            if (!msg) return;
+            msg.textContent = epcResolveString('error', '{$error_txt}');
+            msg.style.color = '#ef4444';
+            msg.style.display = 'block';
+        }).finally(function () {
+            btn.disabled = false;
+            btn.dataset.epcSending = '0';
+            btn.textContent = originalText || epcResolveString('cassetteEmailButton', 'Ενημέρωση πελάτη για κασσετίνα');
+        });
+    }, true);
+})();
+JS;
     }
 
     public function render_dashboard() {
