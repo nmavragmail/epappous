@@ -56,7 +56,6 @@ if ( $click_total > 0 ) {
 
 $cookie_days = (int) EPC_Referral::cookie_days();
 $now_ts      = (int) current_time( 'U' );
-$single_click_result = get_transient( 'epc_referral_single_click_last' );
 ?>
 <div class="wrap epc-wrap">
     <div class="epc-header">
@@ -95,18 +94,6 @@ $single_click_result = get_transient( 'epc_referral_single_click_last' );
                         <?php endforeach; ?>
                     </ul>
                 </details>
-            <?php endif; ?>
-        </div>
-    <?php endif; ?>
-
-    <?php if ( is_array( $single_click_result ) && ! empty( $single_click_result['ran_at'] ) ) : ?>
-        <div class="notice notice-success is-dismissible" style="margin-top:12px;">
-            <p>
-                <strong><?php esc_html_e( 'Τελευταίος έλεγχος συγκεκριμένου click:', 'epappous-club' ); ?></strong>
-                <?php echo esc_html( date_i18n( 'd/m/Y H:i:s', (int) $single_click_result['ran_at'] ) ); ?>
-            </p>
-            <?php if ( ! empty( $single_click_result['summary'] ) ) : ?>
-                <p style="margin:.35em 0;"><code><?php echo esc_html( (string) $single_click_result['summary'] ); ?></code></p>
             <?php endif; ?>
         </div>
     <?php endif; ?>
