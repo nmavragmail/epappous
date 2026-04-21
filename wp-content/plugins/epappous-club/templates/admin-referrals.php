@@ -65,57 +65,6 @@ $now_ts      = (int) current_time( 'U' );
         </h1>
     </div>
 
-    <?php
-    $reconcile_result = get_transient( 'epc_referral_reconcile_last' );
-    if ( is_array( $reconcile_result ) && ! empty( $reconcile_result['ran_at'] ) ) :
-        $ran_at = date_i18n( 'd/m/Y H:i:s', (int) $reconcile_result['ran_at'] );
-        ?>
-        <div class="notice notice-info is-dismissible" style="margin:10px 0; padding:8px 12px;">
-            <p style="margin:0; font-size:12px; line-height:1.4;">
-                <strong><?php esc_html_e( 'Τελευταίος αναδρομικός έλεγχος:', 'epappous-club' ); ?></strong>
-                <?php echo esc_html( $ran_at ); ?>
-                &nbsp;•&nbsp;
-                <?php
-                printf(
-                    /* translators: 1: checked orders count, 2: repaired orders count */
-                    esc_html__( '%1$d έλεγχοι, %2$d διορθώσεις', 'epappous-club' ),
-                    (int) ( $reconcile_result['checked'] ?? 0 ),
-                    (int) ( $reconcile_result['repaired'] ?? 0 )
-                );
-                ?>
-            </p>
-            <?php if ( ! empty( $reconcile_result['summary'] ) && is_array( $reconcile_result['summary'] ) ) : ?>
-                <details style="margin-top:4px;">
-                    <summary style="font-size:12px;"><?php esc_html_e( 'Αναλυτικό log', 'epappous-club' ); ?></summary>
-                    <ul style="margin:.4em 0 0 1.1em; list-style:disc;">
-                        <?php foreach ( $reconcile_result['summary'] as $line ) : ?>
-                            <li><code style="font-size:11px;"><?php echo esc_html( (string) $line ); ?></code></li>
-                        <?php endforeach; ?>
-                    </ul>
-                </details>
-            <?php endif; ?>
-        </div>
-    <?php endif; ?>
-
-    <div class="epc-info-box epc-referrals-retrospective-box" style="margin-top:12px;">
-        <h3 style="margin-top:0;"><?php esc_html_e( 'Retrospective έλεγχος παραγγελιών', 'epappous-club' ); ?></h3>
-        <p style="margin-top:0;">
-            <?php esc_html_e( 'Ελέγχει παλιές processing/completed παραγγελίες με referral meta και επανεφαρμόζει το reconciliation ώστε να αποδοθούν πόντοι όπου λείπουν.', 'epappous-club' ); ?>
-        </p>
-        <form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
-            <?php wp_nonce_field( 'epc_referral_reconcile_orders', 'epc_referral_reconcile_nonce' ); ?>
-            <input type="hidden" name="action" value="epc_referral_reconcile_orders" />
-            <label for="epc-reconcile-limit"><strong><?php esc_html_e( 'Μέγιστες παραγγελίες', 'epappous-club' ); ?>:</strong></label>
-            <input id="epc-reconcile-limit" type="number" name="limit" min="1" max="1000" value="250" style="width:90px;" />
-            <button type="submit" class="button button-primary">
-                <?php esc_html_e( 'Εκτέλεση ελέγχου', 'epappous-club' ); ?>
-            </button>
-        </form>
-        <p class="description" style="margin-bottom:0;">
-            <?php esc_html_e( 'Το εργαλείο είναι idempotent: δεν διπλοδίνει πόντους σε ήδη ολοκληρωμένα referrals.', 'epappous-club' ); ?>
-        </p>
-    </div>
-
     <!-- Explainer -->
     <div class="epc-info-box epc-info-box-large">
         <h3><span class="dashicons dashicons-info-outline"></span> <?php esc_html_e( 'Πώς λειτουργεί το Referral;', 'epappous-club' ); ?></h3>
@@ -562,4 +511,61 @@ $now_ts      = (int) current_time( 'U' );
             </div>
         <?php endif; ?>
     <?php endif; ?>
+
+    <?php
+    $reconcile_result = get_transient( 'epc_referral_reconcile_last' );
+    $has_reconcile    = is_array( $reconcile_result ) && ! empty( $reconcile_result['ran_at'] );
+    ?>
+    <details class="epc-referrals-retro-accordion" style="margin-top:20px;">
+        <summary>
+            <strong><?php esc_html_e( 'Retrospective έλεγχος παραγγελιών', 'epappous-club' ); ?></strong>
+        </summary>
+
+        <div class="epc-info-box epc-referrals-retrospective-box" style="margin-top:10px;">
+            <p style="margin-top:0;">
+                <?php esc_html_e( 'Ελέγχει παλιές processing/completed παραγγελίες με referral meta και επανεφαρμόζει το reconciliation ώστε να αποδοθούν πόντοι όπου λείπουν.', 'epappous-club' ); ?>
+            </p>
+            <form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+                <?php wp_nonce_field( 'epc_referral_reconcile_orders', 'epc_referral_reconcile_nonce' ); ?>
+                <input type="hidden" name="action" value="epc_referral_reconcile_orders" />
+                <label for="epc-reconcile-limit"><strong><?php esc_html_e( 'Μέγιστες παραγγελίες', 'epappous-club' ); ?>:</strong></label>
+                <input id="epc-reconcile-limit" type="number" name="limit" min="1" max="1000" value="250" style="width:90px;" />
+                <button type="submit" class="button button-primary">
+                    <?php esc_html_e( 'Εκτέλεση ελέγχου', 'epappous-club' ); ?>
+                </button>
+            </form>
+            <p class="description" style="margin-bottom:0;">
+                <?php esc_html_e( 'Το εργαλείο είναι idempotent: δεν διπλοδίνει πόντους σε ήδη ολοκληρωμένα referrals.', 'epappous-club' ); ?>
+            </p>
+        </div>
+
+        <?php if ( $has_reconcile ) : ?>
+            <?php $ran_at = date_i18n( 'd/m/Y H:i:s', (int) $reconcile_result['ran_at'] ); ?>
+            <div class="notice notice-info" style="margin:10px 0 0; padding:8px 12px;">
+                <p style="margin:0; font-size:12px; line-height:1.4;">
+                    <strong><?php esc_html_e( 'Τελευταίος αναδρομικός έλεγχος:', 'epappous-club' ); ?></strong>
+                    <?php echo esc_html( $ran_at ); ?>
+                    &nbsp;•&nbsp;
+                    <?php
+                    printf(
+                        /* translators: 1: checked orders count, 2: repaired orders count */
+                        esc_html__( '%1$d έλεγχοι, %2$d διορθώσεις', 'epappous-club' ),
+                        (int) ( $reconcile_result['checked'] ?? 0 ),
+                        (int) ( $reconcile_result['repaired'] ?? 0 )
+                    );
+                    ?>
+                </p>
+                <?php if ( ! empty( $reconcile_result['summary'] ) && is_array( $reconcile_result['summary'] ) ) : ?>
+                    <details style="margin-top:4px;">
+                        <summary style="font-size:12px;"><?php esc_html_e( 'Αναλυτικό log', 'epappous-club' ); ?></summary>
+                        <ul style="margin:.4em 0 0 1.1em; list-style:disc;">
+                            <?php foreach ( $reconcile_result['summary'] as $line ) : ?>
+                                <li><code style="font-size:11px;"><?php echo esc_html( (string) $line ); ?></code></li>
+                            <?php endforeach; ?>
+                        </ul>
+                    </details>
+                <?php endif; ?>
+            </div>
+        <?php endif; ?>
+    </details>
 </div>
