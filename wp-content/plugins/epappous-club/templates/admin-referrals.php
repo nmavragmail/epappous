@@ -547,8 +547,8 @@ $now_ts      = (int) current_time( 'U' );
 
         <?php if ( $has_reconcile ) : ?>
             <?php $ran_at = date_i18n( 'd/m/Y H:i:s', (int) $reconcile_result['ran_at'] ); ?>
-            <div class="notice notice-info epc-retrospective-result" style="margin:10px 0 0; padding:8px 12px;">
-                <p style="margin:0; font-size:12px; line-height:1.4;">
+            <div class="epc-info-box epc-retrospective-result" style="margin:10px 0 0; padding:10px 12px; border-left:4px solid #2271b1;">
+                <p style="margin:0; font-size:12px; line-height:1.45;">
                     <strong><?php esc_html_e( 'Τελευταίος αναδρομικός έλεγχος:', 'epappous-club' ); ?></strong>
                     <?php echo esc_html( $ran_at ); ?>
                     &nbsp;•&nbsp;
