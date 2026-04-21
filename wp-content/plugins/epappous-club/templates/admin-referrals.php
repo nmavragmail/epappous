@@ -58,6 +58,12 @@ $cookie_days = (int) EPC_Referral::cookie_days();
 $now_ts      = (int) current_time( 'U' );
 ?>
 <div class="wrap epc-wrap">
+    <style>
+        /* Safety: if a legacy top-level reconcile notice is still injected, hide it. */
+        .epc-wrap > .notice.notice-info:not(.epc-retrospective-result) {
+            display: none !important;
+        }
+    </style>
     <div class="epc-header">
         <h1>
             <span class="dashicons dashicons-share"></span>
@@ -541,7 +547,7 @@ $now_ts      = (int) current_time( 'U' );
 
         <?php if ( $has_reconcile ) : ?>
             <?php $ran_at = date_i18n( 'd/m/Y H:i:s', (int) $reconcile_result['ran_at'] ); ?>
-            <div class="notice notice-info" style="margin:10px 0 0; padding:8px 12px;">
+            <div class="notice notice-info epc-retrospective-result" style="margin:10px 0 0; padding:8px 12px;">
                 <p style="margin:0; font-size:12px; line-height:1.4;">
                     <strong><?php esc_html_e( 'Τελευταίος αναδρομικός έλεγχος:', 'epappous-club' ); ?></strong>
                     <?php echo esc_html( $ran_at ); ?>
