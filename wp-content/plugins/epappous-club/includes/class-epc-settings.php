@@ -104,6 +104,7 @@ class EPC_Settings {
             'epc_admin_email'               => '',
             'epc_cassette_gift_enabled'     => '1',
             'epc_cassette_gift_exclude_b2b_group_ids' => '34',
+            'epc_cassette_gift_min_order'   => '39',
             'epc_cassette_gift_email_body'  => '',
 
             // ── WooCommerce integration ──
@@ -164,6 +165,7 @@ class EPC_Settings {
             'epc_notify_tier_upgrade', 'epc_admin_email',
             'epc_cassette_gift_enabled',
             'epc_cassette_gift_exclude_b2b_group_ids',
+            'epc_cassette_gift_min_order',
             // WooCommerce
             'epc_woo_earn_on_complete', 'epc_woo_earn_statuses',
             'epc_woo_exclude_sale_items', 'epc_woo_exclude_categories',
@@ -222,6 +224,15 @@ class EPC_Settings {
                 'default'           => '34',
             ]
         );
+
+        register_setting(
+            'epc_settings_group',
+            'epc_cassette_gift_min_order',
+            [
+                'sanitize_callback' => [ self::class, 'sanitize_non_negative_amount' ],
+                'default'           => '39',
+            ]
+        );
     }
 
     /**
@@ -263,6 +274,22 @@ class EPC_Settings {
      */
     public static function sanitize_non_negative_int( $value ): string {
         return (string) max( 0, absint( $value ) );
+    }
+
+    /**
+     * Sanitize non-negative decimal amount stored as plain string (max 2 decimals).
+     */
+    public static function sanitize_non_negative_amount( $value ): string {
+        if ( is_string( $value ) ) {
+            $value = str_replace( ',', '.', trim( $value ) );
+        }
+        $amount = is_numeric( $value ) ? (float) $value : 0.0;
+        if ( $amount < 0 ) {
+            $amount = 0.0;
+        }
+
+        $normalized = number_format( $amount, 2, '.', '' );
+        return rtrim( rtrim( $normalized, '0' ), '.' );
     }
 
     /**

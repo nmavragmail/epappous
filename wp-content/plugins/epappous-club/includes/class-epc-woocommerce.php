@@ -69,6 +69,24 @@ class EPC_WooCommerce {
         return $user_id > 0 && ! EPC_Settings::cassette_gift_ui_hidden_for_wp_user( $user_id );
     }
 
+    /**
+     * Minimum order total required for cassette gift eligibility.
+     */
+    private function cassette_gift_min_order_amount(): float {
+        return max( 0.0, (float) EPC_Settings::get( 'epc_cassette_gift_min_order' ) );
+    }
+
+    /**
+     * Whether this order qualifies for cassette gift by minimum amount.
+     */
+    private function order_qualifies_for_cassette_gift( \WC_Order $order ): bool {
+        $min = $this->cassette_gift_min_order_amount();
+        if ( $min <= 0 ) {
+            return true;
+        }
+        return (float) $order->get_total() >= $min;
+    }
+
     public static function instance() {
         if ( null === self::$instance ) {
             self::$instance = new self();
@@ -495,7 +513,9 @@ class EPC_WooCommerce {
             return;
         }
 
-        $received = $this->user_has_cassette_gift_received( $user_id );
+        $received             = $this->user_has_cassette_gift_received( $user_id );
+        $qualifies_by_amount  = $this->order_qualifies_for_cassette_gift( $order );
+        $min_order_amount     = $this->cassette_gift_min_order_amount();
         $raw_date = (string) get_user_meta( $user_id, 'epc_cassette_gift_date', true );
         $date_txt = '—';
         if ( '' !== $raw_date ) {
@@ -506,7 +526,16 @@ class EPC_WooCommerce {
         echo '<p><strong>' . esc_html__( 'Έχει πάρει Κασσετίνα - Δώρο:', 'epappous-club' ) . '</strong> ' .
             esc_html( $received ? __( 'Ναι', 'epappous-club' ) : __( 'Όχι', 'epappous-club' ) ) . '</p>';
         echo '<p><strong>' . esc_html__( 'Ημερομηνία δώρου:', 'epappous-club' ) . '</strong> ' . esc_html( $date_txt ) . '</p>';
-        if ( ! $received ) {
+        if ( ! $qualifies_by_amount ) {
+            echo '<p style="margin-top:10px;color:#b91c1c;font-weight:600;">' . esc_html__( 'ΔΕΝ δικαιούται κασσετίνα δώρο.', 'epappous-club' ) . '</p>';
+            echo '<p style="margin-top:6px;color:#6b7280;">' .
+                sprintf(
+                    /* translators: %s: minimum order amount */
+                    esc_html__( 'Ελάχιστη αξία παραγγελίας για κασσετίνα: %s', 'epappous-club' ),
+                    wp_kses_post( wc_price( $min_order_amount, [ 'currency' => $order->get_currency() ] ) )
+                ) .
+            '</p>';
+        } elseif ( ! $received ) {
             echo '<div class="epc-order-gift-actions" style="margin-top:10px;">';
             echo '<button type="button" class="button button-primary epc-send-cassette-email-btn" data-order-id="' . (int) $order->get_id() . '" data-user-id="' . (int) $user_id . '" data-nonce="' . esc_attr( wp_create_nonce( 'epc_admin_nonce' ) ) . '" data-ajax-url="' . esc_url( admin_url( 'admin-ajax.php' ) ) . '">' . esc_html__( 'Ενημέρωση πελάτη για κασσετίνα', 'epappous-club' ) . '</button>';
             echo '<p class="epc-order-gift-msg" style="display:none;margin-top:8px;"></p>';
@@ -547,6 +576,10 @@ class EPC_WooCommerce {
         $order = wc_get_order( $order_id );
         if ( ! $order instanceof \WC_Order ) {
             wp_send_json_error( __( 'Δεν βρέθηκε παραγγελία.', 'epappous-club' ) );
+        }
+
+        if ( ! $this->order_qualifies_for_cassette_gift( $order ) ) {
+            wp_send_json_error( __( 'ΔΕΝ δικαιούται κασσετίνα δώρο.', 'epappous-club' ) );
         }
 
         $to_email = sanitize_email( (string) $order->get_billing_email() );

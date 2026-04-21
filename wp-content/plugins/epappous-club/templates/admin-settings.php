@@ -454,6 +454,18 @@ if ( ! is_array( $tiers ) ) {
                                 <p class="description"><?php esc_html_e( 'Post ID ομάδων B2B King (χωρισμένα με κόμμα). Χρησιμοποιείται μόνο αν είναι ενεργός ο παραπάνω διακόπτης. Προεπιλογή: 34.', 'epappous-club' ); ?></p>
                             </div>
 
+                            <div class="epc-field-row">
+                                <label for="epc_cassette_gift_min_order"><?php esc_html_e( 'Ελάχιστη αξία παραγγελίας για κασσετίνα δώρο (€)', 'epappous-club' ); ?></label>
+                                <input type="number"
+                                       id="epc_cassette_gift_min_order"
+                                       name="epc_cassette_gift_min_order"
+                                       value="<?php echo esc_attr( EPC_Settings::get( 'epc_cassette_gift_min_order' ) ); ?>"
+                                       class="small-text"
+                                       min="0"
+                                       step="0.01" />
+                                <p class="description"><?php esc_html_e( 'Αν η παραγγελία είναι κάτω από αυτό το ποσό, στο order metabox εμφανίζεται μήνυμα «ΔΕΝ δικαιούται κασσετίνα δώρο» και δεν εμφανίζεται το κουμπί αποστολής email. Προεπιλογή: 39.', 'epappous-club' ); ?></p>
+                            </div>
+
                             <hr class="epc-divider" />
 
                             <div class="epc-field-row">
