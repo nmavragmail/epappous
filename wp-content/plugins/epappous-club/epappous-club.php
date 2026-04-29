@@ -3,7 +3,7 @@
  * Plugin Name: ePappous Club
  * Plugin URI: https://epappous.gr
  * Description: Loyalty & membership club with referral tracking, gift products, and full settings management.
- * Version: 1.15.16
+ * Version: 1.15.17
  * Author: 2NET
  * Author URI: https://2net.gr
  * Text Domain: epappous-club
@@ -17,7 +17,7 @@ if ( ! defined( 'ABSPATH' ) ) {
     exit;
 }
 
-define( 'EPC_VERSION', '1.15.16' );
+define( 'EPC_VERSION', '1.15.17' );
 define( 'EPC_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'EPC_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
 define( 'EPC_PLUGIN_BASENAME', plugin_basename( __FILE__ ) );
@@ -39,6 +39,7 @@ require_once EPC_PLUGIN_DIR . 'includes/class-epc-woocommerce.php';
 require_once EPC_PLUGIN_DIR . 'includes/class-epc-registration.php';
 require_once EPC_PLUGIN_DIR . 'includes/class-epc-gift-products.php';
 require_once EPC_PLUGIN_DIR . 'includes/class-epc-user-profile.php';
+require_once EPC_PLUGIN_DIR . 'includes/class-epc-admin-screen-options.php';
 require_once EPC_PLUGIN_DIR . 'includes/class-epc-admin.php';
 
 register_activation_hook( __FILE__, 'epc_activate' );
@@ -89,5 +90,7 @@ function epc_init() {
     EPC_Registration::instance();
     EPC_Gift_Products::instance();
     EPC_User_Profile::instance();
+
+    EPC_Admin_Screen_Options::boot();
     EPC_Admin::instance();
 }

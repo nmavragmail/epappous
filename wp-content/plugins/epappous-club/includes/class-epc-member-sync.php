@@ -385,7 +385,7 @@ class EPC_Member_Sync {
 
         if ( EPC_Settings::get( 'epc_club_enabled' ) !== '1' ) {
             wp_safe_redirect(
-                add_query_arg( [ 'page' => 'epc-members', 'epc_msg' => 'disabled' ], admin_url( 'admin.php' ) )
+                add_query_arg( [ 'page' => 'epc-dashboard', 'epc_msg' => 'disabled' ], admin_url( 'admin.php' ) )
             );
             exit;
         }
@@ -397,7 +397,7 @@ class EPC_Member_Sync {
 
         if ( empty( $first ) || empty( $last ) || empty( $email ) || ! is_email( $email ) ) {
             wp_safe_redirect(
-                add_query_arg( [ 'page' => 'epc-members', 'epc_msg' => 'invalid' ], admin_url( 'admin.php' ) )
+                add_query_arg( [ 'page' => 'epc-dashboard', 'epc_msg' => 'invalid' ], admin_url( 'admin.php' ) )
             );
             exit;
         }
@@ -411,7 +411,7 @@ class EPC_Member_Sync {
         );
         if ( $exists ) {
             wp_safe_redirect(
-                add_query_arg( [ 'page' => 'epc-members', 'epc_msg' => 'exists' ], admin_url( 'admin.php' ) )
+                add_query_arg( [ 'page' => 'epc-dashboard', 'epc_msg' => 'exists' ], admin_url( 'admin.php' ) )
             );
             exit;
         }
@@ -439,7 +439,7 @@ class EPC_Member_Sync {
 
         if ( ! $inserted ) {
             wp_safe_redirect(
-                add_query_arg( [ 'page' => 'epc-members', 'epc_msg' => 'error' ], admin_url( 'admin.php' ) )
+                add_query_arg( [ 'page' => 'epc-dashboard', 'epc_msg' => 'error' ], admin_url( 'admin.php' ) )
             );
             exit;
         }
@@ -460,7 +460,7 @@ class EPC_Member_Sync {
         );
 
         wp_safe_redirect(
-            add_query_arg( [ 'page' => 'epc-members', 'epc_msg' => 'created' ], admin_url( 'admin.php' ) )
+            add_query_arg( [ 'page' => 'epc-dashboard', 'epc_msg' => 'created' ], admin_url( 'admin.php' ) )
         );
         exit;
     }

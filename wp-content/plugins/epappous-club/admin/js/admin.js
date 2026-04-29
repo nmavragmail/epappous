@@ -851,9 +851,19 @@
 
     /* ─── Init Color Pickers ─── */
 
-    $(document).ready(function () {
-        if ($.fn.wpColorPicker) {
-            $('.epc-color-picker').wpColorPicker({
+    $(document).on('epc_settings_tab', function () {
+        try {
+            initEpcColorPickersIn(jQuery('#epc-settings-form'));
+        } catch (e) { /* no-op */ }
+    });
+
+    function initEpcColorPickersIn($root) {
+        if (!$.fn.wpColorPicker || !$root.length) {
+            return;
+        }
+        $root.find('.epc-color-picker:not(.epc-wpcp-inited)').each(function () {
+            var $inp = jQuery(this).addClass('epc-wpcp-inited');
+            $inp.wpColorPicker({
                 change: function () {
                     var color = $(this).wpColorPicker('color');
                     $(this).closest('.epc-tier-row').find('.epc-tier-color-preview').css('background', color);
@@ -862,7 +872,11 @@
                     }
                 }
             });
-        }
+        });
+    }
+
+    $(document).ready(function () {
+        initEpcColorPickersIn(jQuery('#epc-settings-form'));
 
         /* ─── Move EPC profile boxes to the top of the profile form ─── */
         var $form = $('#your-profile, #createuser');

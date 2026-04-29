@@ -4,7 +4,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 $active_tab = isset( $_GET['tab'] ) ? sanitize_text_field( wp_unslash( $_GET['tab'] ) ) : 'general'; // phpcs:ignore
-$tabs = [
+$tabs       = [
     'general'       => [ 'label' => __( 'Γενικά', 'epappous-club' ),        'icon' => 'dashicons-admin-settings' ],
     'points'        => [ 'label' => __( 'Πόντοι', 'epappous-club' ),        'icon' => 'dashicons-star-filled' ],
     // 'tiers'         => [ 'label' => __( 'Βαθμίδες', 'epappous-club' ),      'icon' => 'dashicons-awards' ],
@@ -28,11 +28,16 @@ if ( ! is_array( $tiers ) ) {
         <span class="epc-version">v<?php echo esc_html( EPC_VERSION ); ?></span>
     </div>
 
-    <div class="epc-tabs-wrapper">
-        <nav class="epc-tabs-nav">
+    <p class="description" style="margin: -4px 0 12px;">
+        <?php esc_html_e( 'Όλα τα tabs φορτώνονται μαζί· η εναλλαγή είναι άμεση (χωρίς επαναφόρτωση σελίδας).', 'epappous-club' ); ?>
+    </p>
+
+    <div class="epc-tabs-wrapper epc-settings-tabs-shell">
+        <nav class="epc-tabs-nav epc-settings-tabs" data-epc-prefetch="1">
             <?php foreach ( $tabs as $slug => $tab ) : ?>
                 <a href="<?php echo esc_url( admin_url( 'admin.php?page=epc-settings&tab=' . $slug ) ); ?>"
-                   class="epc-tab-link <?php echo $active_tab === $slug ? 'active' : ''; ?>">
+                   class="epc-tab-link <?php echo $active_tab === $slug ? 'active' : ''; ?>"
+                   data-tab="<?php echo esc_attr( $slug ); ?>">
                     <span class="dashicons <?php echo esc_attr( $tab['icon'] ); ?>"></span>
                     <?php echo esc_html( $tab['label'] ); ?>
                 </a>
