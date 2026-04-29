@@ -105,7 +105,6 @@ class EPC_Settings {
             'epc_cassette_gift_enabled'     => '1',
             'epc_cassette_gift_exclude_b2b_group_ids' => '34',
             'epc_cassette_gift_min_order'   => '39',
-            'epc_cassette_gift_email_body'  => '',
 
             // ── WooCommerce integration ──
             'epc_woo_earn_on_complete'      => '1',
@@ -200,15 +199,6 @@ class EPC_Settings {
 
         register_setting(
             'epc_settings_group',
-            'epc_cassette_gift_email_body',
-            [
-                'sanitize_callback' => 'wp_kses_post',
-                'default'           => '',
-            ]
-        );
-
-        register_setting(
-            'epc_settings_group',
             'epc_cassette_gift_enabled',
             [
                 'sanitize_callback' => [ self::class, 'sanitize_yes_no' ],
@@ -293,7 +283,7 @@ class EPC_Settings {
     }
 
     /**
-     * Parsed list of B2B King group IDs excluded from cassette gift (admin UI + email).
+     * Parsed list of B2B King group IDs excluded from cassette gift (admin UI).
      *
      * @return int[]
      */
@@ -311,7 +301,7 @@ class EPC_Settings {
     }
 
     /**
-     * Whether cassette gift admin UI and order email action should be hidden for this WP user.
+     * Whether cassette gift admin UI (order metabox, profile row) should be hidden for this WP user.
      */
     public static function cassette_gift_ui_hidden_for_wp_user( int $user_id ): bool {
         // When OFF, do not hide the cassette UI for anyone (list below is ignored).

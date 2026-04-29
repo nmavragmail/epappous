@@ -6,7 +6,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 class EPC_Database {
 
     const DB_VERSION_OPTION = 'epc_db_version';
-    const DB_VERSION        = '1.4.2';
+    const DB_VERSION        = '1.4.3';
 
     public static function activate() {
         self::create_tables();
@@ -230,6 +230,10 @@ class EPC_Database {
             }
 
             update_option( self::DB_VERSION_OPTION, '1.4.2' );
+        }
+        if ( version_compare( $current, '1.4.3', '<' ) ) {
+            delete_option( 'epc_cassette_gift_email_body' );
+            update_option( self::DB_VERSION_OPTION, '1.4.3' );
         }
     }
 
