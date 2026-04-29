@@ -184,9 +184,6 @@ $month_labels = [
             <span class="dashicons dashicons-admin-users"></span>
             <div class="epc-member-filter-info">
                 <strong><?php echo esc_html( $filter_member['first_name'] . ' ' . $filter_member['last_name'] ); ?></strong>
-                <?php if ( ! empty( $filter_member['user_login'] ) ) : ?>
-                    <span class="epc-member-filter-username">@<?php echo esc_html( $filter_member['user_login'] ); ?></span>
-                <?php endif; ?>
                 <span class="epc-member-filter-email"><?php echo esc_html( $filter_member['email'] ); ?></span>
             </div>
             <div class="epc-member-filter-points">
@@ -337,11 +334,7 @@ $month_labels = [
                                 <a href="<?php echo esc_url( $member_url ); ?>" class="epc-member-link">
                                     <strong><?php echo esc_html( $full_name ); ?></strong>
                                 </a>
-                                <?php if ( ! empty( $log['user_login'] ) ) : ?>
-                                    <br /><small class="epc-member-username">@<?php echo esc_html( $log['user_login'] ); ?></small>
-                                <?php endif; ?>
                                 <br /><small class="epc-member-email"><?php echo esc_html( $log['email'] ); ?></small>
-                                <br /><small class="epc-member-id">ID: <?php echo (int) $log['member_id']; ?></small>
                             <?php else : ?>
                                 <span class="epc-deleted-member">
                                     <?php printf( esc_html__( 'Μέλος #%d (διαγράφηκε)', 'epappous-club' ), (int) $log['member_id'] ); ?>

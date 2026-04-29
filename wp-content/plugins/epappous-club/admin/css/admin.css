@@ -91,12 +91,35 @@
     color: #64748b;
 }
 
+.epc-version {
     font-size: 12px;
     opacity: 0.7;
     margin-left: 12px;
 }
 
-/* ── Tabs ── */
+/* Settings screen: tabs in a horizontal strip (like before) */
+
+.epc-settings-horizontal {
+    flex-direction: column;
+    gap: 0;
+}
+
+.epc-settings-horizontal .epc-tabs-nav {
+    flex: none;
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: 4px;
+    width: 100%;
+    align-self: stretch;
+    margin-bottom: 16px;
+    position: relative;
+    top: auto;
+}
+
+.epc-settings-horizontal .epc-tab-link {
+    white-space: nowrap;
+}
+
 
 .epc-tabs-wrapper {
     display: flex;
@@ -1732,8 +1755,6 @@
 
 .epc-points-table .column-admin { width: 100px; }
 
-/* ── Member username in points log ── */
-
 .epc-member-link {
     text-decoration: none;
     color: var(--epc-primary);
@@ -1742,11 +1763,6 @@
 .epc-member-link:hover {
     text-decoration: underline;
     color: var(--epc-primary-dark);
-}
-
-.epc-member-username {
-    color: var(--epc-gray-500);
-    font-style: italic;
 }
 
 /* ── Member filter banner ── */
@@ -1781,11 +1797,6 @@
 .epc-member-filter-info strong {
     font-size: 15px;
     color: var(--epc-gray-800);
-}
-
-.epc-member-filter-username {
-    color: var(--epc-gray-500);
-    font-style: italic;
 }
 
 .epc-member-filter-email {

@@ -32,7 +32,7 @@ if ( ! is_array( $tiers ) ) {
         <?php esc_html_e( 'Όλα τα tabs φορτώνονται μαζί· η εναλλαγή είναι άμεση (χωρίς επαναφόρτωση σελίδας).', 'epappous-club' ); ?>
     </p>
 
-    <div class="epc-tabs-wrapper epc-settings-tabs-shell">
+    <div class="epc-tabs-wrapper epc-settings-tabs-shell epc-settings-horizontal">
         <nav class="epc-tabs-nav epc-settings-tabs" data-epc-prefetch="1">
             <?php foreach ( $tabs as $slug => $tab ) : ?>
                 <a href="<?php echo esc_url( admin_url( 'admin.php?page=epc-settings&tab=' . $slug ) ); ?>"
@@ -380,16 +380,6 @@ if ( ! is_array( $tiers ) ) {
                                 <p class="description"><?php esc_html_e( 'Αφήστε κενό για χρήση του email του site.', 'epappous-club' ); ?></p>
                             </div>
 
-                            <div class="epc-field-row">
-                                <label for="epc_cassette_gift_email_body"><?php esc_html_e( 'Email Κασσετίνα Δώρο', 'epappous-club' ); ?></label>
-                                <textarea id="epc_cassette_gift_email_body"
-                                          name="epc_cassette_gift_email_body"
-                                          class="large-text"
-                                          rows="6"
-                                          placeholder="<?php echo esc_attr__( 'Γράψε εδώ το περιεχόμενο email που θα σταλεί με το κουμπί «Ενημέρωση πελάτη για κασσετίνα».', 'epappous-club' ); ?>"><?php echo esc_textarea( EPC_Settings::get( 'epc_cassette_gift_email_body' ) ); ?></textarea>
-                                <p class="description"><?php esc_html_e( 'Το περιεχόμενο αυτό αποστέλλεται στον πελάτη όταν πατηθεί το κουμπί «Ενημέρωση πελάτη για κασσετίνα» μέσα στην παραγγελία. Αν μείνει κενό, στέλνεται προεπιλεγμένο μήνυμα με σύνδεσμο στην αρχική σελίδα. Αν στο WooCommerce είναι ενεργή η εξαίρεση κασσετίνας για B2B και ο πελάτης ανήκει σε ομάδα της λίστας, το email δεν αποστέλλεται.', 'epappous-club' ); ?></p>
-                            </div>
-
                             <?php
                             $notifications = [
                                 'epc_notify_new_member'        => __( 'Νέο Μέλος', 'epappous-club' ),
@@ -448,7 +438,7 @@ if ( ! is_array( $tiers ) ) {
                                            <?php checked( EPC_Settings::get( 'epc_cassette_gift_enabled' ), '1' ); ?> />
                                     <span class="epc-toggle-slider"></span>
                                 </label>
-                                <p class="description"><?php esc_html_e( 'Όταν είναι ενεργό, για τους πελάτες στις B2B ομάδες της λίστας παρακάτω κρύβεται το «Κασσετίνα - Δώρο» (παραγγελία & προφίλ) και δεν στέλνεται το email. Όταν είναι απενεργοποιημένο, ισχύει για όλους — η λίστα αγνοείται (και για ομάδα 34).', 'epappous-club' ); ?></p>
+                                <p class="description"><?php esc_html_e( 'Όταν είναι ενεργό, για τους πελάτες στις B2B ομάδες της λίστας παρακάτω κρύβεται το «Κασσετίνα - Δώρο» (παραγγελία & προφίλ). Όταν είναι απενεργοποιημένο, ισχύει για όλους — η λίστα αγνοείται (και για ομάδα 34).', 'epappous-club' ); ?></p>
                             </div>
 
                             <div class="epc-field-row">
@@ -468,7 +458,7 @@ if ( ! is_array( $tiers ) ) {
                                        class="small-text"
                                        min="0"
                                        step="0.01" />
-                                <p class="description"><?php esc_html_e( 'Αν η παραγγελία είναι κάτω από αυτό το ποσό, στο order metabox εμφανίζεται μήνυμα «ΔΕΝ δικαιούται κασσετίνα δώρο» και δεν εμφανίζεται το κουμπί αποστολής email. Προεπιλογή: 39.', 'epappous-club' ); ?></p>
+                                <p class="description"><?php esc_html_e( 'Αν η παραγγελία είναι κάτω από αυτό το ποσό, στο order metabox εμφανίζεται ότι ο πελάτης δεν δικαιούται κασσετίνα για αυτή την παραγγελία. Προεπιλογή: 39.', 'epappous-club' ); ?></p>
                             </div>
 
                             <hr class="epc-divider" />

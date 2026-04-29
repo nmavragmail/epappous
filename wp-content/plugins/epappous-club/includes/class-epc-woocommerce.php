@@ -133,7 +133,6 @@ class EPC_WooCommerce {
         add_action( 'woocommerce_review_order_after_submit', [ $this, 'render_referral_cart_box' ] );
         add_action( 'wp_ajax_epc_apply_points_discount', [ $this, 'ajax_apply_discount' ] );
         add_action( 'wp_ajax_epc_remove_points_discount', [ $this, 'ajax_remove_discount' ] );
-        add_action( 'wp_ajax_epc_send_cassette_gift_email', [ $this, 'ajax_send_cassette_gift_email' ] );
         add_action( 'woocommerce_cart_calculate_fees', [ $this, 'apply_points_fee' ] );
         add_action( 'woocommerce_checkout_order_processed', [ $this, 'record_points_redemption' ], 20 );
         add_action( 'woocommerce_store_api_checkout_update_order_from_request', [ $this, 'record_points_redemption_from_blocks' ], 20, 2 );
@@ -513,17 +512,19 @@ class EPC_WooCommerce {
             return;
         }
 
-        $received             = $this->user_has_cassette_gift_received( $user_id );
-        $qualifies_by_amount  = $this->order_qualifies_for_cassette_gift( $order );
+        $received            = $this->user_has_cassette_gift_received( $user_id );
+        $qualifies_by_amount = $this->order_qualifies_for_cassette_gift( $order );
         $min_order_amount     = $this->cassette_gift_min_order_amount();
-        $raw_date = (string) get_user_meta( $user_id, 'epc_cassette_gift_date', true );
-        $date_txt = '—';
+        $raw_date             = (string) get_user_meta( $user_id, 'epc_cassette_gift_date', true );
+        $date_txt             = '—';
         if ( '' !== $raw_date ) {
             $ts = strtotime( $raw_date . ' 12:00:00' );
             $date_txt = $ts ? date_i18n( get_option( 'date_format' ), $ts ) : $raw_date;
         }
 
-        echo '<p><strong>' . esc_html__( 'Έχει πάρει Κασσετίνα - Δώρο:', 'epappous-club' ) . '</strong> ' .
+        echo '<p><strong>' . esc_html__( 'Δικαιούται για αυτή την παραγγελία:', 'epappous-club' ) . '</strong> ' .
+            esc_html( $qualifies_by_amount ? __( 'Ναι', 'epappous-club' ) : __( 'Όχι', 'epappous-club' ) ) . '</p>';
+        echo '<p><strong>' . esc_html__( 'Έχει πάρει Κασσετίνα - Δώρο (πεδίο χρήστη):', 'epappous-club' ) . '</strong> ' .
             esc_html( $received ? __( 'Ναι', 'epappous-club' ) : __( 'Όχι', 'epappous-club' ) ) . '</p>';
         echo '<p><strong>' . esc_html__( 'Ημερομηνία δώρου:', 'epappous-club' ) . '</strong> ' . esc_html( $date_txt ) . '</p>';
         if ( ! $qualifies_by_amount ) {
@@ -535,100 +536,19 @@ class EPC_WooCommerce {
                     wp_kses_post( wc_price( $min_order_amount, [ 'currency' => $order->get_currency() ] ) )
                 ) .
             '</p>';
-        } elseif ( ! $received ) {
-            echo '<div class="epc-order-gift-actions" style="margin-top:10px;">';
-            echo '<button type="button" class="button button-primary epc-send-cassette-email-btn" data-order-id="' . (int) $order->get_id() . '" data-user-id="' . (int) $user_id . '" data-nonce="' . esc_attr( wp_create_nonce( 'epc_admin_nonce' ) ) . '" data-ajax-url="' . esc_url( admin_url( 'admin-ajax.php' ) ) . '">' . esc_html__( 'Ενημέρωση πελάτη για κασσετίνα', 'epappous-club' ) . '</button>';
-            echo '<p class="epc-order-gift-msg" style="display:none;margin-top:8px;"></p>';
-            echo '</div>';
-        } else {
-            echo '<p style="margin-top:10px;color:#6b7280;">' . esc_html__( 'έχει ήδη σταλεί ενημέρωση για την Κασσετίνα δώρο', 'epappous-club' ) . '</p>';
-        }
-        ?>
-        <?php
-    }
-
-    /**
-     * AJAX: Send cassette gift update email from order metabox and mark user as received gift.
-     */
-    public function ajax_send_cassette_gift_email(): void {
-        check_ajax_referer( 'epc_admin_nonce', 'nonce' );
-        if ( ! EPC_Capabilities::current_user_can_manage_club() ) {
-            wp_send_json_error( 'Unauthorized', 403 );
         }
 
-        $order_id = (int) ( $_POST['order_id'] ?? 0 );
-        $user_id  = (int) ( $_POST['user_id'] ?? 0 );
-        if ( $order_id < 1 || $user_id < 1 ) {
-            wp_send_json_error( __( 'Λείπουν δεδομένα παραγγελίας/χρήστη.', 'epappous-club' ) );
-        }
-        if ( ! EPC_Capabilities::current_user_can_edit_wp_user( $user_id ) ) {
-            wp_send_json_error( 'Forbidden', 403 );
-        }
-
-        if ( EPC_Settings::cassette_gift_ui_hidden_for_wp_user( $user_id ) ) {
-            wp_send_json_error( __( 'Η κασσετίνα δώρο δεν ισχύει για αυτόν τον τύπο πελάτη.', 'epappous-club' ) );
-        }
-
-        if ( $this->user_has_cassette_gift_received( $user_id ) ) {
-            wp_send_json_error( __( 'έχει ήδη σταλεί ενημέρωση για την Κασσετίνα δώρο', 'epappous-club' ) );
-        }
-
-        $order = wc_get_order( $order_id );
-        if ( ! $order instanceof \WC_Order ) {
-            wp_send_json_error( __( 'Δεν βρέθηκε παραγγελία.', 'epappous-club' ) );
-        }
-
-        if ( ! $this->order_qualifies_for_cassette_gift( $order ) ) {
-            wp_send_json_error( __( 'ΔΕΝ δικαιούται κασσετίνα δώρο.', 'epappous-club' ) );
-        }
-
-        $to_email = sanitize_email( (string) $order->get_billing_email() );
-        if ( ! is_email( $to_email ) ) {
-            $wp_user = get_userdata( $user_id );
-            if ( $wp_user && is_email( $wp_user->user_email ) ) {
-                $to_email = sanitize_email( $wp_user->user_email );
-            }
-        }
-        if ( ! is_email( $to_email ) ) {
-            wp_send_json_error( __( 'Δεν βρέθηκε έγκυρο email πελάτη.', 'epappous-club' ) );
-        }
-
-        $subject = __( 'Ενημέρωση για κασσετίνα δώρο', 'epappous-club' );
-        $body    = (string) EPC_Settings::get( 'epc_cassette_gift_email_body' );
-        if ( trim( wp_strip_all_tags( $body ) ) === '' ) {
-            $body = sprintf(
-                "%s\n\n%s",
-                __( 'Η ενημέρωση για την κασσετίνα δώρο είναι έτοιμη.', 'epappous-club' ),
-                home_url( '/' )
+        $audit = EPC_User_Profile::get_cassette_audit_for_display( $user_id );
+        if ( $audit ) {
+            echo '<p style="margin-top:12px;font-size:12px;color:#50575e;">';
+            printf(
+                /* translators: 1: admin name, 2: datetime */
+                esc_html__( 'Τελευταία ενημέρωση πεδίου στο προφίλ: %1$s — %2$s', 'epappous-club' ),
+                esc_html( $audit['editor_name'] ),
+                esc_html( $audit['edited_at'] )
             );
+            echo '</p>';
         }
-
-        $headers = [ 'Content-Type: text/html; charset=UTF-8' ];
-        $sent    = wp_mail( $to_email, $subject, wpautop( $body ), $headers );
-        if ( ! $sent ) {
-            wp_send_json_error( __( 'Η αποστολή email απέτυχε.', 'epappous-club' ) );
-        }
-
-        update_user_meta( $user_id, EPC_User_Profile::USER_META_CASSETTE, 'yes' );
-        update_user_meta( $user_id, EPC_User_Profile::USER_META_CASSETTE_DATE, gmdate( 'Y-m-d', current_time( 'timestamp' ) ) );
-        update_user_meta( $user_id, EPC_User_Profile::USER_META_CASSETTE_EDITED_BY, get_current_user_id() );
-        update_user_meta( $user_id, EPC_User_Profile::USER_META_CASSETTE_EDITED_AT, current_time( 'mysql' ) );
-
-        $order->add_order_note(
-            sprintf(
-                /* translators: %s: recipient email */
-                __( 'Pappou Club: στάλθηκε email «Ενημέρωση πελάτη για κασσετίνα» στο %s και ενημερώθηκε το πεδίο δώρου.', 'epappous-club' ),
-                $to_email
-            )
-        );
-        $order->save();
-
-        wp_send_json_success(
-            [
-                'message'   => __( 'Το email στάλθηκε και το πεδίο δώρου ενημερώθηκε σε ΝΑΙ.', 'epappous-club' ),
-                'date_text' => date_i18n( get_option( 'date_format' ) ),
-            ]
-        );
     }
 
     /**
