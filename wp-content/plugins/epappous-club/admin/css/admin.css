@@ -1755,8 +1755,6 @@
 
 .epc-points-table .column-admin { width: 100px; }
 
-/* ── Member username in points log ── */
-
 .epc-member-link {
     text-decoration: none;
     color: var(--epc-primary);
@@ -1765,11 +1763,6 @@
 .epc-member-link:hover {
     text-decoration: underline;
     color: var(--epc-primary-dark);
-}
-
-.epc-member-username {
-    color: var(--epc-gray-500);
-    font-style: italic;
 }
 
 /* ── Member filter banner ── */
@@ -1804,11 +1797,6 @@
 .epc-member-filter-info strong {
     font-size: 15px;
     color: var(--epc-gray-800);
-}
-
-.epc-member-filter-username {
-    color: var(--epc-gray-500);
-    font-style: italic;
 }
 
 .epc-member-filter-email {
