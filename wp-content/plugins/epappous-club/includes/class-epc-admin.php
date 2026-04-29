@@ -16,12 +16,27 @@ class EPC_Admin {
 
     private function __construct() {
         add_action( 'admin_menu', [ $this, 'register_menus' ] );
+        add_action( 'admin_init', [ $this, 'maybe_redirect_old_member_submenu' ], 20 );
         add_action( 'admin_enqueue_scripts', [ $this, 'enqueue_assets' ] );
+    }
+
+    /**
+     * Legacy URL `?page=epc-members` → Πίνακας Ελέγχου με άγκυρα για τη λίστα μελών.
+     */
+    public function maybe_redirect_old_member_submenu(): void {
+        global $pagenow;
+        if ( 'admin.php' !== $pagenow ) {
+            return;
+        }
+        if ( isset( $_GET['page'] ) && 'epc-members' === sanitize_text_field( wp_unslash( $_GET['page'] ) ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+            wp_safe_redirect( admin_url( 'admin.php?page=epc-dashboard#epc-dashboard-members-anchor' ) );
+            exit;
+        }
     }
 
     public function register_menus() {
         add_menu_page(
-            __( 'Pappou Club', 'epappous-club' ),
+            __( 'Πίνακας Ελέγχου', 'epappous-club' ),
             __( 'Pappou Club', 'epappous-club' ),
             'manage_options',
             'epc-dashboard',
@@ -32,11 +47,11 @@ class EPC_Admin {
 
         add_submenu_page(
             'epc-dashboard',
-            __( 'Μέλη', 'epappous-club' ),
-            __( 'Μέλη', 'epappous-club' ),
+            __( 'Πίνακας Ελέγχου', 'epappous-club' ),
+            __( 'Πίνακας Ελέγχου', 'epappous-club' ),
             'manage_options',
-            'epc-members',
-            [ $this, 'render_members' ]
+            'epc-dashboard',
+            [ $this, 'render_dashboard' ]
         );
 
         add_submenu_page(
@@ -50,8 +65,8 @@ class EPC_Admin {
 
         add_submenu_page(
             'epc-dashboard',
-            __( 'Referrals', 'epappous-club' ),
-            __( 'Referrals', 'epappous-club' ),
+            __( 'Ιστορικό Referrals', 'epappous-club' ),
+            __( 'Ιστορικό Referrals', 'epappous-club' ),
             'manage_options',
             'epc-referrals',
             [ $this, 'render_referrals' ]
@@ -59,8 +74,8 @@ class EPC_Admin {
 
         add_submenu_page(
             'epc-dashboard',
-            __( 'Ιστορικό Πόντων', 'epappous-club' ),
-            __( 'Ιστορικό Πόντων', 'epappous-club' ),
+            __( 'Ιστορικό πόντων', 'epappous-club' ),
+            __( 'Ιστορικό πόντων', 'epappous-club' ),
             'manage_options',
             'epc-points-log',
             [ $this, 'render_points_log' ]
@@ -68,7 +83,17 @@ class EPC_Admin {
     }
 
     public function enqueue_assets( $hook ) {
-        $is_epc_page = strpos( $hook, 'epc-' ) !== false;
+        $hook = (string) $hook;
+
+        $is_epc = false !== strpos( $hook, 'epc-' );
+        if ( ! $is_epc ) {
+            $scr = function_exists( 'get_current_screen' ) ? get_current_screen() : null;
+            $id  = ( $scr && isset( $scr->id ) ) ? (string) $scr->id : '';
+            if ( $id && preg_match( '/epc-dashboard|epc-settings|epc-referrals|epc-points-log/i', $id ) ) {
+                $is_epc = true;
+            }
+        }
+
         $is_profile  = in_array( $hook, [ 'profile.php', 'user-edit.php' ], true );
         $is_wc_order = false;
 
@@ -80,17 +105,14 @@ class EPC_Admin {
             }
         }
 
-        if ( ! $is_epc_page && ! $is_profile && ! $is_wc_order ) {
+        if ( ! $is_epc && ! $is_profile && ! $is_wc_order ) {
             return;
         }
 
-        // Page-specific extras only where actually used. Loading wp-color-picker
-        // and wp.media on every epc-* / user-edit page slows wp-admin a lot.
-        $needs_color_picker = ( 'epc-dashboard_page_epc-settings' === $hook )
-            || ( 'pappou-club_page_epc-settings' === $hook )
-            || ( 'toplevel_page_epc-settings' === $hook )
-            || ( false !== strpos( (string) $hook, 'epc-settings' ) );
-        $needs_debug_i18n   = ( false !== strpos( (string) $hook, 'epc-points-log' ) );
+        // Page-specific extras only where actually used.
+        $needs_color_picker    = false !== strpos( $hook, 'epc-settings' );
+        $needs_debug_i18n      = false !== strpos( $hook, 'epc-points-log' );
+        $needs_settings_tab_js = $needs_color_picker;
 
         $script_deps = [ 'jquery', 'wp-i18n' ];
         if ( $needs_color_picker ) {
@@ -126,6 +148,16 @@ class EPC_Admin {
             wp_enqueue_style( 'wp-color-picker' );
         }
 
+        if ( $needs_settings_tab_js ) {
+            wp_enqueue_script(
+                'epc-settings-tabs',
+                EPC_PLUGIN_URL . 'admin/js/settings-tabs.js',
+                [],
+                EPC_VERSION,
+                true
+            );
+        }
+
         $i18n = [
             'confirmDeleteNote' => __( 'Διαγραφή σημείωσης;', 'epappous-club' ),
             'saved'            => __( 'Αποθηκεύτηκε!', 'epappous-club' ),
@@ -155,6 +187,7 @@ class EPC_Admin {
             'apply'                 => __( 'Εφαρμογή', 'epappous-club' ),
             'confirmDeleteRule'     => __( 'Διαγραφή κανόνα;', 'epappous-club' ),
             'genericError'          => __( 'Σφάλμα', 'epappous-club' ),
+            'alreadySentCassetteGift' => __( 'έχει ήδη σταλεί ενημέρωση για την Κασσετίνα δώρο', 'epappous-club' ),
             'cassetteEmailSending'  => __( 'Αποστολή...', 'epappous-club' ),
             'cassetteEmailButton'   => __( 'Ενημέρωση πελάτη για κασσετίνα', 'epappous-club' ),
         ];
@@ -321,10 +354,6 @@ JS;
 
     public function render_dashboard() {
         include EPC_PLUGIN_DIR . 'templates/admin-dashboard.php';
-    }
-
-    public function render_members() {
-        include EPC_PLUGIN_DIR . 'templates/admin-members.php';
     }
 
     public function render_settings() {

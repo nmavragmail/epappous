@@ -10,8 +10,10 @@ $search       = isset( $_GET['s'] )         ? sanitize_text_field( wp_unslash( $
 $filter_mid   = isset( $_GET['member_id'] ) ? (int) $_GET['member_id']                          : 0;  // phpcs:ignore
 $filter_month = isset( $_GET['month'] )     ? max( 0, min( 12, (int) $_GET['month'] ) )         : 0;  // phpcs:ignore
 $filter_year  = isset( $_GET['year'] )      ? max( 0, (int) $_GET['year'] )                     : 0;  // phpcs:ignore
-$page         = max( 1, (int) ( $_GET['paged'] ?? 1 ) ); // phpcs:ignore
-$per_page     = 100;
+$page     = max( 1, (int) ( $_GET['paged'] ?? 1 ) ); // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+$per_page = class_exists( 'EPC_Admin_Screen_Options' )
+    ? EPC_Admin_Screen_Options::get_saved( EPC_Admin_Screen_Options::OPTION_POINTS )
+    : 50;
 $offset       = ( $page - 1 ) * $per_page;
 
 $where  = '1=1';
@@ -112,7 +114,10 @@ $reason_labels = [
 
 // Build base URL for pagination (preserve search / member_id / month / year)
 function epc_log_page_url( $p ) {
-    $args  = [ 'page' => 'epc-points-log', 'paged' => $p ];
+    $args  = [
+        'page'  => 'epc-points-log',
+        'paged' => max( 1, (int) $p ),
+    ];
     $mid   = isset( $_GET['member_id'] ) ? (int) $_GET['member_id'] : 0; // phpcs:ignore
     $s     = isset( $_GET['s'] )         ? sanitize_text_field( wp_unslash( $_GET['s'] ) ) : ''; // phpcs:ignore
     $month = isset( $_GET['month'] )     ? max( 0, min( 12, (int) $_GET['month'] ) ) : 0; // phpcs:ignore
@@ -158,7 +163,7 @@ $month_labels = [
     <div class="epc-header">
         <h1>
             <span class="dashicons dashicons-list-view"></span>
-            <?php esc_html_e( 'Ιστορικό Πόντων', 'epappous-club' ); ?>
+            <?php esc_html_e( 'Ιστορικό πόντων', 'epappous-club' ); ?>
         </h1>
         <div style="display:flex;align-items:center;gap:12px;">
             <span class="epc-header-count">

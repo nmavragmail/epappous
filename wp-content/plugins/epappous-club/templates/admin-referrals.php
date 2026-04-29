@@ -5,8 +5,10 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 global $wpdb;
 
-$page     = max( 1, (int) ( $_GET['paged'] ?? 1 ) ); // phpcs:ignore
-$per_page = 20;
+$page     = max( 1, (int) ( $_GET['paged'] ?? 1 ) ); // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+$per_page = class_exists( 'EPC_Admin_Screen_Options' )
+    ? EPC_Admin_Screen_Options::get_saved( EPC_Admin_Screen_Options::OPTION_REF_MAIN )
+    : 50;
 $offset   = ( $page - 1 ) * $per_page;
 
 $total = (int) $wpdb->get_var( "SELECT COUNT(*) FROM {$wpdb->prefix}epc_referrals" );
@@ -26,14 +28,32 @@ $referrals = $wpdb->get_results(
     ARRAY_A
 );
 
-$total_pages = ceil( $total / $per_page );
+$total_pages = max( 1, (int) ceil( max( $total, 1 ) / max( $per_page, 1 ) ) );
+
+$ref_page_base = esc_url_raw(
+    add_query_arg(
+        'paged',
+        '%#%',
+        admin_url( 'admin.php?page=epc-referrals' )
+    )
+);
 
 // --- Pending / converted referral clicks --------------------------------
-$click_per_page = 50;
+$click_per_page = class_exists( 'EPC_Admin_Screen_Options' )
+    ? EPC_Admin_Screen_Options::get_saved( EPC_Admin_Screen_Options::OPTION_REF_CLICKS )
+    : 50;
 $click_page     = max( 1, (int) ( $_GET['cpaged'] ?? 1 ) ); // phpcs:ignore
 $click_offset   = ( $click_page - 1 ) * $click_per_page;
 $click_total    = (int) $wpdb->get_var( "SELECT COUNT(*) FROM {$wpdb->prefix}epc_referral_clicks" );
-$click_pages    = $click_total > 0 ? (int) ceil( $click_total / $click_per_page ) : 0;
+$click_pages    = $click_total > 0 ? (int) ceil( $click_total / max( $click_per_page, 1 ) ) : 0;
+
+$click_page_base = esc_url_raw(
+    add_query_arg(
+        'cpaged',
+        '%#%',
+        admin_url( 'admin.php?page=epc-referrals' )
+    )
+);
 
 $clicks = [];
 if ( $click_total > 0 ) {
@@ -67,7 +87,7 @@ $now_ts      = (int) current_time( 'U' );
     <div class="epc-header">
         <h1>
             <span class="dashicons dashicons-share"></span>
-            <?php esc_html_e( 'Referrals', 'epappous-club' ); ?>
+            <?php esc_html_e( 'Ιστορικό Referrals', 'epappous-club' ); ?>
         </h1>
     </div>
 
@@ -169,7 +189,7 @@ $now_ts      = (int) current_time( 'U' );
                 <div class="tablenav-pages">
                     <?php
                     echo paginate_links( [
-                        'base'    => add_query_arg( 'paged', '%#%' ),
+                        'base'    => $ref_page_base,
                         'format'  => '',
                         'current' => $page,
                         'total'   => $total_pages,
@@ -507,7 +527,7 @@ $now_ts      = (int) current_time( 'U' );
                 <div class="tablenav-pages">
                     <?php
                     echo paginate_links( [
-                        'base'    => add_query_arg( 'cpaged', '%#%' ),
+                        'base'    => $click_page_base,
                         'format'  => '',
                         'current' => $click_page,
                         'total'   => $click_pages,

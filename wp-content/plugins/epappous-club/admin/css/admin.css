@@ -79,7 +79,18 @@
     color: #fff;
 }
 
-.epc-version {
+.epc-header h1 .epc-dash-subtitle {
+    font-weight: 400;
+    font-size: 0.85em;
+    opacity: 0.92;
+    margin-left: 10px;
+    letter-spacing: 0.01em;
+}
+
+.epc-muted {
+    color: #64748b;
+}
+
     font-size: 12px;
     opacity: 0.7;
     margin-left: 12px;
