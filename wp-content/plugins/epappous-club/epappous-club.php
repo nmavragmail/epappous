@@ -3,9 +3,9 @@
  * Plugin Name: ePappous Club
  * Plugin URI: https://epappous.gr
  * Description: Loyalty & membership club with referral tracking, gift products, and full settings management.
- * Version: 1.15.9
- * Author: ePappous
- * Author URI: https://epappous.gr
+ * Version: 1.15.10
+ * Author: 2NET
+ * Author URI: https://2net.gr
  * Text Domain: epappous-club
  * Domain Path: /languages
  * Requires at least: 5.8
@@ -17,7 +17,7 @@ if ( ! defined( 'ABSPATH' ) ) {
     exit;
 }
 
-define( 'EPC_VERSION', '1.15.9' );
+define( 'EPC_VERSION', '1.15.10' );
 define( 'EPC_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'EPC_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
 define( 'EPC_PLUGIN_BASENAME', plugin_basename( __FILE__ ) );

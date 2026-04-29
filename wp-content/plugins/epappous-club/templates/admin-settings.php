@@ -375,16 +375,6 @@ if ( ! is_array( $tiers ) ) {
                                 <p class="description"><?php esc_html_e( 'Αφήστε κενό για χρήση του email του site.', 'epappous-club' ); ?></p>
                             </div>
 
-                            <div class="epc-field-row">
-                                <label for="epc_cassette_gift_email_body"><?php esc_html_e( 'Email Κασσετίνα Δώρο', 'epappous-club' ); ?></label>
-                                <textarea id="epc_cassette_gift_email_body"
-                                          name="epc_cassette_gift_email_body"
-                                          class="large-text"
-                                          rows="6"
-                                          placeholder="<?php echo esc_attr__( 'Γράψε εδώ το περιεχόμενο email που θα σταλεί με το κουμπί «Ενημέρωση πελάτη για κασσετίνα».', 'epappous-club' ); ?>"><?php echo esc_textarea( EPC_Settings::get( 'epc_cassette_gift_email_body' ) ); ?></textarea>
-                                <p class="description"><?php esc_html_e( 'Το περιεχόμενο αυτό αποστέλλεται στον πελάτη όταν πατηθεί το κουμπί «Ενημέρωση πελάτη για κασσετίνα» μέσα στην παραγγελία. Αν μείνει κενό, στέλνεται προεπιλεγμένο μήνυμα με σύνδεσμο στην αρχική σελίδα.', 'epappous-club' ); ?></p>
-                            </div>
-
                             <?php
                             $notifications = [
                                 'epc_notify_new_member'        => __( 'Νέο Μέλος', 'epappous-club' ),
@@ -433,6 +423,37 @@ if ( ! is_array( $tiers ) ) {
                                         <?php esc_html_e( 'Το B2B King δεν φαίνεται ενεργό — οι έλεγχοι ομάδας θα απορρίπτουν όλους μέχρι να φορτωθεί το plugin.', 'epappous-club' ); ?>
                                     </p>
                                 <?php endif; ?>
+                            </div>
+
+                            <div class="epc-field-row">
+                                <label for="epc_cassette_gift_enabled"><?php esc_html_e( 'Εξαίρεση κασσετίνας δώρου για B2B ομάδες (λίστα παρακάτω)', 'epappous-club' ); ?></label>
+                                <label class="epc-toggle">
+                                    <input type="hidden" name="epc_cassette_gift_enabled" value="0" />
+                                    <input type="checkbox" id="epc_cassette_gift_enabled" name="epc_cassette_gift_enabled" value="1"
+                                           <?php checked( EPC_Settings::get( 'epc_cassette_gift_enabled' ), '1' ); ?> />
+                                    <span class="epc-toggle-slider"></span>
+                                </label>
+                                <p class="description"><?php esc_html_e( 'Όταν είναι ενεργό, οι χρήστες των ομάδων της λίστας δεν δικαιούνται να εμφανίζεται το πλαίσιο Κασσετίνα - Δώρο στις παραγγελίες και στο προφίλ διαχείρισης. Όταν είναι απενεργοποιημένο, η λίστα αγνοείται.', 'epappous-club' ); ?></p>
+                            </div>
+
+                            <div class="epc-field-row">
+                                <label for="epc_cassette_gift_exclude_b2b_group_ids"><?php esc_html_e( 'B2B King group IDs χωρίς κασσετίνα (όταν το παραπάνω είναι ενεργό)', 'epappous-club' ); ?></label>
+                                <input type="text" id="epc_cassette_gift_exclude_b2b_group_ids" name="epc_cassette_gift_exclude_b2b_group_ids"
+                                       value="<?php echo esc_attr( EPC_Settings::get( 'epc_cassette_gift_exclude_b2b_group_ids' ) ); ?>"
+                                       class="regular-text" placeholder="34" />
+                                <p class="description"><?php esc_html_e( 'Post ID ομάδων B2B King χωρισμένα με κόμμα. Προεπιλογή: 34.', 'epappous-club' ); ?></p>
+                            </div>
+
+                            <div class="epc-field-row">
+                                <label for="epc_cassette_gift_min_order"><?php esc_html_e( 'Ελάχιστη αξία παραγγελίας για κασσετίνα δώρο', 'epappous-club' ); ?> (<?php echo esc_html( get_woocommerce_currency_symbol() ); ?>)</label>
+                                <input type="number"
+                                       id="epc_cassette_gift_min_order"
+                                       name="epc_cassette_gift_min_order"
+                                       value="<?php echo esc_attr( EPC_Settings::get( 'epc_cassette_gift_min_order' ) ); ?>"
+                                       class="small-text"
+                                       step="0.01"
+                                       min="0" />
+                                <p class="description"><?php esc_html_e( 'Η κασσετίνα για αυτή την παραγγελία εμφανίζεται για δικαιούχους όταν η συνολική αξία παραγγελίας είναι >= αυτής της τιμής (κανονικά το συνολικό πληρωμένο στο checkout). Κάτω από το όριο εμφανίζεται «ΔΕΝ δικαιούται». Προεπιλογή: 39.', 'epappous-club' ); ?></p>
                             </div>
 
                             <hr class="epc-divider" />

@@ -108,4 +108,30 @@ class EPC_B2BKing {
         // Verify final membership.
         return self::user_in_pappou_club( $user_id );
     }
+
+    /**
+     * Raw B2B King group post ID for a WP user (0 if unknown).
+     */
+    public static function get_user_b2b_group_id( int $user_id ): int {
+        if ( $user_id < 1 || ! self::is_active() ) {
+            return 0;
+        }
+
+        return max( 0, (int) b2bking()->get_user_group( $user_id ) );
+    }
+
+    /**
+     * Whether the user's B2B group is in an exclude list (e.g. no cassette UI).
+     *
+     * @param int   $user_id WordPress user ID.
+     * @param int[] $exclude_ids B2B King group post IDs.
+     */
+    public static function user_b2b_group_is_excluded( int $user_id, array $exclude_ids ): bool {
+        $gid = self::get_user_b2b_group_id( $user_id );
+        if ( $gid < 1 || empty( $exclude_ids ) ) {
+            return false;
+        }
+
+        return in_array( $gid, array_map( 'absint', $exclude_ids ), true );
+    }
 }

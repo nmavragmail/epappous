@@ -102,7 +102,6 @@ class EPC_Settings {
             'epc_notify_referral_complete'  => '1',
             'epc_notify_tier_upgrade'       => '1',
             'epc_admin_email'               => '',
-            'epc_cassette_gift_email_body'  => '',
 
             // ── WooCommerce integration ──
             'epc_woo_earn_on_complete'      => '1',
@@ -110,6 +109,9 @@ class EPC_Settings {
             'epc_woo_exclude_sale_items'    => '0',
             'epc_woo_exclude_categories'    => wp_json_encode( [] ),
             'epc_woo_earn_include_shipping' => '0',
+            'epc_cassette_gift_enabled'              => '1',
+            'epc_cassette_gift_exclude_b2b_group_ids' => '34',
+            'epc_cassette_gift_min_order'            => '39',
 
             // ── WooCommerce gift products (purchased with points only) ──
             'epc_woo_gift_category'             => '0',
@@ -164,6 +166,9 @@ class EPC_Settings {
             'epc_woo_earn_on_complete', 'epc_woo_earn_statuses',
             'epc_woo_exclude_sale_items', 'epc_woo_exclude_categories',
             'epc_woo_earn_include_shipping',
+            'epc_cassette_gift_enabled',
+            'epc_cassette_gift_exclude_b2b_group_ids',
+            'epc_cassette_gift_min_order',
             'epc_woo_gift_category', 'epc_woo_gift_allow_redeem_stack',
         ];
 
@@ -194,10 +199,28 @@ class EPC_Settings {
 
         register_setting(
             'epc_settings_group',
-            'epc_cassette_gift_email_body',
+            'epc_cassette_gift_enabled',
             [
-                'sanitize_callback' => 'wp_kses_post',
-                'default'           => '',
+                'sanitize_callback' => [ self::class, 'sanitize_yes_no' ],
+                'default'           => '1',
+            ]
+        );
+
+        register_setting(
+            'epc_settings_group',
+            'epc_cassette_gift_exclude_b2b_group_ids',
+            [
+                'sanitize_callback' => [ self::class, 'sanitize_comma_separated_ints' ],
+                'default'           => '34',
+            ]
+        );
+
+        register_setting(
+            'epc_settings_group',
+            'epc_cassette_gift_min_order',
+            [
+                'sanitize_callback' => [ self::class, 'sanitize_non_negative_float_string' ],
+                'default'           => '39',
             ]
         );
     }
@@ -214,5 +237,115 @@ class EPC_Settings {
      */
     public static function sanitize_non_negative_int( $value ): string {
         return (string) max( 0, absint( $value ) );
+    }
+
+    /**
+     * Non-negative decimal string for WooCommerce currency amounts (e.g. min order totals).
+     */
+    public static function sanitize_non_negative_float_string( $value ): string {
+        if ( null === $value || '' === (string) $value ) {
+            return '0';
+        }
+        $n = wc_format_decimal( (string) $value, wc_get_price_decimals() );
+        return (float) $n >= 0 ? $n : '0';
+    }
+
+    /**
+     * Sanitize 0/1 toggle stored as string.
+     */
+    public static function sanitize_yes_no( $value ): string {
+        return (string) ( (string) $value === '1' ? '1' : '0' );
+    }
+
+    /**
+     * Comma-separated positive integers (B2B King group post IDs).
+     *
+     * @param mixed $value Raw value from settings save.
+     */
+    public static function sanitize_comma_separated_ints( $value ): string {
+        if ( ! is_string( $value ) ) {
+            return '';
+        }
+        $parts = array_filter( array_map( 'trim', explode( ',', $value ) ) );
+        $ids   = [];
+        foreach ( $parts as $p ) {
+            $n = absint( $p );
+            if ( $n > 0 ) {
+                $ids[] = $n;
+            }
+        }
+        $ids = array_values( array_unique( $ids ) );
+        sort( $ids );
+        return implode( ',', $ids );
+    }
+
+    /**
+     * Parsed list of B2B King group IDs excluded from cassette gift (admin UI).
+     *
+     * @return int[]
+     */
+    public static function get_cassette_gift_exclude_b2b_group_ids(): array {
+        $raw = (string) self::get( 'epc_cassette_gift_exclude_b2b_group_ids' );
+        $parts = array_filter( array_map( 'trim', explode( ',', $raw ) ) );
+        $ids   = [];
+        foreach ( $parts as $p ) {
+            $n = absint( $p );
+            if ( $n > 0 ) {
+                $ids[] = $n;
+            }
+        }
+        return array_values( array_unique( $ids ) );
+    }
+
+    /**
+     * Minimum order total (excluding tax behaviour follows WooCommerce "display prices in shop").
+     *
+     * @return float
+     */
+    public static function get_cassette_gift_min_order_amount(): float {
+        $raw = (string) self::get( 'epc_cassette_gift_min_order' );
+        if ( '' === $raw ) {
+            return 0.0;
+        }
+        return max( 0.0, (float) wc_format_decimal( $raw ) );
+    }
+
+    /**
+     * Whether cassette gift admin UI should be hidden for this WP user (B2B exclusion list applies only when toggle is ON).
+     */
+    public static function cassette_gift_ui_hidden_for_wp_user( int $user_id ): bool {
+        if ( $user_id < 1 ) {
+            return true;
+        }
+        if ( self::get( 'epc_club_enabled' ) !== '1' ) {
+            return true;
+        }
+        if ( self::get( 'epc_cassette_gift_enabled' ) !== '1' ) {
+            return false;
+        }
+        $exclude = self::get_cassette_gift_exclude_b2b_group_ids();
+        if ( empty( $exclude ) ) {
+            return false;
+        }
+        return EPC_B2BKing::user_b2b_group_is_excluded( $user_id, $exclude );
+    }
+
+    /**
+     * Cassette eligibility for display on order metabox when customer is WP user linked to order.
+     */
+    public static function cassette_gift_customer_eligible_by_rules( \WC_Order $order, int $user_id ): bool {
+        if ( self::get( 'epc_club_enabled' ) !== '1' ) {
+            return false;
+        }
+        if ( self::cassette_gift_ui_hidden_for_wp_user( $user_id ) ) {
+            return false;
+        }
+        $min = self::get_cassette_gift_min_order_amount();
+        if ( $min <= 0 ) {
+            return true;
+        }
+        $total = (float) $order->get_total( 'edit' );
+
+        return $total >= $min - 0.00001;
     }
 }

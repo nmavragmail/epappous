@@ -344,46 +344,6 @@
         });
     });
 
-    $(document).on('click', '.epc-send-cassette-email-btn', function () {
-        var $btn = $(this);
-        var originalText = $btn.text();
-        var orderId = parseInt($btn.data('order-id'), 10) || 0;
-        var userId = parseInt($btn.data('user-id'), 10) || 0;
-        var nonce = $btn.data('nonce') || epcAdmin.nonce;
-        var $msg = $btn.closest('.epc-order-gift-actions').find('.epc-order-gift-msg');
-
-        if (!orderId || !userId) {
-            if ($msg.length) {
-                $msg.text(epcI('genericError')).css('color', '#ef4444').show();
-            }
-            return;
-        }
-
-        $btn.prop('disabled', true).text(epcI('cassetteEmailSending', 'Αποστολή...'));
-        $.post(epcAdmin.ajaxUrl, {
-            action: 'epc_send_cassette_gift_email',
-            order_id: orderId,
-            user_id: userId,
-            nonce: nonce
-        }, function (response) {
-            if (!$msg.length) return;
-            if (response.success) {
-                var text = (response.data && response.data.message) ? response.data.message : epcI('saved');
-                $msg.text(text).css('color', '#10b981').show();
-                setTimeout(function () { $msg.fadeOut(400); }, 3500);
-            } else {
-                var err = (response && response.data && response.data.message) ? response.data.message : (response.data || epcI('error'));
-                $msg.text(err).css('color', '#ef4444').show();
-            }
-        }).fail(function () {
-            if ($msg.length) {
-                $msg.text(epcI('error')).css('color', '#ef4444').show();
-            }
-        }).always(function () {
-            $btn.prop('disabled', false).text(originalText || epcI('cassetteEmailButton', 'Ενημέρωση πελάτη για κασσετίνα'));
-        });
-    });
-
     $(document).on('click', '.epc-add-note-btn', function () {
         var $btn = $(this);
         var userId = $btn.data('user-id');
