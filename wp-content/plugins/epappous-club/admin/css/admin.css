@@ -807,6 +807,37 @@
     padding: 20px 24px;
 }
 
+.epc-referrals-modal-content {
+    max-width: 480px;
+}
+
+.epc-referrals-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.epc-referral-person,
+.epc-referral-source {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 6px 10px;
+}
+
+.epc-referral-person {
+    padding: 10px 12px;
+    background: var(--epc-gray-50);
+    border: 1px solid var(--epc-gray-200);
+    border-radius: 6px;
+}
+
+.epc-referral-person span,
+.epc-referral-source span {
+    color: var(--epc-gray-500);
+    word-break: break-word;
+}
+
 .epc-modal-footer {
     display: flex;
     justify-content: flex-end;
@@ -1161,6 +1192,18 @@
 .epc-pf-sub {
     color: var(--epc-gray-500);
     font-size: 13px;
+}
+
+.epc-referrals-open {
+    color: var(--epc-primary) !important;
+    font-size: 13px;
+    font-weight: 600;
+    text-decoration: none;
+}
+
+.epc-referrals-open:hover {
+    color: var(--epc-primary-dark) !important;
+    text-decoration: underline;
 }
 
 .epc-pf-code {
@@ -1564,7 +1607,7 @@
     display: flex;
     align-items: center;
     gap: 4px;
-    text-transform: uppercase;
+    text-transform: none;
     letter-spacing: 0.04em;
 }
 

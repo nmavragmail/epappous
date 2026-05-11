@@ -82,46 +82,6 @@ if ( ! is_array( $tiers ) ) {
                                 <p class="description"><?php esc_html_e( 'π.χ. πόντοι, coins, stars', 'epappous-club' ); ?></p>
                             </div>
 
-                            <div class="epc-field-row">
-                                <label for="epc_currency_symbol"><?php esc_html_e( 'Σύμβολο', 'epappous-club' ); ?></label>
-                                <input type="text" id="epc_currency_symbol" name="epc_currency_symbol"
-                                       value="<?php echo esc_attr( EPC_Settings::get( 'epc_currency_symbol' ) ); ?>"
-                                       class="small-text" />
-                            </div>
-
-                            <div class="epc-field-row">
-                                <label for="epc_min_age"><?php esc_html_e( 'Ελάχιστη Ηλικία', 'epappous-club' ); ?></label>
-                                <input type="number" id="epc_min_age" name="epc_min_age"
-                                       value="<?php echo esc_attr( EPC_Settings::get( 'epc_min_age' ) ); ?>"
-                                       class="small-text" min="0" max="120" />
-                                <p class="description"><?php esc_html_e( 'Βάλτε 0 για κανέναν περιορισμό.', 'epappous-club' ); ?></p>
-                            </div>
-
-                            <div class="epc-field-row">
-                                <label for="epc_terms_page_id"><?php esc_html_e( 'Σελίδα Όρων Χρήσης', 'epappous-club' ); ?></label>
-                                <?php
-                                wp_dropdown_pages( [
-                                    'name'              => 'epc_terms_page_id',
-                                    'id'                => 'epc_terms_page_id',
-                                    'selected'          => EPC_Settings::get( 'epc_terms_page_id' ),
-                                    'show_option_none'  => __( '— Επιλέξτε σελίδα —', 'epappous-club' ),
-                                    'option_none_value' => '',
-                                ] );
-                                ?>
-                            </div>
-
-                            <div class="epc-field-row">
-                                <label for="epc_privacy_page_id"><?php esc_html_e( 'Πολιτική Απορρήτου', 'epappous-club' ); ?></label>
-                                <?php
-                                wp_dropdown_pages( [
-                                    'name'              => 'epc_privacy_page_id',
-                                    'id'                => 'epc_privacy_page_id',
-                                    'selected'          => EPC_Settings::get( 'epc_privacy_page_id' ),
-                                    'show_option_none'  => __( '— Επιλέξτε σελίδα —', 'epappous-club' ),
-                                    'option_none_value' => '',
-                                ] );
-                                ?>
-                            </div>
                         </div>
                     </div>
                 </div>
