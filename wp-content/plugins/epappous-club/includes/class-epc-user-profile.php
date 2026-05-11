@@ -112,14 +112,28 @@ class EPC_User_Profile {
                     <?php
                     $referred_members = $wpdb->get_results(
                         $wpdb->prepare(
-                            "SELECT DISTINCT m.id, m.user_id, m.first_name, m.last_name, m.email
+                            "SELECT m.id, m.user_id, m.first_name, m.last_name, m.email,
+                                    MIN(c.first_clicked_at) AS first_clicked_at,
+                                    COALESCE(
+                                        MAX(CASE WHEN r.status = 'completed' THEN r.completed_at END),
+                                        MAX(c.rewarded_at),
+                                        MAX(c.converted_at)
+                                    ) AS confirmed_at
                              FROM {$wpdb->prefix}epc_members m
                              LEFT JOIN {$wpdb->prefix}epc_referrals r
                                ON r.referred_member_id = m.id
                               AND r.referrer_member_id = %d
-                             WHERE (m.referred_by = %d OR r.id IS NOT NULL)
+                             LEFT JOIN {$wpdb->prefix}epc_referral_clicks c
+                               ON c.referrer_member_id = %d
+                              AND (
+                                  c.converted_member_id = m.id
+                                  OR LOWER(c.referred_email) = LOWER(m.email)
+                              )
+                             WHERE (m.referred_by = %d OR r.id IS NOT NULL OR c.id IS NOT NULL)
                                AND m.id <> %d
+                             GROUP BY m.id, m.user_id, m.first_name, m.last_name, m.email
                              ORDER BY m.first_name ASC, m.last_name ASC, m.email ASC",
+                            (int) $member['id'],
                             (int) $member['id'],
                             (int) $member['id'],
                             (int) $member['id']
@@ -348,10 +362,28 @@ class EPC_User_Profile {
                                             if ( '' === $ref_name ) {
                                                 $ref_name = __( 'Χωρίς όνομα', 'epappous-club' );
                                             }
+                                            $first_clicked_at = ! empty( $referred->first_clicked_at )
+                                                ? date_i18n( 'd/m/Y H:i', strtotime( $referred->first_clicked_at ) )
+                                                : '';
+                                            $confirmed_at = ! empty( $referred->confirmed_at )
+                                                ? date_i18n( 'd/m/Y H:i', strtotime( $referred->confirmed_at ) )
+                                                : '';
                                             ?>
                                             <div class="epc-referral-person">
-                                                <strong><?php echo esc_html( $ref_name ); ?></strong>
-                                                <span><?php echo esc_html( $referred->email ?? '' ); ?></span>
+                                                <div class="epc-referral-person-main">
+                                                    <strong><?php echo esc_html( $ref_name ); ?></strong>
+                                                    <span><?php echo esc_html( $referred->email ?? '' ); ?></span>
+                                                </div>
+                                                <div class="epc-referral-person-dates">
+                                                    <span>
+                                                        <?php esc_html_e( 'Πρώτη είσοδος:', 'epappous-club' ); ?>
+                                                        <strong><?php echo $first_clicked_at ? esc_html( $first_clicked_at ) : esc_html__( 'Δεν έχει καταγραφεί', 'epappous-club' ); ?></strong>
+                                                    </span>
+                                                    <span>
+                                                        <?php esc_html_e( 'Επιβεβαιώθηκε:', 'epappous-club' ); ?>
+                                                        <strong><?php echo $confirmed_at ? esc_html( $confirmed_at ) : esc_html__( 'Δεν έχει επιβεβαιωθεί', 'epappous-club' ); ?></strong>
+                                                    </span>
+                                                </div>
                                             </div>
                                         <?php endforeach; ?>
                                     </div>
