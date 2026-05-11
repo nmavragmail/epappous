@@ -276,6 +276,25 @@
         $('#epc-debug-modal').hide();
     });
 
+    /* ─── Profile referrals modal ─── */
+
+    $(document).on('click', '.epc-referrals-open', function () {
+        var target = $(this).data('target');
+        if (target) {
+            $(target).show();
+        }
+    });
+
+    $(document).on('click', '.epc-referrals-modal .epc-modal-close, .epc-referrals-modal .epc-modal-overlay', function () {
+        $(this).closest('.epc-referrals-modal').hide();
+    });
+
+    $(document).on('keydown', function (e) {
+        if (e.key === 'Escape') {
+            $('.epc-referrals-modal:visible').hide();
+        }
+    });
+
     /* ─── Redemption history toggle (User Profile) ─── */
 
     $(document).on('click', '.epc-redeem-history-toggle', function () {
@@ -837,6 +856,15 @@
                 var $firstChild = $form.children().first();
                 $boxes.detach().insertBefore($firstChild);
             }
+        }
+
+        if ($('.epc-profile-box').length) {
+            window.onbeforeunload = null;
+            $(window).off('beforeunload');
+            setTimeout(function () {
+                window.onbeforeunload = null;
+                $(window).off('beforeunload');
+            }, 0);
         }
     });
 

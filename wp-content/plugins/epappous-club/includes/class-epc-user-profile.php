@@ -110,12 +110,35 @@ class EPC_User_Profile {
 
                 <?php if ( $is_member ) : ?>
                     <?php
-                    $referral_count = (int) $wpdb->get_var(
+                    $referred_members = $wpdb->get_results(
                         $wpdb->prepare(
-                            "SELECT COUNT(*) FROM {$wpdb->prefix}epc_referrals WHERE referrer_member_id = %d AND status = 'completed'",
+                            "SELECT DISTINCT m.id, m.user_id, m.first_name, m.last_name, m.email
+                             FROM {$wpdb->prefix}epc_members m
+                             LEFT JOIN {$wpdb->prefix}epc_referrals r
+                               ON r.referred_member_id = m.id
+                              AND r.referrer_member_id = %d
+                             WHERE (m.referred_by = %d OR r.id IS NOT NULL)
+                               AND m.id <> %d
+                             ORDER BY m.first_name ASC, m.last_name ASC, m.email ASC",
+                            (int) $member['id'],
+                            (int) $member['id'],
                             (int) $member['id']
                         )
-                    );
+                    ) ?: [];
+                    $referral_count = count( $referred_members );
+                    $referrer_member = null;
+                    if ( ! empty( $member['referred_by'] ) ) {
+                        $referrer_member = $wpdb->get_row(
+                            $wpdb->prepare(
+                                "SELECT id, user_id, first_name, last_name, email
+                                 FROM {$wpdb->prefix}epc_members
+                                 WHERE id = %d
+                                 LIMIT 1",
+                                (int) $member['referred_by']
+                            ),
+                            ARRAY_A
+                        );
+                    }
                     $is_active = $member['status'] === 'active';
 
                     $checkout_total = $wpdb->get_row(
@@ -259,7 +282,7 @@ class EPC_User_Profile {
 
                     <!-- Adjust points row -->
                     <div class="epc-pf-row epc-pf-row--top">
-                        <span class="epc-pf-label"><?php esc_html_e( 'Προσαρμογή', 'epappous-club' ); ?></span>
+                        <span class="epc-pf-label"><?php esc_html_e( 'Προσαρμογή πόντων', 'epappous-club' ); ?></span>
                         <div class="epc-pf-value epc-pf-value--col">
                             <div class="epc-points-adjust-row">
                                 <select class="epc-points-adjust-type">
@@ -297,10 +320,60 @@ class EPC_User_Profile {
                         <span class="epc-pf-label"><?php esc_html_e( 'Referrals', 'epappous-club' ); ?></span>
                         <div class="epc-pf-value">
                             <strong><?php echo (int) $referral_count; ?></strong>
-                            <span class="epc-pf-sub"><?php esc_html_e( 'φίλοι', 'epappous-club' ); ?></span>
+                            <?php if ( $referral_count > 0 ) : ?>
+                                <button type="button"
+                                        class="button-link epc-referrals-open"
+                                        data-target="#epc-referrals-modal-<?php echo (int) $member['id']; ?>">
+                                    <?php esc_html_e( 'φίλοι', 'epappous-club' ); ?>
+                                </button>
+                            <?php else : ?>
+                                <span class="epc-pf-sub"><?php esc_html_e( 'φίλοι', 'epappous-club' ); ?></span>
+                            <?php endif; ?>
                             <code class="epc-pf-code"><?php echo esc_html( $member['referral_code'] ); ?></code>
                         </div>
                     </div>
+
+                    <?php if ( $referral_count > 0 ) : ?>
+                        <div id="epc-referrals-modal-<?php echo (int) $member['id']; ?>" class="epc-modal epc-referrals-modal" style="display:none;">
+                            <div class="epc-modal-overlay"></div>
+                            <div class="epc-modal-content epc-referrals-modal-content" role="dialog" aria-modal="true" aria-labelledby="epc-referrals-modal-title-<?php echo (int) $member['id']; ?>">
+                                <div class="epc-modal-header">
+                                    <h2 id="epc-referrals-modal-title-<?php echo (int) $member['id']; ?>"><?php esc_html_e( 'Φίλοι από referral', 'epappous-club' ); ?></h2>
+                                    <button type="button" class="epc-modal-close" aria-label="<?php esc_attr_e( 'Κλείσιμο', 'epappous-club' ); ?>">&times;</button>
+                                </div>
+                                <div class="epc-modal-body">
+                                    <div class="epc-referrals-list">
+                                        <?php foreach ( $referred_members as $referred ) :
+                                            $ref_name = trim( (string) ( $referred->first_name ?? '' ) . ' ' . (string) ( $referred->last_name ?? '' ) );
+                                            if ( '' === $ref_name ) {
+                                                $ref_name = __( 'Χωρίς όνομα', 'epappous-club' );
+                                            }
+                                            ?>
+                                            <div class="epc-referral-person">
+                                                <strong><?php echo esc_html( $ref_name ); ?></strong>
+                                                <span><?php echo esc_html( $referred->email ?? '' ); ?></span>
+                                            </div>
+                                        <?php endforeach; ?>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    <?php endif; ?>
+
+                    <?php if ( $referrer_member ) :
+                        $referrer_name = trim( (string) ( $referrer_member['first_name'] ?? '' ) . ' ' . (string) ( $referrer_member['last_name'] ?? '' ) );
+                        if ( '' === $referrer_name ) {
+                            $referrer_name = __( 'Χωρίς όνομα', 'epappous-club' );
+                        }
+                        ?>
+                        <div class="epc-pf-row">
+                            <span class="epc-pf-label"><?php esc_html_e( 'Σύσταση από', 'epappous-club' ); ?></span>
+                            <div class="epc-pf-value epc-referral-source">
+                                <strong><?php echo esc_html( $referrer_name ); ?></strong>
+                                <span><?php echo esc_html( $referrer_member['email'] ?? '' ); ?></span>
+                            </div>
+                        </div>
+                    <?php endif; ?>
 
                     <!-- Member since row -->
                     <div class="epc-pf-row">
