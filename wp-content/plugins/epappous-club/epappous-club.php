@@ -3,7 +3,7 @@
  * Plugin Name: ePappous Club
  * Plugin URI: https://epappous.gr
  * Description: Loyalty & membership club with referral tracking, gift products, and full settings management.
- * Version: 1.15.20
+ * Version: 1.15.21
  * Author: 2NET
  * Author URI: https://2net.gr
  * Text Domain: epappous-club
@@ -17,7 +17,7 @@ if ( ! defined( 'ABSPATH' ) ) {
     exit;
 }
 
-define( 'EPC_VERSION', '1.15.20' );
+define( 'EPC_VERSION', '1.15.21' );
 define( 'EPC_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'EPC_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
 define( 'EPC_PLUGIN_BASENAME', plugin_basename( __FILE__ ) );
@@ -76,6 +76,10 @@ function epc_init() {
 
     EPC_Database::maybe_upgrade();
 
+    add_shortcode( 'epappous_points', 'epc_shortcode_current_user_points' );
+    add_shortcode( 'epc_points', 'epc_shortcode_current_user_points' );
+    add_shortcode( '2net_loyalty_points', 'epc_shortcode_current_user_points' );
+
     EPC_Referral_Clicks_Cleanup::schedule();
 
     EPC_Settings::instance();
@@ -93,4 +97,80 @@ function epc_init() {
 
     EPC_Admin_Screen_Options::boot();
     EPC_Admin::instance();
+}
+
+/**
+ * Return the current logged-in user's club points.
+ *
+ * Points are stored in the existing ePappous Club members table, not in a
+ * separate plugin. The lookup prefers user_id and falls back to user email.
+ */
+function epc_get_current_user_points( int $user_id = 0 ): int {
+    if ( $user_id < 1 ) {
+        $user_id = get_current_user_id();
+    }
+
+    if ( $user_id < 1 ) {
+        return 0;
+    }
+
+    $user = get_userdata( $user_id );
+    if ( ! $user ) {
+        return 0;
+    }
+
+    global $wpdb;
+
+    $points = $wpdb->get_var(
+        $wpdb->prepare(
+            "SELECT points
+             FROM {$wpdb->prefix}epc_members
+             WHERE status = 'active'
+               AND ( user_id = %d OR email = %s )
+             ORDER BY CASE WHEN user_id = %d THEN 0 ELSE 1 END
+             LIMIT 1",
+            $user_id,
+            $user->user_email,
+            $user_id
+        )
+    );
+
+    return max( 0, (int) $points );
+}
+
+/**
+ * Shortcode: current user's ePappous Club points.
+ *
+ * Primary usage:
+ *   [epappous_points]
+ *
+ * Aliases:
+ *   [epc_points]
+ *   [2net_loyalty_points]
+ *
+ * Attributes:
+ *   guest="0"  Output for logged-out visitors. Default: 0.
+ *   raw="1"    Return an unformatted integer.
+ */
+function epc_shortcode_current_user_points( $atts ): string {
+    $atts = shortcode_atts(
+        [
+            'guest' => '0',
+            'raw'   => '0',
+        ],
+        $atts,
+        'epappous_points'
+    );
+
+    if ( ! is_user_logged_in() ) {
+        return esc_html( (string) $atts['guest'] );
+    }
+
+    $points = epc_get_current_user_points();
+
+    if ( '1' === (string) $atts['raw'] || 'true' === strtolower( (string) $atts['raw'] ) ) {
+        return esc_html( (string) $points );
+    }
+
+    return esc_html( number_format_i18n( $points ) );
 }
