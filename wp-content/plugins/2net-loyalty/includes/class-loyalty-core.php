@@ -22,6 +22,41 @@ class TwoNet_Loyalty_Core {
     private function __construct() {
         add_action( 'wp_enqueue_scripts', [ $this, 'enqueue_frontend_assets' ] );
         add_action( 'admin_init', [ $this, 'maybe_upgrade_db' ] );
+        add_shortcode( '2net_loyalty_points', [ $this, 'shortcode_user_points' ] );
+    }
+
+    /**
+     * Shortcode: current user's loyalty balance.
+     *
+     * Usage: [2net_loyalty_points]
+     *        [2net_loyalty_points guest="0"]   — output when logged out (default: empty string)
+     *        [2net_loyalty_points raw="1"]     — unformatted integer
+     */
+    public function shortcode_user_points( $atts ) {
+        if ( ! self::is_enabled() ) {
+            return '';
+        }
+
+        $atts = shortcode_atts(
+            [
+                'guest' => '',  // Value to show when not logged in (e.g. guest="0").
+                'raw'   => '0', // Set to 1 for plain integer, no thousands separator.
+            ],
+            $atts,
+            '2net_loyalty_points'
+        );
+
+        if ( ! is_user_logged_in() ) {
+            return esc_html( $atts['guest'] );
+        }
+
+        $balance = TwoNet_Points_Manager::get_balance( get_current_user_id() );
+
+        if ( '1' === $atts['raw'] || 'true' === strtolower( $atts['raw'] ) ) {
+            return esc_html( (string) (int) $balance );
+        }
+
+        return esc_html( number_format_i18n( $balance ) );
     }
 
     /* ------------------------------------------------------------------
