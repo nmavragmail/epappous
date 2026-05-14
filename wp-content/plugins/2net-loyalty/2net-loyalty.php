@@ -3,7 +3,7 @@
  * Plugin Name: 2NET Loyalty
  * Plugin URI:  https://2net.gr
  * Description: WooCommerce loyalty points system — earn points on purchases, redeem for discounts, gifts & coupons, referral rewards, birthday bonus, and more.
- * Version:     1.0.0
+ * Version:     1.1.0
  * Author:      2NET
  * Author URI:  https://2net.gr
  * License:     GPLv2 or later
@@ -17,7 +17,7 @@
 
 defined( 'ABSPATH' ) || exit;
 
-define( 'TWONET_LOYALTY_VERSION', '1.0.0' );
+define( 'TWONET_LOYALTY_VERSION', '1.1.0' );
 define( 'TWONET_LOYALTY_FILE', __FILE__ );
 define( 'TWONET_LOYALTY_PATH', plugin_dir_path( __FILE__ ) );
 define( 'TWONET_LOYALTY_URL', plugin_dir_url( __FILE__ ) );
